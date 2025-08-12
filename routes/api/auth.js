@@ -1,23 +1,17 @@
 import express from 'express';
 import passport from 'passport';
-import { register, login, refresh, forgotPassword, resetPassword } from '../../controllers/authController.js';
+import { register, login, refresh, forgotPassword, resetPassword } from '../../controllers/auth.js';
 import { registerValidator, loginValidator } from '../../validators/authValidators.js';
 import { createAccessToken, createRefreshToken } from '../../utils/token.js';
 
 const router = express.Router();
 
-// Registration and Login
 router.post('/register', registerValidator, register);
 router.post('/login', loginValidator, login);
-
-// Token refresh
 router.post('/refresh', refresh);
-
-// Password reset
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 
-// Google OAuth
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 router.get(
   '/google/callback',
@@ -29,7 +23,6 @@ router.get(
   }
 );
 
-// Apple OAuth
 router.get('/apple', passport.authenticate('apple'));
 router.post(
   '/apple/callback',

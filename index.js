@@ -5,7 +5,7 @@ import cookieParser from 'cookie-parser';
 import passport from 'passport';
 import './config/db.js';
 import './config/passport.js';
-import authRoutes from './routes/api/auth.js';
+import apiRoutes from './routes/index.js';
 import { notFoundHandler, globalErrorHandler } from './middlewares/errorHandler.js';
 
 dotenv.config();
@@ -20,7 +20,7 @@ app.use(cookieParser());
 app.use(passport.initialize());
 
 // Routes
-app.use('/api/auth', authRoutes);
+app.use('/api', apiRoutes);
 app.get('/', (_req, res) => {
   res.json({ ok: true, service: 'Baroni API', timestamp: new Date().toISOString() });
 });
