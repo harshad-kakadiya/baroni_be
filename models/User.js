@@ -8,8 +8,11 @@ const userSchema = new mongoose.Schema(
     name: { type: String, trim: true },
     pseudo: { type: String, trim: true, unique: true, sparse: true },
     profilePic: { type: String },
-    preferredLanguage: { type: String, enum: ['en', 'fr', 'es', 'de', 'it', 'pt', 'ar', 'zh', 'ja', 'ko'], default: 'en' },
+    preferredLanguage: { type: String },
     country: { type: String },
+    isContactVerified: { type: Boolean, default: false },
+    otpCode: { type: String },
+    otpExpires: { type: Date },
     providers: {
       google: {
         id: { type: String, index: true },
@@ -24,7 +27,6 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Unique indexes are defined on fields above with `unique: true` and `sparse: true` to allow nulls
 
 const User = mongoose.model('User', userSchema);
 export default User;
