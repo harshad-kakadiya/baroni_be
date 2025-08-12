@@ -1,7 +1,6 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
-import ApplePkg from 'passport-apple';
-const { Strategy: AppleStrategy } = ApplePkg;
+import AppleStrategy from 'passport-apple';
 import dotenv from 'dotenv';
 import User from '../models/User.js';
 import { upsertOAuthUser } from '../services/oauthService.js';
