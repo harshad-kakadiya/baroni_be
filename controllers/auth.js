@@ -2,6 +2,9 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import {validationResult} from 'express-validator';
 import User from '../models/User.js';
+import Category from '../models/Category.js';
+import Dedication from '../models/Dedication.js';
+import Service from '../models/Service.js';
 import {createAccessToken, createRefreshToken, verifyRefreshToken} from '../utils/token.js';
 import {sendResetEmail} from '../services/emailService.js';
 import {sendOtpSms} from '../services/smsService.js';
@@ -16,6 +19,10 @@ const sanitizeUser = (user) => ({
   profilePic: user.profilePic,
   preferredLanguage: user.preferredLanguage,
   country: user.country,
+  about: user.about,
+  location: user.location,
+  profession: user.profession,
+  userType: user.userType,
 });
 
 export const register = async (req, res) => {
@@ -109,7 +116,7 @@ export const completeProfile = async (req, res) => {
     const user = req.user;
     if (!user?._id) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
-    const { name, pseudo, preferredLanguage, country, email, contact } = req.body;
+    const { name, pseudo, preferredLanguage, country, email, contact, about, location, profession, dedications, services } = req.body;
 
     if (!user.isContactVerified) return res.status(403).json({ success: false, message: 'Contact not verified' });
 
@@ -124,9 +131,46 @@ export const completeProfile = async (req, res) => {
     if (pseudo) user.pseudo = pseudo;
     if (preferredLanguage) user.preferredLanguage = preferredLanguage;
     if (country) user.country = country;
+    if (about) user.about = about;
+    if (location) user.location = location;
+    if (profession) {
+      // Validate that profession category exists
+      const professionExists = await Category.exists({ _id: profession });
+      if (!professionExists) {
+        return res.status(404).json({ success: false, message: 'Profession category not found' });
+      }
+      user.profession = profession;
+    }
 
     if (req.file && req.file.buffer) {
       user.profilePic = await uploadFile(req.file.buffer);
+    }
+
+    // Allow non-fan users to optionally initialize dedications and services in complete profile
+    if (user.userType !== 'fan') {
+      try {
+        if (Array.isArray(dedications)) {
+          // each item: { type, price }
+          const payload = dedications
+            .filter((d) => d && typeof d.type === 'string' && d.type.trim())
+            .map((d) => ({ type: d.type.trim(), price: Number(d.price) || 0, userId: user._id }));
+          if (payload.length) {
+            await Dedication.deleteMany({ userId: user._id });
+            await Dedication.insertMany(payload);
+          }
+        }
+        if (Array.isArray(services)) {
+          const payload = services
+            .filter((s) => s && typeof s.type === 'string' && s.type.trim())
+            .map((s) => ({ type: s.type.trim(), price: Number(s.price) || 0, userId: user._id }));
+          if (payload.length) {
+            await Service.deleteMany({ userId: user._id });
+            await Service.insertMany(payload);
+          }
+        }
+      } catch (e) {
+        return res.status(400).json({ success: false, message: 'Invalid dedications/services payload' });
+      }
     }
 
     const updated = await user.save();

@@ -21,10 +21,13 @@ export const completeProfileValidator = [
   body('name').optional().isString().trim(),
   body('pseudo').optional().isString().trim(),
   body('profilePic').optional().isURL(),
-  body('preferredLanguage').optional().isString().isLength({ min: 2, max: 5 }),
+  body('preferredLanguage').optional().isString(),
   body('country').optional().isString().isLength({ min: 2, max: 56 }),
   body('email').optional().isEmail().normalizeEmail(),
   body('contact').optional().isString().trim(),
+  body('about').optional().isString().trim(),
+  body('location').optional().isString().trim(),
+  body('profession').optional().isMongoId(),
 ];
 
 

@@ -21,4 +21,19 @@ export const requireAuth = async (req, res, next) => {
   }
 };
 
+export const requireRole = (...allowed) => {
+  return (req, res, next) => {
+    try {
+      const user = req.user;
+      if (!user) return res.status(401).json({ success: false, message: 'Unauthorized' });
+      if (!allowed.includes(user.userType)) {
+        return res.status(403).json({ success: false, message: 'Forbidden' });
+      }
+      return next();
+    } catch (_e) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+  };
+};
+
 
