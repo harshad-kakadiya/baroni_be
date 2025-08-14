@@ -1,7 +1,7 @@
 import express from 'express';
 import passport from 'passport';
-import { register, login, refresh, forgotPassword, resetPassword, completeProfile, me } from '../../controllers/auth.js';
-import { registerValidator, loginValidator, completeProfileValidator } from '../../validators/authValidators.js';
+import { register, login, refresh, forgotPassword, resetPassword, completeProfile, me, checkUser } from '../../controllers/auth.js';
+import { registerValidator, loginValidator, completeProfileValidator, checkUserValidator } from '../../validators/authValidators.js';
 import { requireAuth } from '../../middlewares/auth.js';
 import { uploadMixed } from '../../middlewares/upload.js';
 import { createAccessToken, createRefreshToken } from '../../utils/token.js';
@@ -11,6 +11,7 @@ const router = express.Router();
 router.post('/register', registerValidator, register);
 router.post('/login', loginValidator, login);
 router.post('/refresh', refresh);
+router.post('/check-user', checkUserValidator, checkUser);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 // OTP verification removed

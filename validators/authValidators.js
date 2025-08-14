@@ -26,6 +26,19 @@ export const loginValidator = [
 
 // OTP validator removed
 
+export const checkUserValidator = [
+  body().custom((_, { req }) => {
+    const email = typeof req.body.email === 'string' ? req.body.email.trim() : '';
+    const contact = typeof req.body.contact === 'string' ? req.body.contact.trim() : '';
+    if (!email && !contact) {
+      throw new Error('Either email or contact is required');
+    }
+    return true;
+  }),
+  body('email').optional({ checkFalsy: true }).isEmail().normalizeEmail(),
+  body('contact').optional({ checkFalsy: true }).isString().trim(),
+];
+
 export const completeProfileValidator = [
   body('name').optional().isString().trim(),
   body('pseudo').optional().isString().trim(),

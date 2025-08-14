@@ -234,6 +234,25 @@ export const refresh = async (req, res) => {
   }
 };
 
+export const checkUser = async (req, res) => {
+  try {
+    const emailRaw = typeof req.body.email === 'string' ? req.body.email : '';
+    const contactRaw = typeof req.body.contact === 'string' ? req.body.contact : '';
+    const email = emailRaw.trim();
+    const contact = contactRaw.trim();
+
+    if (!email && !contact) {
+      return res.status(400).json({ success: false, message: 'Either email or contact is required' });
+    }
+
+    const query = email ? { email: email.toLowerCase() } : { contact };
+    const exists = await User.exists(query);
+    return res.json({ success: true, exists: !!exists });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 export const forgotPassword = async (req, res) => {
   try {
     const { contact, newPassword } = req.body;
