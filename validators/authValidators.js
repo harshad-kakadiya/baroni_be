@@ -1,21 +1,30 @@
 import { body } from 'express-validator';
 
 export const registerValidator = [
-  body('contact').isString().trim().notEmpty().withMessage('Contact is required'),
+  // Ensure at least one identifier is provided
+  body().custom((_, { req }) => {
+    const email = typeof req.body.email === 'string' ? req.body.email.trim() : '';
+    const contact = typeof req.body.contact === 'string' ? req.body.contact.trim() : '';
+    if (!email && !contact) {
+      throw new Error('Either a valid email or contact is required');
+    }
+    return true;
+  }),
   body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
-  body('email').optional().isEmail().withMessage('Valid email is required').normalizeEmail(),
+  body('email').optional({ checkFalsy: true }).isEmail().normalizeEmail(),
+  body('contact').optional({ checkFalsy: true }).isString().trim(),
+  body('isMobile').optional().isBoolean(),
 ];
 
 
 export const loginValidator = [
-  body('contact').isString().notEmpty(),
   body('password').isString().notEmpty(),
+  body('isMobile').optional().isBoolean(),
+  body('contact').optional().isString(),
+  body('email').optional().isEmail().normalizeEmail(),
 ];
 
-export const verifyOtpValidator = [
-  body('userId').isString().notEmpty(),
-  body('otp').isString().isLength({ min: 4, max: 8 }),
-];
+// OTP validator removed
 
 export const completeProfileValidator = [
   body('name').optional().isString().trim(),
