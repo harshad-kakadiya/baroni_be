@@ -5,10 +5,12 @@ import User from '../models/User.js';
 import Category from '../models/Category.js';
 import Dedication from '../models/Dedication.js';
 import Service from '../models/Service.js';
+import DedicationSample from '../models/DedicationSample.js';
 import {createAccessToken, createRefreshToken, verifyRefreshToken} from '../utils/token.js';
 import {sendResetEmail} from '../services/emailService.js';
 import {sendOtpSms} from '../services/smsService.js';
 import {uploadFile} from '../utils/uploadFile.js';
+import {uploadVideo} from '../utils/uploadFile.js';
 
 const sanitizeUser = (user) => ({
   id: user._id,
@@ -117,7 +119,7 @@ export const completeProfile = async (req, res) => {
     if (!user?._id) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
     const { name, pseudo, preferredLanguage, country, email, contact, about, location, profession, profilePic } = req.body;
-    let { dedications, services } = req.body;
+    let { dedications, services, dedicationSamples } = req.body;
 
     if (!user.isContactVerified) return res.status(403).json({ success: false, message: 'Contact not verified' });
 
@@ -164,6 +166,13 @@ export const completeProfile = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Invalid JSON for services' });
       }
     }
+    if (typeof dedicationSamples === 'string') {
+      try {
+        dedicationSamples = JSON.parse(dedicationSamples);
+      } catch (_e) {
+        return res.status(400).json({ success: false, message: 'Invalid JSON for dedicationSamples' });
+      }
+    }
 
     // Allow non-fan users to optionally initialize dedications and services in complete profile
     if (user.userType !== 'fan') {
@@ -186,13 +195,51 @@ export const completeProfile = async (req, res) => {
             await Service.insertMany(payload);
           }
         }
+        if (Array.isArray(dedicationSamples)) {
+          const uploaded = [];
+          // Map provided files by index via fields dedicationSampleVideo[0], dedicationSampleVideo[1], ...
+          const sampleFiles = Array.isArray(req.files) ? req.files : [];
+          for (let i = 0; i < dedicationSamples.length; i += 1) {
+            const x = dedicationSamples[i];
+            if (!x || typeof x.type !== 'string' || !x.type.trim()) continue;
+            let videoUrl = typeof x.video === 'string' && x.video.trim() ? x.video.trim() : '';
+            if (!videoUrl) {
+              const fieldName = `dedicationSampleVideo[${i}]`;
+              const fileAtSameIndex = sampleFiles.find((f) => f.fieldname === fieldName);
+              if (fileAtSameIndex && fileAtSameIndex.buffer) videoUrl = await uploadVideo(fileAtSameIndex.buffer);
+            }
+            if (videoUrl) {
+              uploaded.push({ type: x.type.trim(), video: videoUrl, userId: user._id });
+            }
+          }
+          if (uploaded.length) {
+            await DedicationSample.deleteMany({ userId: user._id });
+            await DedicationSample.insertMany(uploaded);
+          }
+        }
       } catch (e) {
         return res.status(400).json({ success: false, message: 'Invalid dedications/services payload' });
       }
     }
 
     const updated = await user.save();
-    return res.json({ success: true, message: 'Profile updated', data: sanitizeUser(updated) });
+    const updatedUser = await User.findById(updated._id).populate('profession');
+
+    let extra = {};
+    if (updatedUser.userType === 'star' || updatedUser.userType === 'admin') {
+      const [dedicationsRes, servicesRes, samplesRes] = await Promise.all([
+        Dedication.find({ userId: updatedUser._id }).sort({ createdAt: -1 }),
+        Service.find({ userId: updatedUser._id }).sort({ createdAt: -1 }),
+        DedicationSample.find({ userId: updatedUser._id }).sort({ createdAt: -1 }),
+      ]);
+      extra = {
+        dedications: dedicationsRes.map((d) => ({ id: d._id, type: d.type, price: d.price, userId: d.userId, createdAt: d.createdAt, updatedAt: d.updatedAt })),
+        services: servicesRes.map((s) => ({ id: s._id, type: s.type, price: s.price, userId: s.userId, createdAt: s.createdAt, updatedAt: s.updatedAt })),
+        dedicationSamples: samplesRes.map((x) => ({ id: x._id, type: x.type, video: x.video, userId: x.userId, createdAt: x.createdAt, updatedAt: x.updatedAt })),
+      };
+    }
+
+    return res.json({ success: true, message: 'Profile updated', data: { ...sanitizeUser(updatedUser), ...extra } });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -272,13 +319,15 @@ export const me = async (req, res) => {
     }
     let extra = {};
     if (user.userType === 'star' || user.userType === 'admin') {
-      const [dedications, services] = await Promise.all([
+      const [dedications, services, dedicationSamples] = await Promise.all([
         Dedication.find({ userId: user._id }).sort({ createdAt: -1 }),
         Service.find({ userId: user._id }).sort({ createdAt: -1 }),
+        DedicationSample.find({ userId: user._id }).sort({ createdAt: -1 }),
       ]);
       extra = {
         dedications: dedications.map((d) => ({ id: d._id, type: d.type, price: d.price, userId: d.userId, createdAt: d.createdAt, updatedAt: d.updatedAt })),
         services: services.map((s) => ({ id: s._id, type: s.type, price: s.price, userId: s.userId, createdAt: s.createdAt, updatedAt: s.updatedAt })),
+        dedicationSamples: dedicationSamples.map((x) => ({ id: x._id, type: x.type, video: x.video, userId: x.userId, createdAt: x.createdAt, updatedAt: x.updatedAt })),
       };
     }
     return res.json({ success: true, data: { ...sanitizeUser(user), ...extra } });

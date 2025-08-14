@@ -36,3 +36,32 @@ export const uploadFile = async (fileBuffer) => {
         throw new Error("Error uploading file..");
     }
 };
+
+export const uploadVideo = async (fileBuffer) => {
+    try {
+        const fileSize = fileBuffer.length;
+        const maxFileSize = 100 * 1024 * 1024; // 100MB
+
+        if (fileSize > maxFileSize) {
+            throw new Error("Video size exceeds the maximum allowed limit.");
+        }
+
+        return new Promise((resolve, reject) => {
+            const uploadOptions = {
+                folder: "baroni/videos",
+                resource_type: "video",
+            };
+
+            cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
+                if (error) {
+                    reject(error.message);
+                } else {
+                    resolve(result.secure_url);
+                }
+            }).end(fileBuffer);
+        });
+    } catch (error) {
+        console.error(error.message);
+        throw new Error("Error uploading video..");
+    }
+};
