@@ -5,8 +5,6 @@ dotenv.config();
 
 const mongoUri = process.env.MONGO_URI;
 
-mongoose.set('strictQuery', true);
-
 export const connectDb = async () => {
   try {
     if (!mongoUri) {
