@@ -13,10 +13,7 @@ const userSchema = new mongoose.Schema(
     about: { type: String, trim: true},
     location: { type: String, trim: true },
     profession: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
-    userType: { type: String, enum: ['fan', 'star', 'admin'], default: 'fan' },
-    isContactVerified: { type: Boolean, default: false },
-    otpCode: { type: String },
-    otpExpires: { type: Date },
+    role: { type: String, enum: ['fan', 'star', 'admin'], default: 'fan' },
     providers: {
       google: {
         id: { type: String, index: true },
