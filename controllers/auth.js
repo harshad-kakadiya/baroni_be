@@ -1,5 +1,4 @@
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
 import {validationResult} from 'express-validator';
 import User from '../models/User.js';
 import Category from '../models/Category.js';
@@ -7,8 +6,6 @@ import Dedication from '../models/Dedication.js';
 import Service from '../models/Service.js';
 import DedicationSample from '../models/DedicationSample.js';
 import {createAccessToken, createRefreshToken, verifyRefreshToken} from '../utils/token.js';
-import {sendResetEmail} from '../services/emailService.js';
-import {sendOtpSms} from '../services/smsService.js';
 import {uploadFile} from '../utils/uploadFile.js';
 import {uploadVideo} from '../utils/uploadFile.js';
 
@@ -24,7 +21,7 @@ const sanitizeUser = (user) => ({
   about: user.about,
   location: user.location,
   profession: user.profession,
-  userType: user.userType,
+  role: user.role,
 });
 
 export const register = async (req, res) => {
@@ -36,7 +33,11 @@ export const register = async (req, res) => {
 
     const { contact, email, password } = req.body;
 
-    const existing = await User.findOne({ $or: [{ email }, { contact }] });
+    const normalizedEmail = email ? email.toLowerCase() : undefined;
+    const orQueries = [];
+    if (normalizedEmail) orQueries.push({ email: normalizedEmail });
+    if (contact) orQueries.push({ contact });
+    const existing = orQueries.length ? await User.findOne({ $or: orQueries }) : null;
     if (existing) {
       return res.status(409).json({ success: false, message: 'Email or contact already in use' });
     }
@@ -44,13 +45,11 @@ export const register = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashed = await bcrypt.hash(password, salt);
 
-    const otp = '1234';
-    const expires = new Date(Date.now() + 100000 * 60 * 1000);
-
-    const user = await User.create({ contact, email, password: hashed, otpCode: otp, otpExpires: expires });
-    await sendOtpSms(contact, otp);
-
-    return res.status(201).json({ success: true, message: 'Registered. OTP sent to contact for verification', data: { id: user._id } });
+    const user = await User.create({ contact, email: normalizedEmail, password: hashed });
+    // Auto-login
+    const accessToken = createAccessToken({ userId: user._id });
+    const refreshToken = createRefreshToken({ userId: user._id });
+    return res.status(201).json({ success: true, message: 'Registered successfully', data: sanitizeUser(user), tokens: { accessToken, refreshToken } });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -63,8 +62,15 @@ export const login = async (req, res) => {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { contact, password } = req.body;
-    const user = await User.findOne({ contact });
+    const { contact, email, password, isMobile } = req.body;
+    let user;
+    if (isMobile) {
+      if (!contact) return res.status(400).json({ success: false, message: 'Contact is required for mobile login' });
+      user = await User.findOne({ contact });
+    } else {
+      if (!email) return res.status(400).json({ success: false, message: 'Email is required for email login' });
+      user = await User.findOne({ email: email.toLowerCase() });
+    }
     if (!user || !user.password) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
@@ -72,10 +78,6 @@ export const login = async (req, res) => {
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
-    }
-
-    if (!user.isContactVerified) {
-      return res.status(403).json({ success: false, message: 'Contact not verified' });
     }
 
     const accessToken = createAccessToken({ userId: user._id });
@@ -86,32 +88,6 @@ export const login = async (req, res) => {
   }
 };
 
-export const verifyOtp = async (req, res) => {
-  try {
-    const { userId, otp } = req.body;
-    if (!userId || !otp) {
-      return res.status(400).json({ success: false, message: 'userId and otp are required' });
-    }
-    const user = await User.findById(userId);
-
-    if (!user || !user.otpCode || !user.otpExpires) {
-      return res.status(400).json({ success: false, message: 'OTP not found' });
-    }
-    if (user.otpCode !== otp || user.otpExpires < new Date()) {
-      return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
-    }
-    user.isContactVerified = true;
-    user.otpCode = undefined;
-    user.otpExpires = undefined;
-    await user.save();
-
-    const accessToken = createAccessToken({ userId: user._id });
-    const refreshToken = createRefreshToken({ userId: user._id });
-    return res.json({ success: true, message: 'Contact verified', data: sanitizeUser(user), tokens: { accessToken, refreshToken } });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
-};
 
 export const completeProfile = async (req, res) => {
   try {
@@ -121,7 +97,6 @@ export const completeProfile = async (req, res) => {
     const { name, pseudo, preferredLanguage, country, email, contact, about, location, profession, profilePic } = req.body;
     let { dedications, services, dedicationSamples } = req.body;
 
-    if (!user.isContactVerified) return res.status(403).json({ success: false, message: 'Contact not verified' });
 
     if (pseudo) {
       const exists = await User.exists({ _id: { $ne: user._id }, pseudo });
@@ -175,7 +150,7 @@ export const completeProfile = async (req, res) => {
     }
 
     // Allow non-fan users to optionally initialize dedications and services in complete profile
-    if (user.userType !== 'fan') {
+    if (user.role !== 'fan') {
       try {
         if (Array.isArray(dedications)) {
           const payload = dedications
@@ -226,7 +201,7 @@ export const completeProfile = async (req, res) => {
     const updatedUser = await User.findById(updated._id).populate('profession');
 
     let extra = {};
-    if (updatedUser.userType === 'star' || updatedUser.userType === 'admin') {
+    if (updatedUser.role === 'star' || updatedUser.role === 'admin') {
       const [dedicationsRes, servicesRes, samplesRes] = await Promise.all([
         Dedication.find({ userId: updatedUser._id }).sort({ createdAt: -1 }),
         Service.find({ userId: updatedUser._id }).sort({ createdAt: -1 }),
@@ -261,23 +236,20 @@ export const refresh = async (req, res) => {
 
 export const forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ success: false, message: 'Email is required' });
+    const { contact, newPassword } = req.body;
+    if (!contact || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Contact and newPassword are required' });
     }
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ contact });
     if (!user) {
-      // do not reveal existence
-      return res.json({ success: true, message: 'If that email exists, a reset link has been sent' });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
-    const token = crypto.randomBytes(32).toString('hex');
-    const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-    user.passwordResetToken = token;
-    user.passwordResetExpires = expires;
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
     await user.save();
-
-    await sendResetEmail(user.email, token);
-    return res.json({ success: true, message: 'If that email exists, a reset link has been sent' });
+    return res.json({ success: true, message: 'Password updated successfully' });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -318,7 +290,7 @@ export const me = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
     let extra = {};
-    if (user.userType === 'star' || user.userType === 'admin') {
+    if (user.role === 'star' || user.role === 'admin') {
       const [dedications, services, dedicationSamples] = await Promise.all([
         Dedication.find({ userId: user._id }).sort({ createdAt: -1 }),
         Service.find({ userId: user._id }).sort({ createdAt: -1 }),
