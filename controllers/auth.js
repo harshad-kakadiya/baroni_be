@@ -116,7 +116,8 @@ export const completeProfile = async (req, res) => {
     const user = req.user;
     if (!user?._id) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
-    const { name, pseudo, preferredLanguage, country, email, contact, about, location, profession, dedications, services } = req.body;
+    const { name, pseudo, preferredLanguage, country, email, contact, about, location, profession, profilePic } = req.body;
+    let { dedications, services } = req.body;
 
     if (!user.isContactVerified) return res.status(403).json({ success: false, message: 'Contact not verified' });
 
@@ -142,15 +143,32 @@ export const completeProfile = async (req, res) => {
       user.profession = profession;
     }
 
-    if (req.file && req.file.buffer) {
+    if (profilePic) {
+      user.profilePic = profilePic;
+    } else if (req.file && req.file.buffer) {
       user.profilePic = await uploadFile(req.file.buffer);
+    }
+
+    // Normalize dedications/services if provided as JSON strings
+    if (typeof dedications === 'string') {
+      try {
+        dedications = JSON.parse(dedications);
+      } catch (_e) {
+        return res.status(400).json({ success: false, message: 'Invalid JSON for dedications' });
+      }
+    }
+    if (typeof services === 'string') {
+      try {
+        services = JSON.parse(services);
+      } catch (_e) {
+        return res.status(400).json({ success: false, message: 'Invalid JSON for services' });
+      }
     }
 
     // Allow non-fan users to optionally initialize dedications and services in complete profile
     if (user.userType !== 'fan') {
       try {
         if (Array.isArray(dedications)) {
-          // each item: { type, price }
           const payload = dedications
             .filter((d) => d && typeof d.type === 'string' && d.type.trim())
             .map((d) => ({ type: d.type.trim(), price: Number(d.price) || 0, userId: user._id }));
@@ -252,7 +270,18 @@ export const me = async (req, res) => {
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-    return res.json({ success: true, data: sanitizeUser(user) });
+    let extra = {};
+    if (user.userType === 'star' || user.userType === 'admin') {
+      const [dedications, services] = await Promise.all([
+        Dedication.find({ userId: user._id }).sort({ createdAt: -1 }),
+        Service.find({ userId: user._id }).sort({ createdAt: -1 }),
+      ]);
+      extra = {
+        dedications: dedications.map((d) => ({ id: d._id, type: d.type, price: d.price, userId: d.userId, createdAt: d.createdAt, updatedAt: d.updatedAt })),
+        services: services.map((s) => ({ id: s._id, type: s.type, price: s.price, userId: s.userId, createdAt: s.createdAt, updatedAt: s.updatedAt })),
+      };
+    }
+    return res.json({ success: true, data: { ...sanitizeUser(user), ...extra } });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
