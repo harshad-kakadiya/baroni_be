@@ -243,3 +243,18 @@ export const resetPassword = async (req, res) => {
 };
 
 
+export const me = async (req, res) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    const user = await User.findById(req.user._id).populate('profession');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    return res.json({ success: true, data: sanitizeUser(user) });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+

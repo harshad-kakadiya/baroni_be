@@ -1,6 +1,6 @@
 import express from 'express';
 import passport from 'passport';
-import { register, login, refresh, forgotPassword, resetPassword, verifyOtp, completeProfile } from '../../controllers/auth.js';
+import { register, login, refresh, forgotPassword, resetPassword, verifyOtp, completeProfile, me } from '../../controllers/auth.js';
 import { registerValidator, loginValidator, verifyOtpValidator, completeProfileValidator } from '../../validators/authValidators.js';
 import { requireAuth } from '../../middlewares/auth.js';
 import { upload } from '../../middlewares/upload.js';
@@ -15,6 +15,7 @@ router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 router.post('/verify-otp', verifyOtpValidator, verifyOtp);
 router.post('/complete-profile', requireAuth, upload.single('profilePic'), completeProfileValidator, completeProfile);
+router.get('/me', requireAuth, me);
 
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 router.get(
