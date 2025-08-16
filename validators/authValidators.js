@@ -10,7 +10,7 @@ export const registerValidator = [
     }
     return true;
   }),
-  body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+  body('password').optional(),
   body('email').optional({ checkFalsy: true }).isEmail().normalizeEmail(),
   body('contact').optional({ checkFalsy: true }).isString().trim(),
   body('isMobile').optional().isBoolean(),

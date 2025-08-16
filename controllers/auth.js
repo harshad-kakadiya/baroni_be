@@ -33,23 +33,58 @@ export const register = async (req, res) => {
 
     const { contact, email, password } = req.body;
 
+    // Check if we have either contact or email
+    if (!contact && !email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Either contact number or email is required'
+      });
+    }
+
+    // If email is provided, password is required
+    if (contact && !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password is required when registering with contact'
+      });
+    }
+
     const normalizedEmail = email ? email.toLowerCase() : undefined;
     const orQueries = [];
     if (normalizedEmail) orQueries.push({ email: normalizedEmail });
     if (contact) orQueries.push({ contact });
+
     const existing = orQueries.length ? await User.findOne({ $or: orQueries }) : null;
     if (existing) {
-      return res.status(409).json({ success: false, message: 'Email or contact already in use' });
+      return res.status(409).json({
+        success: false,
+        message: 'Email or contact already in use'
+      });
     }
 
-    const salt = await bcrypt.genSalt(10);
-    const hashed = await bcrypt.hash(password, salt);
+    // Hash password only if provided, otherwise set to null
+    let hashedPassword = null;
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      hashedPassword = await bcrypt.hash(password, salt);
+    }
 
-    const user = await User.create({ contact, email: normalizedEmail, password: hashed });
+    const user = await User.create({
+      contact,
+      email: normalizedEmail,
+      password: hashedPassword
+    });
+
     // Auto-login
     const accessToken = createAccessToken({ userId: user._id });
     const refreshToken = createRefreshToken({ userId: user._id });
-    return res.status(201).json({ success: true, message: 'Registered successfully', data: sanitizeUser(user), tokens: { accessToken, refreshToken } });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Registered successfully',
+      data: sanitizeUser(user),
+      tokens: { accessToken, refreshToken }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -71,7 +106,12 @@ export const login = async (req, res) => {
       if (!email) return res.status(400).json({ success: false, message: 'Email is required for email login' });
       user = await User.findOne({ email: email.toLowerCase() });
     }
-    if (!user || !user.password) {
+
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'User not found' });
+    }
+
+    if (!user.password) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
