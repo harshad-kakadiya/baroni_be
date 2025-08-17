@@ -117,7 +117,7 @@ export const login = async (req, res) => {
       return res.status(401).json({ success: false, message: 'User not found' });
     }
 
-    if (!user.password) {
+    if (!user.password && user.contact) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
