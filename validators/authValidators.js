@@ -18,7 +18,7 @@ export const registerValidator = [
 
 
 export const loginValidator = [
-  body('password').isString().notEmpty(),
+  body('password').optional(),
   body('isMobile').optional().isBoolean(),
   body('contact').optional().isString(),
   body('email').optional().isEmail().normalizeEmail(),
