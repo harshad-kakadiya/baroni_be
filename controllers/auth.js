@@ -97,7 +97,7 @@ export const login = async (req, res) => {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { contact, email, password, isMobile } = req.body;
+    const { contact, email, isMobile } = req.body;
     let user;
     if (isMobile) {
       if (!contact) return res.status(400).json({ success: false, message: 'Contact is required for mobile login' });
@@ -115,10 +115,12 @@ export const login = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
-    const ok = await bcrypt.compare(password, user.password);
-    if (!ok) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
-    }
+   if(req.body.password) {
+     const ok = await bcrypt.compare(req.body.password, user.password);
+     if (!ok) {
+       return res.status(401).json({ success: false, message: 'Invalid credentials' });
+     }
+   }
 
     const accessToken = createAccessToken({ userId: user._id });
     const refreshToken = createRefreshToken({ userId: user._id });
