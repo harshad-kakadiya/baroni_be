@@ -101,6 +101,12 @@ export const login = async (req, res) => {
     let user;
     if (isMobile) {
       if (!contact) return res.status(400).json({ success: false, message: 'Contact is required for mobile login' });
+      if (contact && !req.body.password) {
+        return res.status(400).json({
+          success: false,
+          message: 'Password is required when login with contact'
+        });
+      }
       user = await User.findOne({ contact });
     } else {
       if (!email) return res.status(400).json({ success: false, message: 'Email is required for email login' });
