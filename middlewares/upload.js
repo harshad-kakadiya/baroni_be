@@ -25,7 +25,7 @@ export const uploadVideoOnly = multer({ storage, fileFilter: videoOnlyFilter, li
 const mixedFileFilter = (_req, file, cb) => {
   if (file.fieldname === 'profilePic') {
     if (file.mimetype.startsWith('image/')) return cb(null, true);
-    return cb(new Error('Only image uploads are allowed for profilePic'));
+    // return cb(new Error('Only image uploads are allowed for profilePic'));
   }
   const isSampleVideoIndexed = /^dedicationSampleVideo\[\d+\]$/.test(file.fieldname);
   if (isSampleVideoIndexed) {
