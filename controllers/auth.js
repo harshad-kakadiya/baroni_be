@@ -31,7 +31,7 @@ export const register = async (req, res) => {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { contact, email, password } = req.body;
+    const { contact, email, password,role } = req.body;
 
     // Check if we have either contact or email
     if (!contact && !email) {
@@ -72,7 +72,8 @@ export const register = async (req, res) => {
     const user = await User.create({
       contact,
       email: normalizedEmail,
-      password: hashedPassword
+      password: hashedPassword,
+      role
     });
 
     // Auto-login
@@ -236,11 +237,11 @@ export const completeProfile = async (req, res) => {
               if (fileAtSameIndex && fileAtSameIndex.buffer) videoUrl = await uploadVideo(fileAtSameIndex.buffer);
             }
             if (videoUrl) {
-              uploaded.push({ 
-                type: x.type.trim(), 
-                video: videoUrl, 
+              uploaded.push({
+                type: x.type.trim(),
+                video: videoUrl,
                 description: x.description ? x.description.trim() : undefined,
-                userId: user._id 
+                userId: user._id
               });
             }
           }
