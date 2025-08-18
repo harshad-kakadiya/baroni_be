@@ -236,7 +236,12 @@ export const completeProfile = async (req, res) => {
               if (fileAtSameIndex && fileAtSameIndex.buffer) videoUrl = await uploadVideo(fileAtSameIndex.buffer);
             }
             if (videoUrl) {
-              uploaded.push({ type: x.type.trim(), video: videoUrl, userId: user._id });
+              uploaded.push({ 
+                type: x.type.trim(), 
+                video: videoUrl, 
+                description: x.description ? x.description.trim() : undefined,
+                userId: user._id 
+              });
             }
           }
           if (uploaded.length) {
@@ -262,7 +267,7 @@ export const completeProfile = async (req, res) => {
       extra = {
         dedications: dedicationsRes.map((d) => ({ id: d._id, type: d.type, price: d.price, userId: d.userId, createdAt: d.createdAt, updatedAt: d.updatedAt })),
         services: servicesRes.map((s) => ({ id: s._id, type: s.type, price: s.price, userId: s.userId, createdAt: s.createdAt, updatedAt: s.updatedAt })),
-        dedicationSamples: samplesRes.map((x) => ({ id: x._id, type: x.type, video: x.video, userId: x.userId, createdAt: x.createdAt, updatedAt: x.updatedAt })),
+        dedicationSamples: samplesRes.map((x) => ({ id: x._id, type: x.type, video: x.video, description: x.description, userId: x.userId, createdAt: x.createdAt, updatedAt: x.updatedAt })),
       };
     }
 
@@ -370,7 +375,7 @@ export const me = async (req, res) => {
       extra = {
         dedications: dedications.map((d) => ({ id: d._id, type: d.type, price: d.price, userId: d.userId, createdAt: d.createdAt, updatedAt: d.updatedAt })),
         services: services.map((s) => ({ id: s._id, type: s.type, price: s.price, userId: s.userId, createdAt: s.createdAt, updatedAt: s.updatedAt })),
-        dedicationSamples: dedicationSamples.map((x) => ({ id: x._id, type: x.type, video: x.video, userId: x.userId, createdAt: x.createdAt, updatedAt: x.updatedAt })),
+        dedicationSamples: dedicationSamples.map((x) => ({ id: x._id, type: x.type, video: x.video, description: x.description, userId: x.userId, createdAt: x.createdAt, updatedAt: x.updatedAt })),
       };
     }
     return res.json({ success: true, data: { ...sanitizeUser(user), ...extra } });

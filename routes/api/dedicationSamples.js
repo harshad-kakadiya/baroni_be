@@ -11,6 +11,7 @@ router.use(requireAuth, requireRole('star', 'admin'));
 
 const sampleCreateValidator = [
   body('type').isString().trim().notEmpty(),
+  body('description').optional().isString().trim(),
   body('video').custom((val, { req }) => {
     const hasFile = !!(req.file && req.file.buffer);
     const hasUrl = typeof val === 'string' && val.trim().length > 0;
@@ -23,6 +24,7 @@ const sampleCreateValidator = [
 
 const sampleUpdateValidator = [
   body('type').optional().isString().trim().notEmpty(),
+  body('description').optional().isString().trim(),
   body('video').optional().custom((val, { req }) => {
     if (val === undefined && !(req.file && req.file.buffer)) return true;
     const hasFile = !!(req.file && req.file.buffer);
