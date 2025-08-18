@@ -167,11 +167,15 @@ export const completeProfile = async (req, res) => {
       }
       user.profession = profession;
     }
-    if (profilePic) {
+    // Handle profile picture update
+    if (req.files && req.files.length > 0) {
+      const profilePicFile = req.files.find(file => file.fieldname === 'profilePic');
+      if (profilePicFile && profilePicFile.buffer) {
+        user.profilePic = await uploadFile(profilePicFile.buffer);
+      }
+    } else if (profilePic && typeof profilePic === 'string') {
+      // If profilePic is provided as a URL string, use it directly
       user.profilePic = profilePic;
-    } else if (req.file && req.file.buffer) {
-      user.profilePic = await uploadFile(req.file.buffer);
-
     }
 
     // Normalize dedications/services if provided as JSON strings

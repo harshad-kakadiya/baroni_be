@@ -42,7 +42,19 @@ export const checkUserValidator = [
 export const completeProfileValidator = [
   body('name').optional().isString().trim(),
   body('pseudo').optional().isString().trim(),
-  body('profilePic').optional().isURL(),
+  body('profilePic').optional().custom((value) => {
+    // Allow either a valid URL or skip validation (for file uploads)
+    if (value === undefined || value === '') return true;
+    if (typeof value === 'string') {
+      try {
+        new URL(value);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  }).withMessage('profilePic must be a valid URL if provided as a string'),
   body('preferredLanguage').optional().isString(),
   body('country').optional().isString().isLength({ min: 2, max: 56 }),
   body('email').optional().isEmail().normalizeEmail(),
