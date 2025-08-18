@@ -167,11 +167,11 @@ export const completeProfile = async (req, res) => {
       }
       user.profession = profession;
     }
-
     if (profilePic) {
       user.profilePic = profilePic;
     } else if (req.file && req.file.buffer) {
       user.profilePic = await uploadFile(req.file.buffer);
+
     }
 
     // Normalize dedications/services if provided as JSON strings
