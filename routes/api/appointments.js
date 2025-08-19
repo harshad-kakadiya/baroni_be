@@ -2,7 +2,7 @@ import express from 'express';
 import { body } from 'express-validator';
 import { requireAuth, requireRole } from '../../middlewares/auth.js';
 import { idParamValidator } from '../../validators/commonValidators.js';
-import { createAppointment, listAppointments, approveAppointment, rejectAppointment } from '../../controllers/appointment.js';
+import { createAppointment, listAppointments, approveAppointment, rejectAppointment, cancelAppointment, rescheduleAppointment } from '../../controllers/appointment.js';
 
 const router = express.Router();
 
@@ -18,6 +18,12 @@ router.post('/', createAppointmentValidator, createAppointment);
 router.get('/', listAppointments);
 router.post('/:id/approve', requireRole('star', 'admin'), idParamValidator, approveAppointment);
 router.post('/:id/reject', requireRole('star', 'admin'), idParamValidator, rejectAppointment);
+router.post('/:id/cancel', idParamValidator, cancelAppointment);
+router.post('/:id/reschedule', [
+  idParamValidator,
+  body('availabilityId').isMongoId(),
+  body('timeSlotId').isMongoId(),
+], rescheduleAppointment);
 
 export default router;
 

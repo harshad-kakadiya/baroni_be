@@ -40,6 +40,7 @@ export const getDashboard = async (req, res) => {
           categories: categories.map(cat => ({
             id: cat._id,
             name: cat.name,
+            image: cat.image,
             description: cat.description,
           })),
         },
@@ -50,31 +51,31 @@ export const getDashboard = async (req, res) => {
       // Star dashboard: upcoming bookings, earnings, and engaged fans
       const [upcomingBookings, earnings, engagedFans] = await Promise.all([
         // Upcoming approved appointments
-        Appointment.find({ 
-          starId: user._id, 
+        Appointment.find({
+          starId: user._id,
           status: 'approved',
           date: { $gte: new Date().toISOString().split('T')[0] } // Today and future dates
         })
         .populate('fanId', 'name pseudo profilePic')
         .sort({ date: 1, time: 1 })
         .limit(10),
-        
+
         // Calculate earnings from completed appointments
         Appointment.aggregate([
           { $match: { starId: user._id, status: 'approved' } },
           { $group: { _id: null, totalEarnings: { $sum: 100 } } } // Assuming fixed price per appointment
         ]),
-        
+
         // Get unique fans who have booked appointments
-        Appointment.distinct('fanId', { 
-          starId: user._id, 
-          status: { $in: ['approved', 'pending'] } 
+        Appointment.distinct('fanId', {
+          starId: user._id,
+          status: { $in: ['approved', 'pending'] }
         })
       ]);
 
       // Get fan details for engaged fans
-      const fanDetails = await User.find({ 
-        _id: { $in: engagedFans } 
+      const fanDetails = await User.find({
+        _id: { $in: engagedFans }
       })
       .select('name pseudo profilePic')
       .limit(20);
