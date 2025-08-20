@@ -1,6 +1,15 @@
 import express from 'express';
 import passport from 'passport';
-import { register, login, refresh, forgotPassword, resetPassword, completeProfile, me, checkUser } from '../../controllers/auth.js';
+import {
+    register,
+    login,
+    refresh,
+    forgotPassword,
+    resetPassword,
+    completeProfile,
+    me,
+    checkUser,
+} from '../../controllers/auth.js';
 import { registerValidator, loginValidator, completeProfileValidator, checkUserValidator } from '../../validators/authValidators.js';
 import { requireAuth } from '../../middlewares/auth.js';
 import { uploadMixed } from '../../middlewares/upload.js';
@@ -14,6 +23,7 @@ router.post('/refresh', refresh);
 router.post('/check-user', checkUserValidator, checkUser);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
+
 // OTP verification removed
 router.post(
   '/complete-profile',
