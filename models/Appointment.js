@@ -13,7 +13,7 @@ const appointmentSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
+//as
 appointmentSchema.index({ starId: 1, date: 1 });
 
 const Appointment = mongoose.model('Appointment', appointmentSchema);
