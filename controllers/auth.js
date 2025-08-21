@@ -8,9 +8,11 @@ import DedicationSample from '../models/DedicationSample.js';
 import {createAccessToken, createRefreshToken, verifyRefreshToken} from '../utils/token.js';
 import {uploadFile} from '../utils/uploadFile.js';
 import {uploadVideo} from '../utils/uploadFile.js';
+import {generateUniqueBaroniId} from '../utils/baroniIdGenerator.js';
 
 const sanitizeUser = (user) => ({
   id: user._id,
+  baroniId: user.baroniId,
   contact: user.contact,
   email: user.email,
   name: user.name,
@@ -62,6 +64,9 @@ export const register = async (req, res) => {
       });
     }
 
+    // Generate unique baroni ID
+    const baroniId = await generateUniqueBaroniId();
+
     // Hash password only if provided, otherwise set to null
     let hashedPassword = null;
     if (password) {
@@ -70,6 +75,7 @@ export const register = async (req, res) => {
     }
 
     const user = await User.create({
+      baroniId,
       contact,
       email: normalizedEmail,
       password: hashedPassword,

@@ -19,31 +19,13 @@ export const getAllStars = async (req, res) => {
             });
         }
 
-        // fetch all related data for each star
-        const starsWithDetails = await Promise.all(
-            stars.map(async (star) => {
-                const [dedications, services, dedicationSamples, availability] =
-                    await Promise.all([
-                        Dedication.find({ userId: star._id }),
-                        Service.find({ userId: star._id }),
-                        DedicationSample.find({ userId: star._id }),
-                        Availability.find({ userId: star._id }),
-                    ]);
-
-                return {
-                    ...star.toObject(),
-                    dedications,
-                    services,
-                    dedicationSamples,
-                    availability,
-                };
-            })
-        );
+        // Return only basic star data without related collections
+        const starsData = stars.map(star => star.toObject());
 
         res.status(200).json({
             success: true,
-            count: starsWithDetails.length,
-            data: starsWithDetails,
+            count: starsData.length,
+            data: starsData,
         });
     } catch (error) {
         res.status(500).json({

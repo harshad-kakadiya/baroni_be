@@ -8,6 +8,7 @@ import Availability from '../models/Availability.js';
 
 const sanitizeUser = (user) => ({
   id: user._id,
+  baroniId: user.baroniId,
   name: user.name,
   pseudo: user.pseudo,
   profilePic: user.profilePic,
