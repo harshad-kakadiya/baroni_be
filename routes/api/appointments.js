@@ -12,6 +12,7 @@ const createAppointmentValidator = [
   body('starId').isMongoId(),
   body('availabilityId').isMongoId(),
   body('timeSlotId').isMongoId(),
+  body('price').isNumeric().withMessage('Price must be a number').isFloat({ min: 0 }).withMessage('Price must be greater than or equal to 0'),
 ];
 
 router.post('/', createAppointmentValidator, createAppointment);

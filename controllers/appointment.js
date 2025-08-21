@@ -30,6 +30,7 @@ const sanitize = (doc) => ({
   timeSlotId: doc.timeSlotId,
   date: doc.date,
   time: doc.time,
+  price: doc.price,
   status: doc.status,
   createdAt: doc.createdAt,
   updatedAt: doc.updatedAt,
@@ -39,7 +40,7 @@ export const createAppointment = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
-    const { starId, availabilityId, timeSlotId } = req.body;
+    const { starId, availabilityId, timeSlotId, price } = req.body;
 
     const availability = await Availability.findOne({ _id: availabilityId, userId: starId });
     if (!availability) return res.status(404).json({ success: false, message: 'Availability not found' });
@@ -55,6 +56,7 @@ export const createAppointment = async (req, res) => {
       timeSlotId,
       date: availability.date,
       time: slot.slot,
+      price,
       status: 'pending',
     });
     return res.status(201).json({ success: true, data: sanitize(created) });

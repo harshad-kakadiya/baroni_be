@@ -8,6 +8,7 @@ const appointmentSchema = new mongoose.Schema(
     timeSlotId: { type: mongoose.Schema.Types.ObjectId, required: true },
     date: { type: String, required: true, trim: true },
     time: { type: String, required: true, trim: true },
+    price: { type: Number, required: true, min: 0 },
     status: { type: String, enum: ['pending', 'approved', 'rejected', 'cancelled'], default: 'pending', index: true },
   },
   { timestamps: true }
