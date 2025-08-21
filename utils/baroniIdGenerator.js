@@ -21,3 +21,4 @@ export const generateUniqueBaroniId = async () => {
   
   return baroniId;
 };
+
