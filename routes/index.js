@@ -8,6 +8,7 @@ import dedicationSamplesRouter from './api/dedicationSamples.js';
 import availabilitiesRouter from './api/availabilities.js';
 import appointmentsRouter from './api/appointments.js';
 import dashboardRouter from './api/dashboard.js';
+import contactSupportRouter from './api/contactSupport.js';
 import {requireAuth} from "../middlewares/auth.js";
 
 const router = express.Router();
@@ -21,6 +22,7 @@ router.use('/dedication-samples', requireAuth, dedicationSamplesRouter);
 router.use('/availabilities', requireAuth, availabilitiesRouter);
 router.use('/appointments', appointmentsRouter);
 router.use('/dashboard', dashboardRouter);
+router.use('/contact-support', contactSupportRouter);
 
 export default router;
 
