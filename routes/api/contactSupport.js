@@ -19,10 +19,8 @@ import { uploadMixed } from '../../middlewares/upload.js';
 
 const router = express.Router();
 
-// User routes (require authentication)
 router.post(
   '/',
-  requireAuth,
   uploadMixed.any(),
   createSupportTicketValidator,
   createSupportTicket
@@ -30,20 +28,17 @@ router.post(
 
 router.get(
   '/my-tickets',
-  requireAuth,
   getUserSupportTickets
 );
 
 router.get(
   '/:id',
-  requireAuth,
   getSupportTicketByIdValidator,
   getSupportTicketById
 );
 
 router.put(
   '/:id',
-  requireAuth,
   uploadMixed.any(),
   updateSupportTicketValidator,
   updateSupportTicket
@@ -51,7 +46,6 @@ router.put(
 
 router.delete(
   '/:id',
-  requireAuth,
   deleteSupportTicketValidator,
   deleteSupportTicket
 );
@@ -59,7 +53,6 @@ router.delete(
 // Admin routes (require admin role)
 router.get(
   '/admin/all',
-  requireAuth,
   requireRole('admin'),
   adminGetAllTicketsValidator,
   getAllSupportTickets
