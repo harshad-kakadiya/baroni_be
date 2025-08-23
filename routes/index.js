@@ -10,11 +10,11 @@ import availabilitiesRouter from './api/availabilities.js';
 import appointmentsRouter from './api/appointments.js';
 import dashboardRouter from './api/dashboard.js';
 import contactSupportRouter from './api/contactSupport.js';
+import favoritesRouter from './api/favorites.js';
 import {requireAuth} from "../middlewares/auth.js";
 
 const router = express.Router();
 
-router.use('/star', starRouter);
 router.use('/auth', authRouter);
 router.use('/category', requireAuth, categoryRouter);
 router.use('/dedications',requireAuth , dedicationsRouter);
@@ -22,9 +22,11 @@ router.use('/dedication-requests', requireAuth, dedicationRequestsRouter);
 router.use('/services', requireAuth, servicesRouter);
 router.use('/dedication-samples', requireAuth, dedicationSamplesRouter);
 router.use('/availabilities', requireAuth, availabilitiesRouter);
-router.use('/appointments', appointmentsRouter);
+router.use('/appointments', requireAuth,appointmentsRouter);
 router.use('/dashboard', dashboardRouter);
 router.use('/contact-support', contactSupportRouter);
+router.use('/star', requireAuth,starRouter);
+router.use('/favorites', favoritesRouter);
 
 export default router;
 
