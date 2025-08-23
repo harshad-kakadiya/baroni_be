@@ -102,7 +102,6 @@ export const approveAppointment = async (req, res) => {
     appt.status = 'approved';
     const updated = await appt.save();
 
-    // Mark the slot as unavailable
     const availability = await Availability.findOne({ _id: appt.availabilityId, userId: appt.starId });
     if (availability) {
       const slot = availability.timeSlots.find((s) => String(s._id) === String(appt.timeSlotId));
