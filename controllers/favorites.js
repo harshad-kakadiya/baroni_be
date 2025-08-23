@@ -13,7 +13,6 @@ export const addToFavorites = async (req, res) => {
     const { starId } = req.body;
     const fanId = req.user._id;
 
-    // Validate starId
     if (!mongoose.Types.ObjectId.isValid(starId)) {
       return res.status(400).json({ success: false, message: 'Invalid star ID' });
     }
@@ -39,8 +38,8 @@ export const addToFavorites = async (req, res) => {
     fan.favorites.push(starId);
     await fan.save();
 
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       message: 'Star added to favorites',
       data: { starId, added: true }
     });
@@ -73,7 +72,7 @@ export const removeFromFavorites = async (req, res) => {
     // Remove from favorites
     const fan = await User.findById(fanId);
     const index = fan.favorites.indexOf(starId);
-    
+
     if (index === -1) {
       return res.status(400).json({ success: false, message: 'Star is not in favorites' });
     }
@@ -81,8 +80,8 @@ export const removeFromFavorites = async (req, res) => {
     fan.favorites.splice(index, 1);
     await fan.save();
 
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       message: 'Star removed from favorites',
       data: { starId, removed: true }
     });
@@ -121,15 +120,15 @@ export const toggleFavorite = async (req, res) => {
     // Toggle favorite status
     const fan = await User.findById(fanId);
     const isFavorite = fan.favorites.includes(starId);
-    
+
     if (isFavorite) {
       // Remove from favorites
       const index = fan.favorites.indexOf(starId);
       fan.favorites.splice(index, 1);
       await fan.save();
-      
-      return res.json({ 
-        success: true, 
+
+      return res.json({
+        success: true,
         message: 'Star removed from favorites',
         data: { starId, isFavorite: false, action: 'removed' }
       });
@@ -137,9 +136,9 @@ export const toggleFavorite = async (req, res) => {
       // Add to favorites
       fan.favorites.push(starId);
       await fan.save();
-      
-      return res.json({ 
-        success: true, 
+
+      return res.json({
+        success: true,
         message: 'Star added to favorites',
         data: { starId, isFavorite: true, action: 'added' }
       });
@@ -170,8 +169,8 @@ export const getFavorites = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       data: fan.favorites,
       count: fan.favorites.length
     });
