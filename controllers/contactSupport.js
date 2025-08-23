@@ -14,7 +14,7 @@ export const createSupportTicket = async (req, res) => {
     const userId = req.user.id;
 
     let imageUrl = null;
-    // Handle image upload if provided
+
     if (req.files && req.files.length > 0) {
       const imageFile = req.files.find(file => file.fieldname === 'image');
       if (imageFile) {
