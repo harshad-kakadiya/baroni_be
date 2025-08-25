@@ -11,22 +11,25 @@ import appointmentsRouter from './api/appointments.js';
 import dashboardRouter from './api/dashboard.js';
 import contactSupportRouter from './api/contactSupport.js';
 import favoritesRouter from './api/favorites.js';
-import {requireAuth} from "../middlewares/auth.js";
+import liveShowsRouter from './api/liveShows.js';
+import reportUsersRouter from './api/reportUsers.js';
 
 const router = express.Router();
 
 router.use('/auth', authRouter);
-router.use('/category', requireAuth, categoryRouter);
-router.use('/dedications',requireAuth , dedicationsRouter);
-router.use('/dedication-requests', requireAuth, dedicationRequestsRouter);
-router.use('/services', requireAuth, servicesRouter);
-router.use('/dedication-samples', requireAuth, dedicationSamplesRouter);
-router.use('/availabilities', requireAuth, availabilitiesRouter);
-router.use('/appointments', requireAuth,appointmentsRouter);
-router.use('/dashboard',requireAuth, dashboardRouter);
-router.use('/contact-support',requireAuth, contactSupportRouter);
-router.use('/star', requireAuth,starRouter);
-router.use('/favorites', requireAuth, favoritesRouter);
+router.use('/category', categoryRouter);
+router.use('/dedications' , dedicationsRouter);
+router.use('/dedication-requests', dedicationRequestsRouter);
+router.use('/services', servicesRouter);
+router.use('/dedication-samples', dedicationSamplesRouter);
+router.use('/availabilities', availabilitiesRouter);
+router.use('/appointments',appointmentsRouter);
+router.use('/dashboard', dashboardRouter);
+router.use('/contact-support', contactSupportRouter);
+router.use('/star',starRouter);
+router.use('/favorites', favoritesRouter);
+router.use('/live-shows', liveShowsRouter);
+router.use('/report-users', reportUsersRouter);
 
 export default router;
 

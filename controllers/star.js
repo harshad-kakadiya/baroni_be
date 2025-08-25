@@ -4,6 +4,7 @@ import Dedication from "../models/Dedication.js";
 import DedicationSample from "../models/DedicationSample.js";
 import Service from "../models/Service.js";
 import Availability from "../models/Availability.js";
+import LiveShow from "../models/LiveShow.js";
 
 export const getAllStars = async (req, res) => {
     try {
@@ -19,9 +20,9 @@ export const getAllStars = async (req, res) => {
             });
         }
 
-        // Check if user is authenticated and is a fan to add favorites status
+        // Check if user is authenticated and is a fan to add favorite status
         let starsData = stars.map(star => star.toObject());
-
+        
         if (req.user && req.user.role === 'fan') {
             const fan = req.user;
             starsData = starsData.map(star => ({
@@ -76,7 +77,7 @@ export const getStarById = async (req, res) => {
 
         // Check if user is authenticated and is a fan to add favorite status
         let starData = star.toObject();
-
+        
         if (req.user && req.user.role === 'fan') {
             const fan = req.user;
             starData.isFavorite = fan.favorites.includes(id);
@@ -85,12 +86,19 @@ export const getStarById = async (req, res) => {
             starData.isFavorite = false;
         }
 
-        // fetch related data
-        const [dedications, services, dedicationSamples, availability] = await Promise.all([
+        // fetch related data including upcoming live shows
+        const [dedications, services, dedicationSamples, availability, upcomingShows] = await Promise.all([
             Dedication.find({ userId: id }),
             Service.find({ userId: id }),
             DedicationSample.find({ userId: id }),
             Availability.find({ userId: id }),
+            LiveShow.find({
+                starId: id,
+                date: { $gt: new Date() },
+                status: 'scheduled'
+            })
+            .sort({ date: 1 })
+            .limit(10)
         ]);
 
         res.status(200).json({
@@ -101,6 +109,20 @@ export const getStarById = async (req, res) => {
                 services,
                 dedicationSamples,
                 availability,
+                upcomingShows: upcomingShows.map(show => ({
+                    id: show._id,
+                    sessionTitle: show.sessionTitle,
+                    date: show.date,
+                    time: show.time,
+                    attendanceFee: show.attendanceFee,
+                    hostingPrice: show.hostingPrice,
+                    maxCapacity: show.maxCapacity,
+                    showCode: show.showCode,
+                    inviteLink: show.inviteLink,
+                    currentAttendees: show.currentAttendees,
+                    description: show.description,
+                    thumbnail: show.thumbnail
+                }))
             },
         });
     } catch (error) {

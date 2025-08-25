@@ -6,6 +6,8 @@ import { createCategoryValidator, updateCategoryValidator, categoryIdValidator }
 
 const router = express.Router();
 
+router.use(requireAuth);
+
 router.get('/', listCategories);
 router.get('/:id', categoryIdValidator, getCategoryById);
 
