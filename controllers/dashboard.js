@@ -16,6 +16,7 @@ const sanitizeUser = (user) => ({
   location: user.location,
   profession: user.profession,
   role: user.role,
+  availableForBookings: user.availableForBookings,
 });
 
 export const getDashboard = async (req, res) => {
@@ -28,16 +29,31 @@ export const getDashboard = async (req, res) => {
       const [stars, categories] = await Promise.all([
         User.find({ role: 'star' })
           .populate('profession')
-          .select('name pseudo profilePic about location profession')
+          .select('name pseudo profilePic about location profession availableForBookings')
           .sort({ createdAt: -1 })
           .limit(20),
         Category.find().sort({ name: 1 }),
       ]);
 
+      // Add favorite status and availability for stars
+      let starsData = stars.map(star => star.toObject());
+      
+      if (user.role === 'fan') {
+        starsData = starsData.map(star => ({
+          ...star,
+          isFavorite: user.favorites.includes(star._id)
+        }));
+      } else {
+        starsData = starsData.map(star => ({
+          ...star,
+          isFavorite: false
+        }));
+      }
+
       return res.json({
         success: true,
         data: {
-          stars: stars.map(sanitizeUser),
+          stars: starsData.map(sanitizeUser),
           categories: categories.map(cat => ({
             id: cat._id,
             name: cat.name,
@@ -123,7 +139,7 @@ export const getDashboard = async (req, res) => {
       ]);
 
       const recentUsers = await User.find()
-        .select('name pseudo role createdAt')
+        .select('name pseudo role createdAt availableForBookings')
         .sort({ createdAt: -1 })
         .limit(10);
 
@@ -148,6 +164,7 @@ export const getDashboard = async (req, res) => {
             name: u.name,
             pseudo: u.pseudo,
             role: u.role,
+            availableForBookings: u.availableForBookings,
             createdAt: u.createdAt,
           })),
           recentAppointments: recentAppointments.map(apt => ({

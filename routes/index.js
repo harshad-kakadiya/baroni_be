@@ -23,7 +23,7 @@ router.use('/services', requireAuth, servicesRouter);
 router.use('/dedication-samples', requireAuth, dedicationSamplesRouter);
 router.use('/availabilities', requireAuth, availabilitiesRouter);
 router.use('/appointments', requireAuth,appointmentsRouter);
-router.use('/dashboard', dashboardRouter);
+router.use('/dashboard',requireAuth, dashboardRouter);
 router.use('/contact-support', contactSupportRouter);
 router.use('/star', requireAuth,starRouter);
 router.use('/favorites', favoritesRouter);

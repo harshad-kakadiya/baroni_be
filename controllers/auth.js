@@ -9,6 +9,10 @@ import {createAccessToken, createRefreshToken, verifyRefreshToken} from '../util
 import {uploadFile} from '../utils/uploadFile.js';
 import {uploadVideo} from '../utils/uploadFile.js';
 import {generateUniqueBaroniId} from '../utils/baroniIdGenerator.js';
+import DedicationRequest from '../models/DedicationRequest.js';
+import Availability from '../models/Availability.js';
+import Appointment from '../models/Appointment.js';
+import ContactSupport from '../models/ContactSupport.js';
 
 const sanitizeUser = (user) => ({
   id: user._id,
@@ -24,6 +28,7 @@ const sanitizeUser = (user) => ({
   location: user.location,
   profession: user.profession,
   role: user.role,
+  availableForBookings: user.availableForBookings,
 });
 
 export const register = async (req, res) => {
@@ -149,7 +154,7 @@ export const completeProfile = async (req, res) => {
     const user = req.user;
     if (!user?._id) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
-    const { name, pseudo, preferredLanguage, country, email, contact, about, location, profession, profilePic } = req.body;
+    const { name, pseudo, preferredLanguage, country, email, contact, about, location, profession, profilePic, availableForBookings } = req.body;
     let { dedications, services, dedicationSamples } = req.body;
 
 
@@ -174,6 +179,12 @@ export const completeProfile = async (req, res) => {
       }
       user.profession = profession;
     }
+    
+    // Handle availableForBookings field
+    if (typeof availableForBookings === 'boolean') {
+      user.availableForBookings = availableForBookings;
+    }
+    
     // Handle profile picture update
     if (req.files && req.files.length > 0) {
       const profilePicFile = req.files.find(file => file.fieldname === 'profilePic');
@@ -277,7 +288,6 @@ export const completeProfile = async (req, res) => {
         dedicationSamples: samplesRes.map((x) => ({ id: x._id, type: x.type, video: x.video, description: x.description, userId: x.userId, createdAt: x.createdAt, updatedAt: x.updatedAt })),
       };
     }
-
     return res.json({ success: true, message: 'Profile updated', data: { ...sanitizeUser(updatedUser), ...extra } });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -386,6 +396,138 @@ export const me = async (req, res) => {
       };
     }
     return res.json({ success: true, data: { ...sanitizeUser(user), ...extra } });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Delete user account
+export const deleteAccount = async (req, res) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const userId = req.user._id;
+    const { password, reason } = req.body;
+
+    // Get user to verify password if they have one
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // If user has a password, verify it before deletion
+    if (user.password) {
+      if (!password) {
+        return res.status(400).json({ success: false, message: 'Password is required to delete account' });
+      }
+      
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        return res.status(401).json({ success: false, message: 'Invalid password' });
+      }
+    }
+
+    // Clean up related data
+    try {
+      // Remove user from other users' favorites
+      await User.updateMany(
+        { favorites: userId },
+        { $pull: { favorites: userId } }
+      );
+
+      // If user is a star, clean up star-related data
+      if (user.role === 'star') {
+        // Delete dedication requests where user is the star
+        await DedicationRequest.deleteMany({ starId: userId });
+        
+        // Delete dedications
+        await Dedication.deleteMany({ userId });
+        
+        // Delete services
+        await Service.deleteMany({ userId });
+        
+        // Delete dedication samples
+        await DedicationSample.deleteMany({ userId });
+        
+        // Delete availabilities
+        await Availability.deleteMany({ userId });
+        
+        // Cancel/delete appointments where user is the star
+        await Appointment.updateMany(
+          { starId: userId, status: { $in: ['pending', 'confirmed'] } },
+          { status: 'cancelled', cancelledAt: new Date() }
+        );
+      }
+
+      // If user is a fan, clean up fan-related data
+      if (user.role === 'fan') {
+        // Delete dedication requests where user is the fan
+        await DedicationRequest.deleteMany({ fanId: userId });
+        
+        // Cancel/delete appointments where user is the fan
+        await Appointment.updateMany(
+          { fanId: userId, status: { $in: ['pending', 'confirmed'] } },
+          { status: 'cancelled', cancelledAt: new Date() }
+        );
+      }
+
+      // Delete contact support tickets
+      await ContactSupport.deleteMany({ userId });
+
+    } catch (cleanupError) {
+      console.error('Error during cleanup:', cleanupError);
+      // Continue with deletion even if cleanup fails
+    }
+
+    // Delete the user
+    await User.findByIdAndDelete(userId);
+
+    return res.json({ 
+      success: true, 
+      message: 'Account deleted successfully',
+      data: { deletedAt: new Date(), reason: reason || 'User requested deletion' }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Toggle available for bookings status
+export const toggleAvailableForBookings = async (req, res) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const userId = req.user._id;
+    const { availableForBookings } = req.body;
+
+    // Validate the boolean value
+    if (typeof availableForBookings !== 'boolean') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'availableForBookings must be a boolean value (true or false)' 
+      });
+    }
+
+    // Update the user's availableForBookings status
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { availableForBookings },
+      { new: true }
+    ).select('-password -passwordResetToken -passwordResetExpires');
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    return res.json({ 
+      success: true, 
+      message: `Successfully ${availableForBookings ? 'enabled' : 'disabled'} bookings availability`,
+      data: sanitizeUser(updatedUser)
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

@@ -9,8 +9,10 @@ import {
     completeProfile,
     me,
     checkUser,
+    deleteAccount,
+    toggleAvailableForBookings,
 } from '../../controllers/auth.js';
-import { registerValidator, loginValidator, completeProfileValidator, checkUserValidator } from '../../validators/authValidators.js';
+import { registerValidator, loginValidator, completeProfileValidator, checkUserValidator, deleteAccountValidator } from '../../validators/authValidators.js';
 import { requireAuth } from '../../middlewares/auth.js';
 import { uploadMixed } from '../../middlewares/upload.js';
 import { createAccessToken, createRefreshToken } from '../../utils/token.js';
@@ -33,6 +35,12 @@ router.post(
   completeProfile
 );
 router.get('/me', requireAuth, me);
+
+// Delete account (requires authentication)
+router.delete('/delete-account', requireAuth, deleteAccountValidator, deleteAccount);
+
+// Toggle available for bookings (requires authentication)
+router.patch('/toggle-availability', requireAuth, toggleAvailableForBookings);
 
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 router.get(

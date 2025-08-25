@@ -1,67 +1,48 @@
 import { body } from 'express-validator';
 
 export const registerValidator = [
-  // Ensure at least one identifier is provided
-  body().custom((_, { req }) => {
-    const email = typeof req.body.email === 'string' ? req.body.email.trim() : '';
-    const contact = typeof req.body.contact === 'string' ? req.body.contact.trim() : '';
-    if (!email && !contact) {
-      throw new Error('Either a valid email or contact is required');
-    }
-    return true;
-  }),
-  body('password').optional(),
-  body('email').optional({ checkFalsy: true }).isEmail().normalizeEmail(),
-  body('contact').optional({ checkFalsy: true }).isString().trim(),
-  body('isMobile').optional().isBoolean(),
+  body('contact').optional().isMobilePhone().withMessage('Invalid contact number'),
+  body('email').optional().isEmail().withMessage('Invalid email format'),
+  body('password').optional().isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('role').optional().isIn(['fan', 'star', 'admin']).withMessage('Invalid role')
 ];
-
 
 export const loginValidator = [
-  body('password').optional(),
-  body('isMobile').optional().isBoolean(),
-  body('contact').optional().isString(),
-  body('email').optional().isEmail().normalizeEmail(),
-];
-
-// OTP validator removed
-
-export const checkUserValidator = [
-  body().custom((_, { req }) => {
-    const email = typeof req.body.email === 'string' ? req.body.email.trim() : '';
-    const contact = typeof req.body.contact === 'string' ? req.body.contact.trim() : '';
-    if (!email && !contact) {
-      throw new Error('Either email or contact is required');
-    }
-    return true;
-  }),
-  body('email').optional({ checkFalsy: true }).isEmail().normalizeEmail(),
-  body('contact').optional({ checkFalsy: true }).isString().trim(),
+  body('contact').optional().isMobilePhone().withMessage('Invalid contact number'),
+  body('email').optional().isEmail().withMessage('Invalid email format'),
+  body('isMobile').optional().isBoolean().withMessage('isMobile must be a boolean'),
+  body('password').optional().isString().withMessage('Password must be a string')
 ];
 
 export const completeProfileValidator = [
-  body('name').optional().isString().trim(),
-  body('pseudo').optional().isString().trim(),
-  body('profilePic').optional().custom((value) => {
-    // Allow either a valid URL or skip validation (for file uploads)
-    if (value === undefined || value === '') return true;
-    if (typeof value === 'string') {
-      try {
-        new URL(value);
-        return true;
-      } catch {
-        return false;
-      }
-    }
-    return false;
-  }).withMessage('profilePic must be a valid URL if provided as a string'),
-  body('preferredLanguage').optional().isString(),
-  body('country').optional().isString().isLength({ min: 2, max: 56 }),
-  body('email').optional().isEmail().normalizeEmail(),
-  body('contact').optional().isString().trim(),
-  body('about').optional().isString().trim(),
-  body('location').optional().isString().trim(),
+  body('name').optional().trim().isLength({ min: 2, max: 50 }).withMessage('Name must be between 2 and 50 characters'),
+  body('pseudo').optional().trim().isLength({ min: 3, max: 30 }).withMessage('Pseudo must be between 3 and 30 characters'),
+  body('preferredLanguage').optional().trim().isLength({ max: 10 }).withMessage('Preferred language must be less than 10 characters'),
+  body('country').optional().trim().isLength({ max: 50 }).withMessage('Country must be less than 50 characters'),
+  body('email').optional().isEmail().withMessage('Invalid email format'),
+  body('contact').optional().isMobilePhone().withMessage('Invalid contact number'),
+  body('about').optional().trim().isLength({ max: 500 }).withMessage('About must be less than 500 characters'),
+  body('location').optional().trim().isLength({ max: 100 }).withMessage('Location must be less than 100 characters'),
   body('profession').optional().isMongoId(),
+  body('availableForBookings').optional().isBoolean().withMessage('availableForBookings must be a boolean value')
+];
+
+export const checkUserValidator = [
+  body('email').optional().isEmail().withMessage('Invalid email format'),
+  body('contact').optional().isMobilePhone().withMessage('Invalid contact number')
+];
+
+export const deleteAccountValidator = [
+  body('password')
+    .optional()
+    .isString()
+    .withMessage('Password must be a string'),
+  body('reason')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Reason must be a string with maximum 500 characters')
 ];
 
 
