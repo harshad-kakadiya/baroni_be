@@ -1,7 +1,5 @@
 import mongoose from 'mongoose';
 
-// Availability for stars: a date, one or more time slots, and a status
-// Example timeSlots: ["09:00-10:00", "14:00-15:30"]
 const availabilitySchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },

@@ -25,7 +25,7 @@ export const getDashboard = async (req, res) => {
     const role = user.role;
 
     if (role === 'fan') {
-      // Fan dashboard: stars and categories
+      // Fan dashboard: stars and category
       const [stars, categories] = await Promise.all([
         User.find({ role: 'star' })
           .populate('profession')

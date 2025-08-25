@@ -72,7 +72,7 @@ export const register = async (req, res) => {
     // Generate unique baroni ID
     const baroniId = await generateUniqueBaroniId();
 
-    // Hash password only if provided, otherwise set to null
+    // Hash password only if provided, otherwise set to nul
     let hashedPassword = null;
     if (password) {
       const salt = await bcrypt.genSalt(10);

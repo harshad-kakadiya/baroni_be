@@ -15,8 +15,8 @@ const userSchema = new mongoose.Schema(
     location: { type: String, trim: true },
     profession: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
     role: { type: String, enum: ['fan', 'star', 'admin'], default: 'fan' },
-    availableForBookings: { type: Boolean, default: false }, // Whether user is available for bookings
-    favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // Array of favorite star IDs
+    availableForBookings: { type: Boolean, default: false },
+    favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     providers: {
       google: {
         id: { type: String, index: true },

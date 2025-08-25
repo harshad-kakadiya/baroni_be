@@ -24,9 +24,9 @@ router.use('/dedication-samples', requireAuth, dedicationSamplesRouter);
 router.use('/availabilities', requireAuth, availabilitiesRouter);
 router.use('/appointments', requireAuth,appointmentsRouter);
 router.use('/dashboard',requireAuth, dashboardRouter);
-router.use('/contact-support', contactSupportRouter);
+router.use('/contact-support',requireAuth, contactSupportRouter);
 router.use('/star', requireAuth,starRouter);
-router.use('/favorites', favoritesRouter);
+router.use('/favorites', requireAuth, favoritesRouter);
 
 export default router;
 

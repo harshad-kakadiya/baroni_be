@@ -24,17 +24,17 @@ const sanitize = (doc) => ({
   updatedAt: doc.updatedAt
 });
 
-// Fan creates a dedication request
+// Fan creates a dedication requests
 export const createDedicationRequest = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
-    
+
     const { starId, occasion, eventName, eventDate, description, price } = req.body;
-    
+
     // Generate unique tracking ID
     const trackingId = await generateUniqueTrackingId();
-    
+
     const created = await DedicationRequest.create({
       trackingId,
       fanId: req.user._id,
@@ -45,7 +45,7 @@ export const createDedicationRequest = async (req, res) => {
       description: description.trim(),
       price
     });
-    
+
     return res.status(201).json({ success: true, data: sanitize(created) });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -57,7 +57,7 @@ export const listDedicationRequests = async (req, res) => {
   try {
     const { status } = req.query;
     let filter = {};
-    
+
     // Set filter based on user role
     if (req.user.role === 'fan') {
       filter.fanId = req.user._id;
@@ -68,17 +68,17 @@ export const listDedicationRequests = async (req, res) => {
     } else {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
-    
+
     // Add status filter if provided
     if (status && ['pending', 'approved', 'cancelled', 'rejected', 'completed'].includes(status)) {
       filter.status = status;
     }
-    
+
     const items = await DedicationRequest.find(filter)
       .populate('fanId')
       .populate('starId')
       .sort({ createdAt: -1 });
-    
+
     return res.json({ success: true, data: items.map(sanitize) });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -90,21 +90,21 @@ export const getDedicationRequest = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
-    
+
     const item = await DedicationRequest.findById(req.params.id)
       .populate('fanId')
       .populate('starId');
-    
+
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
-    
+
     // Check if user has access to this request
     if (req.user.role === 'admin') {
       // Admin can access any request
-    } else if (item.fanId._id.toString() !== req.user._id.toString() && 
+    } else if (item.fanId._id.toString() !== req.user._id.toString() &&
         item.starId._id.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
-    
+
     return res.json({ success: true, data: sanitize(item) });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -116,21 +116,21 @@ export const approveDedicationRequest = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
-    
+
     let filter = { _id: req.params.id, status: 'pending' };
-    
+
     // If not admin, ensure user is the star
     if (req.user.role !== 'admin') {
       filter.starId = req.user._id;
     }
-    
+
     const item = await DedicationRequest.findOne(filter);
-    
+
     if (!item) return res.status(404).json({ success: false, message: 'Request not found or already processed' });
-    
+
     item.status = 'approved';
     item.approvedAt = new Date();
-    
+
     const updated = await item.save();
     return res.json({ success: true, data: sanitize(updated) });
   } catch (err) {
@@ -143,21 +143,21 @@ export const rejectDedicationRequest = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
-    
+
     let filter = { _id: req.params.id, status: 'pending' };
-    
+
     // If not admin, ensure user is the star
     if (req.user.role !== 'admin') {
       filter.starId = req.user._id;
     }
-    
+
     const item = await DedicationRequest.findOne(filter);
-    
+
     if (!item) return res.status(404).json({ success: false, message: 'Request not found or already processed' });
-    
+
     item.status = 'rejected';
     item.rejectedAt = new Date();
-    
+
     const updated = await item.save();
     return res.json({ success: true, data: sanitize(updated) });
   } catch (err) {
@@ -170,28 +170,28 @@ export const uploadDedicationVideo = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
-    
+
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Video file is required' });
     }
-    
+
     let filter = { _id: req.params.id, status: 'approved' };
-    
+
     // If not admin, ensure user is the star
     if (req.user.role !== 'admin') {
       filter.starId = req.user._id;
     }
-    
+
     const item = await DedicationRequest.findOne(filter);
-    
+
     if (!item) return res.status(404).json({ success: false, message: 'Approved request not found' });
-    
+
     // Upload video to cloudinary
     item.videoUrl = await uploadVideo(req.file.buffer);
     item.status = 'completed';
     item.completedAt = new Date();
     const updated = await item.save();
-    
+
     return res.json({ success: true, data: sanitize(updated) });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -203,21 +203,21 @@ export const cancelDedicationRequest = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
-    
+
     let filter = { _id: req.params.id, status: 'pending' };
-    
+
     // If not admin, ensure user is the fan
     if (req.user.role !== 'admin') {
       filter.fanId = req.user._id;
     }
-    
+
     const item = await DedicationRequest.findOne(filter);
-    
+
     if (!item) return res.status(404).json({ success: false, message: 'Request not found or cannot be cancelled' });
-    
+
     item.status = 'cancelled';
     item.cancelledAt = new Date();
-    
+
     const updated = await item.save();
     return res.json({ success: true, data: sanitize(updated) });
   } catch (err) {
@@ -230,15 +230,15 @@ export const getDedicationRequestByTrackingId = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
-    
+
     const { trackingId } = req.params;
-    
+
     const item = await DedicationRequest.findOne({ trackingId })
       .populate('fanId')
       .populate('starId');
-    
+
     if (!item) return res.status(404).json({ success: false, message: 'Request not found' });
-    
+
     return res.json({ success: true, data: sanitize(item) });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
