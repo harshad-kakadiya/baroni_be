@@ -30,7 +30,7 @@ export const createLiveShowValidator = [
     .optional()
     .custom((value) => {
       if (value === 'unlimited') return true;
-      if (typeof value === 'number' && value > 0) return true;
+      if (typeof value === 'string' && Number(value) > 0) return true;
       throw new Error('Max capacity must be "unlimited" or a positive number');
     }),
   body('description')
