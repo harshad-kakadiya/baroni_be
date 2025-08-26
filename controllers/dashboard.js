@@ -66,6 +66,7 @@ export const getDashboard = async (req, res) => {
             inviteLink: show.inviteLink,
             thumbnail: show.thumbnail,
             description: show.description,
+            status: show.status,
             star: {
               id: show.starId._id,
               name: show.starId.name,
@@ -118,6 +119,7 @@ export const getDashboard = async (req, res) => {
             showCode: show.showCode,
             inviteLink: show.inviteLink,
             currentAttendees: show.currentAttendees,
+            status: show.status,
             description: show.description,
             thumbnail: show.thumbnail
           }))

@@ -22,7 +22,7 @@ export const getAllStars = async (req, res) => {
 
         // Check if user is authenticated and is a fan to add favorite status
         let starsData = stars.map(star => star.toObject());
-        
+
         if (req.user && req.user.role === 'fan') {
             const fan = req.user;
             starsData = starsData.map(star => ({
@@ -77,7 +77,7 @@ export const getStarById = async (req, res) => {
 
         // Check if user is authenticated and is a fan to add favorite status
         let starData = star.toObject();
-        
+
         if (req.user && req.user.role === 'fan') {
             const fan = req.user;
             starData.isFavorite = fan.favorites.includes(id);
@@ -120,6 +120,7 @@ export const getStarById = async (req, res) => {
                     showCode: show.showCode,
                     inviteLink: show.inviteLink,
                     currentAttendees: show.currentAttendees,
+                    status: show.status,
                     description: show.description,
                     thumbnail: show.thumbnail
                 }))
