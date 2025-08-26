@@ -74,7 +74,6 @@ const liveShowSchema = new mongoose.Schema(
 // Index for efficient queries
 liveShowSchema.index({ starId: 1, date: 1 });
 liveShowSchema.index({ status: 1, date: 1 });
-liveShowSchema.index({ showCode: 1 });
 
 // Virtual for checking if show is at capacity
 liveShowSchema.virtual('isAtCapacity').get(function() {
