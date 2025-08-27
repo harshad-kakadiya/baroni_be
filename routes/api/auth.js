@@ -9,11 +9,13 @@ import {
     completeProfile,
     me,
     checkUser,
-    deleteAccount,
+    softDeleteAccount,
+    permanentlyDeleteUser,
+    getSoftDeletedUsers,
     toggleAvailableForBookings,
 } from '../../controllers/auth.js';
-import { registerValidator, loginValidator, completeProfileValidator, checkUserValidator, deleteAccountValidator } from '../../validators/authValidators.js';
-import { requireAuth } from '../../middlewares/auth.js';
+import { registerValidator, loginValidator, completeProfileValidator, checkUserValidator } from '../../validators/authValidators.js';
+import { requireAuth, requireRole } from '../../middlewares/auth.js';
 import { uploadMixed } from '../../middlewares/upload.js';
 import { createAccessToken, createRefreshToken } from '../../utils/token.js';
 
@@ -36,10 +38,12 @@ router.post(
 );
 router.get('/me', requireAuth, me);
 
-// Delete account (requires authentication)
-router.delete('/delete-account', requireAuth, deleteAccountValidator, deleteAccount);
+router.post('/delete-account', requireAuth, softDeleteAccount);
 
-// Toggle available for bookings (requires authentication)
+router.get('/delete-request', requireAuth, requireRole('admin'), getSoftDeletedUsers);
+
+router.delete('/users/:userId', requireAuth, requireRole('admin'), permanentlyDeleteUser);
+
 router.patch('/toggle-availability', requireAuth, toggleAvailableForBookings);
 
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));

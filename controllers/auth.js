@@ -13,6 +13,7 @@ import DedicationRequest from '../models/DedicationRequest.js';
 import Availability from '../models/Availability.js';
 import Appointment from '../models/Appointment.js';
 import ContactSupport from '../models/ContactSupport.js';
+import mongoose from 'mongoose';
 
 const sanitizeUser = (user) => ({
   id: user._id,
@@ -23,12 +24,14 @@ const sanitizeUser = (user) => ({
   pseudo: user.pseudo,
   profilePic: user.profilePic,
   preferredLanguage: user.preferredLanguage,
+  preferredCurrency: user.preferredCurrency,
   country: user.country,
   about: user.about,
   location: user.location,
   profession: user.profession,
   role: user.role,
   availableForBookings: user.availableForBookings,
+  appNotification: user.appNotification,
 });
 
 export const register = async (req, res) => {
@@ -154,7 +157,7 @@ export const completeProfile = async (req, res) => {
     const user = req.user;
     if (!user?._id) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
-    const { name, pseudo, preferredLanguage, country, email, contact, about, location, profession, profilePic, availableForBookings } = req.body;
+    const { name, pseudo, preferredLanguage, preferredCurrency, country, email, contact, about, location, profession, profilePic, availableForBookings, appNotification } = req.body;
     let { dedications, services, dedicationSamples } = req.body;
 
 
@@ -168,6 +171,7 @@ export const completeProfile = async (req, res) => {
     if (name) user.name = name;
     if (pseudo) user.pseudo = pseudo;
     if (preferredLanguage) user.preferredLanguage = preferredLanguage;
+    if (preferredCurrency) user.preferredCurrency = preferredCurrency;
     if (country) user.country = country;
     if (about) user.about = about;
     if (location) user.location = location;
@@ -183,6 +187,11 @@ export const completeProfile = async (req, res) => {
     // Handle availableForBookings field
     if (typeof availableForBookings === 'boolean') {
       user.availableForBookings = availableForBookings;
+    }
+
+    // Handle appNotification field
+    if (typeof appNotification === 'boolean') {
+      user.appNotification = appNotification;
     }
     
     // Handle profile picture update
@@ -401,32 +410,102 @@ export const me = async (req, res) => {
   }
 };
 
-// Delete user account
-export const deleteAccount = async (req, res) => {
+// Soft delete user account (mark as deleted)
+export const softDeleteAccount = async (req, res) => {
   try {
     if (!req.user?._id) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
     const userId = req.user._id;
-    const { password, reason } = req.body;
 
-    // Get user to verify password if they have one
+    // Ensure user exists
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    // If user has a password, verify it before deletion
-    if (user.password) {
-      if (!password) {
-        return res.status(400).json({ success: false, message: 'Password is required to delete account' });
-      }
-      
-      const isPasswordValid = await bcrypt.compare(password, user.password);
-      if (!isPasswordValid) {
-        return res.status(401).json({ success: false, message: 'Invalid password' });
-      }
+    // If already soft-deleted, return idempotent response
+    if (user.isDeleted) {
+      return res.json({ success: true, message: 'Account already marked for deletion', data: { deletedAt: user.deletedAt } });
+    }
+
+    // Soft delete the user (mark as deleted)
+    const deletedAt = new Date();
+    await User.findByIdAndUpdate(userId, {
+      isDeleted: true,
+      deletedAt
+    });
+
+    return res.json({ 
+      success: true, 
+      message: 'Account marked for deletion successfully',
+      data: { deletedAt }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Toggle available for bookings status
+export const toggleAvailableForBookings = async (req, res) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const userId = req.user._id;
+    const { availableForBookings } = req.body;
+
+    // Validate the boolean value
+    if (typeof availableForBookings !== 'boolean') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'availableForBookings must be a boolean value (true or false)' 
+      });
+    }
+
+    // Update the user's availableForBookings status
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { availableForBookings },
+      { new: true }
+    ).select('-password -passwordResetToken -passwordResetExpires');
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    return res.json({ 
+      success: true, 
+      message: `Successfully ${availableForBookings ? 'enabled' : 'disabled'} bookings availability`,
+      data: sanitizeUser(updatedUser)
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Admin function to permanently delete a soft-deleted user
+export const permanentlyDeleteUser = async (req, res) => {
+  try {
+    if (!req.user?._id || req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin access required' });
+    }
+
+    const { userId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ success: false, message: 'Invalid user ID' });
+    }
+
+    // Get user to check if they are soft deleted
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (!user.isDeleted) {
+      return res.status(400).json({ success: false, message: 'User is not marked for deletion' });
     }
 
     // Clean up related data
@@ -439,7 +518,6 @@ export const deleteAccount = async (req, res) => {
 
       // If user is a star, clean up star-related data
       if (user.role === 'star') {
-        // Delete dedication requests where user is the star
         await DedicationRequest.deleteMany({ starId: userId });
         
         // Delete dedications
@@ -481,52 +559,34 @@ export const deleteAccount = async (req, res) => {
       // Continue with deletion even if cleanup fails
     }
 
-    // Delete the user
+    // Permanently delete the user
     await User.findByIdAndDelete(userId);
 
     return res.json({ 
       success: true, 
-      message: 'Account deleted successfully',
-      data: { deletedAt: new Date(), reason: reason || 'User requested deletion' }
+      message: 'User permanently deleted successfully',
+      data: { deletedAt: new Date(), userId }
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// Toggle available for bookings status
-export const toggleAvailableForBookings = async (req, res) => {
+// Admin function to get all soft-deleted users
+export const getSoftDeletedUsers = async (req, res) => {
   try {
-    if (!req.user?._id) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    if (!req.user?._id || req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin access required' });
     }
 
-    const userId = req.user._id;
-    const { availableForBookings } = req.body;
+    const softDeletedUsers = await User.find({ isDeleted: true })
+      .select('-password -passwordResetToken -passwordResetExpires')
+      .sort({ deletedAt: -1 });
 
-    // Validate the boolean value
-    if (typeof availableForBookings !== 'boolean') {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'availableForBookings must be a boolean value (true or false)' 
-      });
-    }
-
-    // Update the user's availableForBookings status
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { availableForBookings },
-      { new: true }
-    ).select('-password -passwordResetToken -passwordResetExpires');
-
-    if (!updatedUser) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
-
-    return res.json({ 
-      success: true, 
-      message: `Successfully ${availableForBookings ? 'enabled' : 'disabled'} bookings availability`,
-      data: sanitizeUser(updatedUser)
+    return res.json({
+      success: true,
+      count: softDeletedUsers.length,
+      data: softDeletedUsers
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });

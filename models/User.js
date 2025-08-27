@@ -11,13 +11,17 @@ const userSchema = new mongoose.Schema(
     pseudo: { type: String, trim: true, unique: true, sparse: true },
     profilePic: { type: String },
     preferredLanguage: { type: String },
+    preferredCurrency: { type: String, default: 'USD' },
     country: { type: String },
     about: { type: String, trim: true},
     location: { type: String, trim: true },
     profession: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
     role: { type: String, enum: ['fan', 'star', 'admin'], default: 'fan' },
     availableForBookings: { type: Boolean, default: false },
+    appNotification: { type: Boolean, default: true },
     favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    isDeleted: { type: Boolean, default: false, index: true },
+    deletedAt: { type: Date },
     providers: {
       google: {
         id: { type: String, index: true },
