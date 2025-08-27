@@ -6,6 +6,7 @@ const userSchema = new mongoose.Schema(
     contact: { type: String, trim: true, unique: true, sparse: true },
     email: { type: String, trim: true, lowercase: true, unique: true, sparse: true },
     password: { type: String },
+    coinBalance: { type: Number, default: 0, min: 0 },
     name: { type: String, trim: true },
     pseudo: { type: String, trim: true, unique: true, sparse: true },
     profilePic: { type: String },

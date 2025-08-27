@@ -10,7 +10,7 @@ import {
   getStarAllShows,
   scheduleLiveShow,
   cancelLiveShow,
-  rescheduleLiveShow
+  rescheduleLiveShow, toggleLikeLiveShow
 } from '../../controllers/liveShow.js';
 import {
   createLiveShowValidator,
@@ -22,22 +22,23 @@ import { upload } from '../../middlewares/upload.js';
 
 const router = express.Router();
 
-// Public routes (no authentication required)
+router.use(requireAuth);
+
+// Get live shows (all users)
 router.get('/', getAllLiveShows);
 router.get('/code/:showCode', getLiveShowByCode);
 router.get('/star/:starId/upcoming', getStarUpcomingShows);
 router.get('/star/:starId', getStarAllShows);
-
-// Protected routes (authentication required)
-router.use(requireAuth);
+router.get('/:id', getLiveShowById);
 
 // CRUD operations for live shows (star only)
 router.post('/', requireRole('star'), upload.single('thumbnail'), createLiveShowValidator, createLiveShow);
-router.get('/:id', getLiveShowById);
 router.put('/:id', requireRole('star', 'admin'), upload.single('thumbnail'), updateLiveShowValidator, updateLiveShow);
 router.delete('/:id', requireRole('star', 'admin'), deleteLiveShow);
 
-// New workflow routes
+// Likes
+router.post('/:id/like', toggleLikeLiveShow);
+
 // Fan schedules a pending show
 router.patch('/:id/schedule', requireRole('fan', 'admin'), scheduleLiveShow);
 // Star cancels a show

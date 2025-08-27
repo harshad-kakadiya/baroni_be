@@ -75,6 +75,11 @@ const liveShowSchema = new mongoose.Schema(
 liveShowSchema.index({ starId: 1, date: 1 });
 liveShowSchema.index({ status: 1, date: 1 });
 
+// Users who liked the show
+liveShowSchema.add({
+  likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true }]
+});
+
 // Virtual for checking if show is at capacity
 liveShowSchema.virtual('isAtCapacity').get(function() {
   if (this.maxCapacity === -1) return false; // Unlimited

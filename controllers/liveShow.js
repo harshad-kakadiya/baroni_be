@@ -20,6 +20,7 @@ const sanitizeLiveShow = (show) => ({
   currentAttendees: show.currentAttendees,
   description: show.description,
   thumbnail: show.thumbnail,
+  likeCount: Array.isArray(show.likes) ? show.likes.length : 0,
   isAtCapacity: show.isAtCapacity,
   isUpcoming: show.isUpcoming,
   createdAt: show.createdAt,
@@ -84,7 +85,13 @@ export const getAllLiveShows = async (req, res) => {
 
     const showsData = shows.map(show => {
       const sanitized = sanitizeLiveShow(show);
-      if (req.user && req.user.role === 'fan') sanitized.isFavorite = req.user.favorites.includes(show.starId._id);
+      if (req.user && req.user.role === 'fan') {
+        sanitized.isFavorite = req.user.favorites.includes(show.starId._id);
+      } else {
+        sanitized.isFavorite = false;
+      }
+      // Always include isLiked for all authenticated users
+      sanitized.isLiked = Array.isArray(show.likes) && show.likes.some(u => u.toString() === req.user._id.toString());
       return sanitized;
     });
 
@@ -103,7 +110,13 @@ export const getLiveShowById = async (req, res) => {
     if (!show) return res.status(404).json({ success: false, message: 'Live show not found' });
 
     const showData = sanitizeLiveShow(show);
-    if (req.user && req.user.role === 'fan') showData.isFavorite = req.user.favorites.includes(show.starId._id);
+    if (req.user && req.user.role === 'fan') {
+      showData.isFavorite = req.user.favorites.includes(show.starId._id);
+    } else {
+      showData.isFavorite = false;
+    }
+    // Always include isLiked for all authenticated users
+    showData.isLiked = Array.isArray(show.likes) && show.likes.some(u => u.toString() === req.user._id.toString());
 
     return res.json({ success: true, data: showData });
   } catch (err) {
@@ -118,7 +131,13 @@ export const getLiveShowByCode = async (req, res) => {
     if (!show) return res.status(404).json({ success: false, message: 'Live show not found' });
 
     const showData = sanitizeLiveShow(show);
-    if (req.user && req.user.role === 'fan') showData.isFavorite = req.user.favorites.includes(show.starId._id);
+    if (req.user && req.user.role === 'fan') {
+      showData.isFavorite = req.user.favorites.includes(show.starId._id);
+    } else {
+      showData.isFavorite = false;
+    }
+    // Always include isLiked for all authenticated users
+    showData.isLiked = Array.isArray(show.likes) && show.likes.some(u => u.toString() === req.user._id.toString());
 
     return res.json({ success: true, data: showData });
   } catch (err) {
@@ -255,7 +274,13 @@ export const getStarUpcomingShows = async (req, res) => {
 
     const showsData = shows.map(show => {
       const sanitized = sanitizeLiveShow(show);
-      if (req.user && req.user.role === 'fan') sanitized.isFavorite = req.user.favorites.includes(starId);
+      if (req.user && req.user.role === 'fan') {
+        sanitized.isFavorite = req.user.favorites.includes(starId);
+      } else {
+        sanitized.isFavorite = false;
+      }
+      // Always include isLiked for all authenticated users
+      sanitized.isLiked = Array.isArray(show.likes) && show.likes.some(u => u.toString() === req.user._id.toString());
       return sanitized;
     });
 
@@ -280,11 +305,40 @@ export const getStarAllShows = async (req, res) => {
 
     const showsData = shows.map(show => {
       const sanitized = sanitizeLiveShow(show);
-      if (req.user && req.user.role === 'fan') sanitized.isFavorite = req.user.favorites.includes(starId);
+      if (req.user && req.user.role === 'fan') {
+        sanitized.isFavorite = req.user.favorites.includes(starId);
+      } else {
+        sanitized.isFavorite = false;
+      }
+      // Always include isLiked for all authenticated users
+      sanitized.isLiked = Array.isArray(show.likes) && show.likes.some(u => u.toString() === req.user._id.toString());
       return sanitized;
     });
 
     return res.json({ success: true, data: showsData });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Fan like/unlike a live show
+export const toggleLikeLiveShow = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ success: false, message: 'Invalid live show ID' });
+    const show = await LiveShow.findById(id);
+    if (!show) return res.status(404).json({ success: false, message: 'Live show not found' });
+
+    const userIdStr = req.user._id.toString();
+    const hasLiked = Array.isArray(show.likes) && show.likes.some(u => u.toString() === userIdStr);
+    const update = hasLiked
+      ? { $pull: { likes: req.user._id } }
+      : { $addToSet: { likes: req.user._id } };
+
+    const updated = await LiveShow.findByIdAndUpdate(id, update, { new: true });
+    const data = sanitizeLiveShow(updated);
+    data.isLiked = !hasLiked;
+    return res.json({ success: true, message: hasLiked ? 'Unliked' : 'Liked', data });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

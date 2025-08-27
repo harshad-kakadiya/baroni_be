@@ -5,10 +5,22 @@ import DedicationSample from "../models/DedicationSample.js";
 import Service from "../models/Service.js";
 import Availability from "../models/Availability.js";
 import LiveShow from "../models/LiveShow.js";
+import Appointment from "../models/Appointment.js";
+import DedicationRequest from "../models/DedicationRequest.js";
 
 export const getAllStars = async (req, res) => {
     try {
-        const stars = await User.find({ role: "star" }).select(
+        const { q, country } = req.query;
+        const filter = { role: "star" };
+        if (country) {
+            filter.country = country;
+        }
+        if (q && q.trim()) {
+            const regex = new RegExp(q.trim(), "i");
+            filter.$or = [{ name: regex }, { pseudo: regex }];
+        }
+
+        const stars = await User.find(filter).select(
             "-password -passwordResetToken -passwordResetExpires"
         );
 
@@ -81,9 +93,15 @@ export const getStarById = async (req, res) => {
         if (req.user && req.user.role === 'fan') {
             const fan = req.user;
             starData.isFavorite = fan.favorites.includes(id);
+            const [hasActiveAppointment, hasActiveDedication] = await Promise.all([
+                Appointment.exists({ starId: id, fanId: fan._id, status: { $in: ['pending', 'approved'] } }),
+                DedicationRequest.exists({ starId: id, fanId: fan._id, status: { $in: ['pending', 'approved'] } })
+            ]);
+            starData.isMessage = Boolean(hasActiveAppointment || hasActiveDedication);
         } else {
             // For non-fans or unauthenticated users, set isFavorite to false
             starData.isFavorite = false;
+            starData.isMessage = false;
         }
 
         // fetch related data including upcoming live shows
@@ -121,7 +139,9 @@ export const getStarById = async (req, res) => {
                     inviteLink: show.inviteLink,
                     currentAttendees: show.currentAttendees,
                     description: show.description,
-                    thumbnail: show.thumbnail
+                    thumbnail: show.thumbnail,
+                    likeCount: Array.isArray(show.likes) ? show.likes.length : 0,
+                    isLiked: Array.isArray(show.likes) && show.likes.some(u => u.toString() === req.user._id.toString())
                 }))
             },
         });
