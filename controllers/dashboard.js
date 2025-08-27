@@ -68,6 +68,7 @@ export const getDashboard = async (req, res) => {
             inviteLink: show.inviteLink,
             thumbnail: show.thumbnail,
             description: show.description,
+            status: show.status,
             likeCount: show.likeCount,
             isLiked: show.isLiked,
             star: {
@@ -122,6 +123,7 @@ export const getDashboard = async (req, res) => {
             showCode: show.showCode,
             inviteLink: show.inviteLink,
             currentAttendees: show.currentAttendees,
+            status: show.status,
             description: show.description,
             thumbnail: show.thumbnail,
             likeCount: Array.isArray(show.likes) ? show.likes.length : 0,
@@ -151,16 +153,16 @@ export const getDashboard = async (req, res) => {
           stats: { totalUsers, totalStars, totalFans, totalCategories, totalAppointments, totalLiveShows },
           recentUsers: recentUsers.map(u => ({ id: u._id, name: u.name, pseudo: u.pseudo, role: u.role, availableForBookings: u.availableForBookings, createdAt: u.createdAt })),
           recentAppointments: recentAppointments.map(apt => ({ id: apt._id, star: apt.starId ? { id: apt.starId._id, name: apt.starId.name, pseudo: apt.starId.pseudo } : null, fan: apt.fanId ? { id: apt.fanId._id, name: apt.fanId.name, pseudo: apt.fanId.pseudo } : null, date: apt.date, time: apt.time, status: apt.status, createdAt: apt.createdAt })),
-          upcomingHighlights: upcomingLiveShows.map(show => ({ 
-            id: show._id, 
-            sessionTitle: show.sessionTitle, 
-            date: show.date, 
-            time: show.time, 
-            attendanceFee: show.attendanceFee, 
-            showCode: show.showCode, 
+          upcomingHighlights: upcomingLiveShows.map(show => ({
+            id: show._id,
+            sessionTitle: show.sessionTitle,
+            date: show.date,
+            time: show.time,
+            attendanceFee: show.attendanceFee,
+            showCode: show.showCode,
             likeCount: Array.isArray(show.likes) ? show.likes.length : 0,
             isLiked: Array.isArray(show.likes) && show.likes.some(u => u.toString() === user._id.toString()),
-            star: show.starId ? { id: show.starId._id, name: show.starId.name, pseudo: show.starId.pseudo } : null 
+            star: show.starId ? { id: show.starId._id, name: show.starId.name, pseudo: show.starId.pseudo } : null
           }))
         },
       });
