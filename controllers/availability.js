@@ -72,16 +72,29 @@ export const createAvailability = async (req, res) => {
     } catch (e) {
       return res.status(400).json({ success: false, message: 'Invalid timeSlots: provide strings or { slot, status } with valid formats' });
     }
-    const created = await Availability.create({
-      userId: req.user._id,
-      date: String(date).trim(),
-      timeSlots: normalized,
+
+    // Check if availability already exists for this date and user
+    const existingAvailability = await Availability.findOne({ 
+      userId: req.user._id, 
+      date: String(date).trim() 
     });
-    return res.status(201).json({ success: true, data: sanitize(created) });
-  } catch (err) {
-    if (err?.code === 11000) {
-      return res.status(409).json({ success: false, message: 'Availability for this date already exists' });
+
+    let result;
+    if (existingAvailability) {
+      // Update existing availability
+      existingAvailability.timeSlots = normalized;
+      result = await existingAvailability.save();
+      return res.json({ success: true, data: sanitize(result), message: 'Availability updated successfully' });
+    } else {
+      // Create new availability
+      result = await Availability.create({
+        userId: req.user._id,
+        date: String(date).trim(),
+        timeSlots: normalized,
+      });
+      return res.status(201).json({ success: true, data: sanitize(result), message: 'Availability created successfully' });
     }
+  } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
