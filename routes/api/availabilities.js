@@ -41,6 +41,7 @@ const availabilityUpdateValidator = [
 
 router.get('/', listMyAvailabilities);
 router.get('/:id', idParamValidator, getAvailability);
+// POST / - Create new availability or update existing one for the same date
 router.post('/', availabilityCreateValidator, createAvailability);
 router.put('/:id', idParamValidator, availabilityUpdateValidator, updateAvailability);
 router.delete('/:id', idParamValidator, deleteAvailability);
