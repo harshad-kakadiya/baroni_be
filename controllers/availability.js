@@ -81,8 +81,32 @@ export const createAvailability = async (req, res) => {
 
     let result;
     if (existingAvailability) {
-      // Update existing availability
-      existingAvailability.timeSlots = normalized;
+      // Merge new time slots with existing ones instead of replacing
+      const existingSlots = existingAvailability.timeSlots || [];
+      const newSlots = normalized;
+      
+      // Create a map of existing slots by slot string for easy lookup
+      const existingSlotsMap = new Map();
+      existingSlots.forEach(slot => {
+        existingSlotsMap.set(slot.slot, slot);
+      });
+      
+      // Merge new slots with existing ones
+      // If a new slot has the same time, update it; otherwise add it
+      newSlots.forEach(newSlot => {
+        if (existingSlotsMap.has(newSlot.slot)) {
+          // Update existing slot status if different
+          const existingSlot = existingSlotsMap.get(newSlot.slot);
+          if (existingSlot.status !== newSlot.status) {
+            existingSlot.status = newSlot.status;
+          }
+        } else {
+          // Add new slot
+          existingSlots.push(newSlot);
+        }
+      });
+      
+      existingAvailability.timeSlots = existingSlots;
       result = await existingAvailability.save();
       return res.json({ success: true, data: sanitize(result), message: 'Availability updated successfully' });
     } else {
