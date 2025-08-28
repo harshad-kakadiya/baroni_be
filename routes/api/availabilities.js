@@ -1,8 +1,8 @@
 import express from 'express';
-import { body } from 'express-validator';
+import { body, param } from 'express-validator';
 import { requireAuth, requireRole } from '../../middlewares/auth.js';
 import { idParamValidator } from '../../validators/commonValidators.js';
-import { createAvailability, listMyAvailabilities, getAvailability, updateAvailability, deleteAvailability } from '../../controllers/availability.js';
+import { createAvailability, listMyAvailabilities, getAvailability, updateAvailability, deleteAvailability, deleteTimeSlotByDate, deleteTimeSlotById } from '../../controllers/availability.js';
 
 const router = express.Router();
 
@@ -39,12 +39,26 @@ const availabilityUpdateValidator = [
     .withMessage('Each time slot must be a non-empty string or an object { slot, status }'),
 ];
 
+const deleteSlotValidator = [
+  body('date').isString().trim().notEmpty(),
+  body('slot').isString().trim().notEmpty(),
+];
+
+const deleteSlotByIdValidator = [
+  param('id').isMongoId(),
+  param('slotId').isMongoId(),
+];
+
 router.get('/', listMyAvailabilities);
 router.get('/:id', idParamValidator, getAvailability);
 // POST / - Create new availability or update existing one for the same date
 router.post('/', availabilityCreateValidator, createAvailability);
 router.put('/:id', idParamValidator, availabilityUpdateValidator, updateAvailability);
 router.delete('/:id', idParamValidator, deleteAvailability);
+// Delete a specific time slot for a date
+router.delete('/slot', deleteSlotValidator, deleteTimeSlotByDate);
+// Delete a specific time slot by its ID under an availability
+router.delete('/:id/slots/:slotId', deleteSlotByIdValidator, deleteTimeSlotById);
 
 export default router;
 
