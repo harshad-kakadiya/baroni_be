@@ -191,4 +191,70 @@ export const deleteAvailability = async (req, res) => {
   }
 };
 
+export const deleteTimeSlotByDate = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+
+    const date = String(req.body.date || '').trim();
+    let slotToDelete;
+    try {
+      slotToDelete = normalizeTimeSlotString(String(req.body.slot || ''));
+    } catch (e) {
+      return res.status(400).json({ success: false, message: 'Invalid slot format' });
+    }
+
+    const availability = await Availability.findOne({ userId: req.user._id, date });
+    if (!availability) return res.status(404).json({ success: false, message: 'Availability for this date not found' });
+
+    const beforeCount = availability.timeSlots.length;
+    const remaining = (availability.timeSlots || []).filter((t) => t.slot !== slotToDelete);
+
+    if (remaining.length === beforeCount) {
+      return res.status(404).json({ success: false, message: 'Time slot not found' });
+    }
+
+    if (remaining.length === 0) {
+      await availability.deleteOne();
+      return res.json({ success: true, message: 'Time slot deleted and availability removed (no remaining slots)' });
+    }
+
+    availability.timeSlots = remaining;
+    const saved = await availability.save();
+    return res.json({ success: true, data: sanitize(saved), message: 'Time slot deleted successfully' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const deleteTimeSlotById = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+
+    const availabilityId = req.params.id;
+    const slotId = req.params.slotId;
+
+    const availability = await Availability.findOne({ _id: availabilityId, userId: req.user._id });
+    if (!availability) return res.status(404).json({ success: false, message: 'Availability not found' });
+
+    const beforeCount = availability.timeSlots.length;
+    availability.timeSlots = (availability.timeSlots || []).filter((t) => String(t._id) !== String(slotId));
+
+    if (availability.timeSlots.length === beforeCount) {
+      return res.status(404).json({ success: false, message: 'Time slot not found' });
+    }
+
+    if (availability.timeSlots.length === 0) {
+      await availability.deleteOne();
+      return res.json({ success: true, message: 'Time slot deleted and availability removed (no remaining slots)' });
+    }
+
+    const saved = await availability.save();
+    return res.json({ success: true, data: sanitize(saved), message: 'Time slot deleted successfully' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 
