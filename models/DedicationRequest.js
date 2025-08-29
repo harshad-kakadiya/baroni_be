@@ -2,68 +2,74 @@ import mongoose from 'mongoose';
 
 const dedicationRequestSchema = new mongoose.Schema(
   {
-    trackingId: { 
-      type: String, 
-      unique: true, 
-      required: true, 
-      index: true 
+    trackingId: {
+      type: String,
+      unique: true,
+      required: true,
+      index: true
     },
-    fanId: { 
-      type: mongoose.Schema.Types.ObjectId, 
-      ref: 'User', 
-      required: true, 
-      index: true 
+    fanId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true
     },
-    starId: { 
-      type: mongoose.Schema.Types.ObjectId, 
-      ref: 'User', 
-      required: true, 
-      index: true 
+    starId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true
     },
-    occasion: { 
-      type: String, 
-      required: true, 
-      trim: true 
+    occasion: {
+      type: String,
+      required: true,
+      trim: true
     },
-    eventName: { 
-      type: String, 
-      required: true, 
-      trim: true 
+    eventName: {
+      type: String,
+      required: true,
+      trim: true
     },
-    eventDate: { 
-      type: Date, 
-      required: true 
+    eventDate: {
+      type: Date,
+      required: true
     },
-    description: { 
-      type: String, 
-      required: true, 
-      trim: true 
+    description: {
+      type: String,
+      required: true,
+      trim: true
     },
-    price: { 
-      type: Number, 
-      required: true, 
-      min: 0 
+    price: {
+      type: Number,
+      required: true,
+      min: 0
     },
-    status: { 
-      type: String, 
-      enum: ['pending', 'approved', 'cancelled', 'rejected', 'completed'], 
+    status: {
+      type: String,
+      enum: ['pending', 'approved', 'cancelled', 'rejected', 'completed'],
       default: 'pending',
       index: true
     },
-    videoUrl: { 
-      type: String 
+    videoUrl: {
+      type: String
     },
-    approvedAt: { 
-      type: Date 
+    transactionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Transaction',
+      required: true,
+      index: true
     },
-    rejectedAt: { 
-      type: Date 
+    approvedAt: {
+      type: Date
     },
-    cancelledAt: { 
-      type: Date 
+    rejectedAt: {
+      type: Date
     },
-    completedAt: { 
-      type: Date 
+    cancelledAt: {
+      type: Date
+    },
+    completedAt: {
+      type: Date
     },
 
   },
