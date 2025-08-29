@@ -1,8 +1,8 @@
-   import express from 'express';
+  import express from 'express';
 import { body } from 'express-validator';
 import { requireAuth, requireRole } from '../../middlewares/auth.js';
 import { idParamValidator } from '../../validators/commonValidators.js';
-import { createAppointment, listAppointments, approveAppointment, rejectAppointment, cancelAppointment, rescheduleAppointment } from '../../controllers/appointment.js';
+import { createAppointment, listAppointments, approveAppointment, rejectAppointment, cancelAppointment, rescheduleAppointment, completeAppointment } from '../../controllers/appointment.js';
 
 const router = express.Router();
 
@@ -25,7 +25,10 @@ router.post('/:id/reschedule', [
   body('availabilityId').isMongoId(),
   body('timeSlotId').isMongoId(),
 ], rescheduleAppointment);
+router.post('/:id/complete', requireRole('star', 'admin'), idParamValidator, completeAppointment);
 
 export default router;
+
+
 
 
