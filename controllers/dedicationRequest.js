@@ -2,6 +2,9 @@ import {validationResult} from 'express-validator';
 import DedicationRequest from '../models/DedicationRequest.js';
 import {generateUniqueTrackingId} from '../utils/trackingIdGenerator.js';
 import {uploadVideo} from '../utils/uploadFile.js';
+import { createTransaction, completeTransaction, cancelTransaction } from '../services/transactionService.js';
+import { TRANSACTION_TYPES, TRANSACTION_DESCRIPTIONS } from '../utils/transactionConstants.js';
+import Transaction from '../models/Transaction.js';
 
 const sanitize = (doc) => ({
   id: doc._id,
@@ -15,6 +18,7 @@ const sanitize = (doc) => ({
   price: doc.price,
   status: doc.status,
   videoUrl: doc.videoUrl,
+  transactionId: doc.transactionId,
   approvedAt: doc.approvedAt,
   rejectedAt: doc.rejectedAt,
   cancelledAt: doc.cancelledAt,
@@ -30,7 +34,45 @@ export const createDedicationRequest = async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
 
-    const { starId, occasion, eventName, eventDate, description, price } = req.body;
+    const { starId, occasion, eventName, eventDate, description, price, paymentMode = 'coin', paymentDescription } = req.body;
+
+    // Create transaction before creating dedication request
+    try {
+      await createTransaction({
+        type: TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT,
+        payerId: req.user._id,
+        receiverId: starId,
+        amount: price,
+        description: paymentMode === 'external' && paymentDescription ? String(paymentDescription) : TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT],
+        paymentMode: paymentMode,
+        metadata: {
+          occasion,
+          eventName,
+          eventDate: new Date(eventDate),
+          dedicationType: 'request'
+        }
+      });
+    } catch (transactionError) {
+      return res.status(400).json({
+        success: false,
+        message: 'Transaction failed: ' + transactionError.message
+      });
+    }
+
+    // Get the created transaction ID
+    const transaction = await Transaction.findOne({
+      payerId: req.user._id,
+      receiverId: starId,
+      type: TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT,
+      status: 'pending'
+    }).sort({ createdAt: -1 });
+
+    if (!transaction) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve transaction'
+      });
+    }
 
     // Generate unique tracking ID
     const trackingId = await generateUniqueTrackingId();
@@ -43,7 +85,8 @@ export const createDedicationRequest = async (req, res) => {
       eventName: eventName.trim(),
       eventDate: new Date(eventDate),
       description: description.trim(),
-      price
+      price,
+      transactionId: transaction._id,
     });
 
     return res.status(201).json({ success: true, data: sanitize(created) });
@@ -158,6 +201,16 @@ export const rejectDedicationRequest = async (req, res) => {
     item.status = 'rejected';
     item.rejectedAt = new Date();
 
+    // Cancel and refund the pending transaction, if any
+    if (item.transactionId) {
+      try {
+        await cancelTransaction(item.transactionId);
+      } catch (transactionError) {
+        console.error('Failed to cancel transaction for rejected dedication request:', transactionError);
+        // Proceed with rejection even if refund fails; can be reconciled later
+      }
+    }
+
     const updated = await item.save();
     return res.json({ success: true, data: sanitize(updated) });
   } catch (err) {
@@ -169,7 +222,7 @@ export const rejectDedicationRequest = async (req, res) => {
 export const uploadDedicationVideo = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) return res.status(400).json({ success: false, message: 'Video file is required' });
 
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Video file is required' });
@@ -185,6 +238,18 @@ export const uploadDedicationVideo = async (req, res) => {
     const item = await DedicationRequest.findOne(filter);
 
     if (!item) return res.status(404).json({ success: false, message: 'Approved request not found' });
+
+    // Complete the transaction and transfer coins to star
+    if (item.transactionId) {
+      try {
+        await completeTransaction(item.transactionId);
+      } catch (transactionError) {
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to complete transaction: ' + transactionError.message
+        });
+      }
+    }
 
     // Upload video to cloudinary
     item.videoUrl = await uploadVideo(req.file.buffer);
@@ -214,6 +279,16 @@ export const cancelDedicationRequest = async (req, res) => {
     const item = await DedicationRequest.findOne(filter);
 
     if (!item) return res.status(404).json({ success: false, message: 'Request not found or cannot be cancelled' });
+
+    // Cancel the transaction and refund coins if it's pending
+    if (item.transactionId) {
+      try {
+        await cancelTransaction(item.transactionId);
+      } catch (transactionError) {
+        console.error('Failed to cancel transaction:', transactionError);
+        // Continue with request cancellation even if transaction cancellation fails
+      }
+    }
 
     item.status = 'cancelled';
     item.cancelledAt = new Date();
