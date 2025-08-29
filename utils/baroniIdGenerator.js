@@ -22,4 +22,41 @@ export const generateUniqueBaroniId = async () => {
   return baroniId;
 };
 
+/**
+ * Generates a unique GOLD baroni ID in format BAR-GOLD-XXXXX
+ * Ensures uniqueness against existing users' `baroniId`.
+ * @returns {Promise<string>} A unique GOLD baroni ID
+ */
+export const generateUniqueGoldBaroniId = async () => {
+  let baroniId;
+  let isUnique = false;
+
+  while (!isUnique) {
+    // Choose pattern: AAAAA or ABABA
+    const patternType = Math.random() < 0.5 ? 'AAAAA' : 'ABABA';
+
+    let a = Math.floor(1 + Math.random() * 9); // 1-9 to avoid leading zero
+    let b = Math.floor(Math.random() * 10);
+    if (patternType === 'ABABA') {
+      if (b === a) b = (b + 1) % 10; // ensure different digits
+    } else {
+      // AAAAA pattern ignores b, ensure a in 1..9
+    }
+
+    const digits = patternType === 'AAAAA'
+      ? [a, a, a, a, a]
+      : [a, b, a, b, a];
+
+    baroniId = digits.join('');
+
+    // Ensure uniqueness
+    const existingUser = await User.findOne({ baroniId });
+    if (!existingUser) {
+      isUnique = true;
+    }
+  }
+
+  return baroniId;
+};
+
 

@@ -7,6 +7,98 @@ import Availability from "../models/Availability.js";
 import LiveShow from "../models/LiveShow.js";
 import Appointment from "../models/Appointment.js";
 import DedicationRequest from "../models/DedicationRequest.js";
+import Transaction from "../models/Transaction.js";
+import { createTransaction, completeTransaction } from "../services/transactionService.js";
+import { TRANSACTION_DESCRIPTIONS, TRANSACTION_TYPES } from "../utils/transactionConstants.js";
+import { generateUniqueGoldBaroniId } from "../utils/baroniIdGenerator.js";
+
+/**
+ * Fan pays to become a Star (Standard or Gold)
+ * Body: { plan: 'standard' | 'gold', amount: number, paymentMode: 'coin' | 'external', paymentDescription? }
+ * - If plan is 'standard': keep existing baroniId
+ * - If plan is 'gold': assign a unique GOLD patterned baroniId
+ * - Transaction is created with receiver = admin (first admin user)
+ * - On success, user role becomes 'star'
+ */
+export const becomeStar = async (req, res) => {
+    try {
+        const { plan, amount, paymentMode = 'coin', paymentDescription } = req.body;
+
+        if (req.user.role !== 'fan') {
+            return res.status(403).json({ success: false, message: 'Only fans can become stars' });
+        }
+
+        if (!['standard', 'gold'].includes(String(plan))) {
+            return res.status(400).json({ success: false, message: 'Invalid plan. Use standard or gold' });
+        }
+
+        const numericAmount = Number(amount);
+        if (!numericAmount || numericAmount <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid amount' });
+        }
+
+        // Find an admin user to receive the payment
+        const adminUser = await User.findOne({ role: 'admin' });
+        if (!adminUser) {
+            return res.status(500).json({ success: false, message: 'Admin account not configured' });
+        }
+
+        // Create a pending transaction from fan to admin
+        try {
+            await createTransaction({
+                type: TRANSACTION_TYPES.BECOME_STAR_PAYMENT,
+                payerId: req.user._id,
+                receiverId: adminUser._id,
+                amount: numericAmount,
+                description: paymentMode === 'external' && paymentDescription ? String(paymentDescription) : TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.BECOME_STAR_PAYMENT],
+                paymentMode,
+                metadata: { plan }
+            });
+        } catch (transactionError) {
+            return res.status(400).json({ success: false, message: 'Transaction failed: ' + transactionError.message });
+        }
+
+        // Retrieve the transaction to complete it immediately (since this endpoint models successful payment)
+        const transaction = await Transaction.findOne({
+            payerId: req.user._id,
+            receiverId: adminUser._id,
+            type: TRANSACTION_TYPES.BECOME_STAR_PAYMENT,
+            status: 'pending'
+        }).sort({ createdAt: -1 });
+
+        if (!transaction) {
+            return res.status(500).json({ success: false, message: 'Failed to retrieve transaction' });
+        }
+
+        // Complete the transaction (credit admin wallet for coin mode, mark completed for external)
+        await completeTransaction(transaction._id);
+
+        // If Gold, generate a new GOLD-formatted unique baroniId
+        let updates = { role: 'star' };
+        if (String(plan) === 'gold') {
+            const newGoldId = await generateUniqueGoldBaroniId();
+            updates.baroniId = newGoldId;
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true });
+
+        return res.status(200).json({
+            success: true,
+            message: 'You are now a Baroni Star',
+            data: {
+                user: {
+                    id: updatedUser._id,
+                    baroniId: updatedUser.baroniId,
+                    role: updatedUser.role
+                },
+                transactionId: transaction._id,
+                plan
+            }
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: err.message });
+    }
+};
 
 export const getAllStars = async (req, res) => {
     try {

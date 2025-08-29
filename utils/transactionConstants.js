@@ -4,6 +4,7 @@ export const TRANSACTION_TYPES = {
   LIVE_SHOW_ATTENDANCE_PAYMENT: 'live_show_attendance_payment',
   SERVICE_PAYMENT: 'service_payment',
   DEDICATION_PAYMENT: 'dedication_payment',
+  BECOME_STAR_PAYMENT: 'become_star_payment',
   REFUND: 'refund',
   ADMIN_CREDIT: 'admin_credit',
   ADMIN_DEBIT: 'admin_debit'
@@ -30,6 +31,7 @@ export const TRANSACTION_DESCRIPTIONS = {
   [TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT]: 'Payment for live show attendance',
   [TRANSACTION_TYPES.SERVICE_PAYMENT]: 'Payment for service',
   [TRANSACTION_TYPES.DEDICATION_PAYMENT]: 'Payment for dedication',
+  [TRANSACTION_TYPES.BECOME_STAR_PAYMENT]: 'Payment for becoming a Baroni Star',
   [TRANSACTION_TYPES.REFUND]: 'Refund transaction',
   [TRANSACTION_TYPES.ADMIN_CREDIT]: 'Admin credit adjustment',
   [TRANSACTION_TYPES.ADMIN_DEBIT]: 'Admin debit adjustment'
