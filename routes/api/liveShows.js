@@ -8,9 +8,11 @@ import {
   deleteLiveShow,
   getStarUpcomingShows,
   getStarAllShows,
-  scheduleLiveShow,
   cancelLiveShow,
-  rescheduleLiveShow, toggleLikeLiveShow
+  rescheduleLiveShow, toggleLikeLiveShow,
+  joinLiveShow,
+  getMyJoinedLiveShows,
+  completeLiveShowAttendance
 } from '../../controllers/liveShow.js';
 import {
   createLiveShowValidator,
@@ -29,6 +31,7 @@ router.get('/', getAllLiveShows);
 router.get('/code/:showCode', getLiveShowByCode);
 router.get('/star/:starId/upcoming', getStarUpcomingShows);
 router.get('/star/:starId', getStarAllShows);
+router.get('/me/joined', getMyJoinedLiveShows);
 router.get('/:id', getLiveShowById);
 
 // CRUD operations for live shows (star only)
@@ -39,11 +42,13 @@ router.delete('/:id', requireRole('star', 'admin'), deleteLiveShow);
 // Likes
 router.post('/:id/like', toggleLikeLiveShow);
 
-// Fan schedules a pending show
-router.patch('/:id/schedule', requireRole('fan', 'admin'), scheduleLiveShow);
+// Fan joins a live show (requires successful transaction)
+router.post('/:id/join', requireRole('fan', 'admin'), joinLiveShow);
 // Star cancels a show
 router.patch('/:id/cancel', requireRole('star', 'admin'), cancelLiveShow);
 // Star reschedules a show (date/time)
 router.patch('/:id/reschedule', requireRole('star', 'admin'), rescheduleLiveShowValidator, rescheduleLiveShow);
+// Star completes live show attendance and transfers coins
+router.post('/:id/complete-attendance', requireRole('star', 'admin'), completeLiveShowAttendance);
 
 export default router;

@@ -1,9 +1,13 @@
 import { validationResult } from 'express-validator';
 import LiveShow from '../models/LiveShow.js';
+import LiveShowAttendance from '../models/LiveShowAttendance.js';
 import User from '../models/User.js';
 import { generateUniqueShowCode } from '../utils/liveShowCodeGenerator.js';
 import { uploadFile } from '../utils/uploadFile.js';
 import mongoose from 'mongoose';
+import { createTransaction, completeTransaction, cancelTransaction } from '../services/transactionService.js';
+import { TRANSACTION_TYPES, TRANSACTION_DESCRIPTIONS } from '../utils/transactionConstants.js';
+import Transaction from '../models/Transaction.js';
 
 const sanitizeLiveShow = (show) => ({
   id: show._id,
@@ -27,6 +31,26 @@ const sanitizeLiveShow = (show) => ({
   updatedAt: show.updatedAt
 });
 
+const setPerUserFlags = (sanitized, show, req) => {
+  const data = { ...sanitized };
+  if (req.user && req.user.role === 'fan') {
+    const starId = show.starId && show.starId._id ? show.starId._id : show.starId;
+    data.isFavorite = Array.isArray(req.user.favorites) && starId
+      ? req.user.favorites.map(String).includes(String(starId))
+      : false;
+    data.hasJoined = Array.isArray(show.attendees)
+      ? show.attendees.map(String).includes(String(req.user._id))
+      : false;
+  } else {
+    data.isFavorite = false;
+    data.hasJoined = false;
+  }
+  data.isLiked = Array.isArray(show.likes) && req.user
+    ? show.likes.some(u => u.toString() === req.user._id.toString())
+    : false;
+  return data;
+};
+
 // Create a new live show (star)
 export const createLiveShow = async (req, res) => {
   try {
@@ -36,6 +60,9 @@ export const createLiveShow = async (req, res) => {
     }
 
     const { sessionTitle, date, time, attendanceFee, hostingPrice, maxCapacity, description } = req.body;
+
+    // Note: Hosting price is now just a display field, no transaction needed
+    // Shows are immediately active and open for joining
 
     const showCode = await generateUniqueShowCode();
     const inviteLink = `${process.env.FRONTEND_URL || 'https://app.baroni.com'}/live/${showCode}`;
@@ -55,13 +82,14 @@ export const createLiveShow = async (req, res) => {
       showCode,
       inviteLink,
       starId: req.user._id,
+      status: 'active', // Show is immediately active
       description,
       thumbnail: thumbnailUrl
     });
 
     await liveShow.populate('starId', 'name pseudo profilePic');
 
-    return res.status(201).json({ success: true, message: 'Live show created successfully', data: sanitizeLiveShow(liveShow) });
+    return res.status(201).json({ success: true, message: 'Live show created successfully and is now open for joining', data: sanitizeLiveShow(liveShow) });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -72,28 +100,18 @@ export const getAllLiveShows = async (req, res) => {
   try {
     const { status, starId, upcoming } = req.query;
 
-    const allowedStatuses = ['pending', 'scheduled', 'cancelled'];
+    const allowedStatuses = ['active', 'cancelled'];
     const filter = {};
     if (status && allowedStatuses.includes(status)) filter.status = status;
     if (starId && mongoose.Types.ObjectId.isValid(starId)) filter.starId = starId;
     if (upcoming === 'true') {
       filter.date = { $gt: new Date() };
-      filter.status = 'scheduled';
+      filter.status = 'active';
     }
 
     const shows = await LiveShow.find(filter).populate('starId', 'name pseudo profilePic availableForBookings').sort({ date: 1 });
 
-    const showsData = shows.map(show => {
-      const sanitized = sanitizeLiveShow(show);
-      if (req.user && req.user.role === 'fan') {
-        sanitized.isFavorite = req.user.favorites.includes(show.starId._id);
-      } else {
-        sanitized.isFavorite = false;
-      }
-      // Always include isLiked for all authenticated users
-      sanitized.isLiked = Array.isArray(show.likes) && show.likes.some(u => u.toString() === req.user._id.toString());
-      return sanitized;
-    });
+    const showsData = shows.map(show => setPerUserFlags(sanitizeLiveShow(show), show, req));
 
     return res.json({ success: true, data: showsData });
   } catch (err) {
@@ -109,14 +127,7 @@ export const getLiveShowById = async (req, res) => {
     const show = await LiveShow.findById(id).populate('starId', 'name pseudo profilePic availableForBookings');
     if (!show) return res.status(404).json({ success: false, message: 'Live show not found' });
 
-    const showData = sanitizeLiveShow(show);
-    if (req.user && req.user.role === 'fan') {
-      showData.isFavorite = req.user.favorites.includes(show.starId._id);
-    } else {
-      showData.isFavorite = false;
-    }
-    // Always include isLiked for all authenticated users
-    showData.isLiked = Array.isArray(show.likes) && show.likes.some(u => u.toString() === req.user._id.toString());
+    const showData = setPerUserFlags(sanitizeLiveShow(show), show, req);
 
     return res.json({ success: true, data: showData });
   } catch (err) {
@@ -130,14 +141,7 @@ export const getLiveShowByCode = async (req, res) => {
     const show = await LiveShow.findOne({ showCode: showCode.toUpperCase() }).populate('starId', 'name pseudo profilePic availableForBookings');
     if (!show) return res.status(404).json({ success: false, message: 'Live show not found' });
 
-    const showData = sanitizeLiveShow(show);
-    if (req.user && req.user.role === 'fan') {
-      showData.isFavorite = req.user.favorites.includes(show.starId._id);
-    } else {
-      showData.isFavorite = false;
-    }
-    // Always include isLiked for all authenticated users
-    showData.isLiked = Array.isArray(show.likes) && show.likes.some(u => u.toString() === req.user._id.toString());
+    const showData = setPerUserFlags(sanitizeLiveShow(show), show, req);
 
     return res.json({ success: true, data: showData });
   } catch (err) {
@@ -195,19 +199,105 @@ export const deleteLiveShow = async (req, res) => {
 };
 
 // Fan schedules a show (books) -> move from pending to scheduled
-export const scheduleLiveShow = async (req, res) => {
+// Fan joins a live show after successful attendance payment
+export const joinLiveShow = async (req, res) => {
   try {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ success: false, message: 'Invalid live show ID' });
 
     const show = await LiveShow.findById(id);
     if (!show) return res.status(404).json({ success: false, message: 'Live show not found' });
-    if (show.status !== 'pending') return res.status(400).json({ success: false, message: 'Only pending shows can be scheduled' });
+    if (show.status !== 'active') return res.status(400).json({ success: false, message: 'Show is not open for joining' });
 
-    const updated = await LiveShow.findByIdAndUpdate(id, { status: 'scheduled' }, { new: true })
-      .populate('starId', 'name pseudo profilePic availableForBookings');
+    // Check if already joined
+    const alreadyJoined = Array.isArray(show.attendees) && show.attendees.some(u => u.toString() === req.user._id.toString());
+    if (alreadyJoined) {
+      const populated = await LiveShow.findById(id).populate('starId', 'name pseudo profilePic availableForBookings');
+      const data = setPerUserFlags(sanitizeLiveShow(populated), populated, req);
+      return res.json({ success: true, message: 'Already joined', data });
+    }
 
-    return res.json({ success: true, message: 'Live show scheduled', data: sanitizeLiveShow(updated) });
+    // Capacity check
+    if (show.maxCapacity !== -1 && show.currentAttendees >= show.maxCapacity) {
+      return res.status(400).json({ success: false, message: 'Show is at capacity' });
+    }
+
+    // Process attendance fee payment
+    const amount = Number(show.attendanceFee || 0);
+    const { paymentMode = 'coin', paymentDescription } = req.body || {};
+    if (amount > 0) {
+      try {
+        await createTransaction({
+          type: TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT,
+          payerId: req.user._id,
+          receiverId: show.starId,
+          amount,
+          description: paymentMode === 'external' && paymentDescription ? String(paymentDescription) : TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT],
+          paymentMode: paymentMode,
+          metadata: {
+            showId: show._id,
+            showCode: show.showCode,
+            showTitle: show.sessionTitle,
+            showDate: show.date,
+            showTime: show.time,
+            showType: 'live_show_attendance'
+          }
+        });
+      } catch (transactionError) {
+        return res.status(400).json({ success: false, message: 'Attendance payment failed: ' + transactionError.message });
+      }
+    }
+
+    // Get the created transaction ID
+    const transaction = await Transaction.findOne({
+      payerId: req.user._id,
+      receiverId: show.starId,
+      type: TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT,
+      status: 'pending'
+    }).sort({ createdAt: -1 });
+
+    if (!transaction) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve transaction'
+      });
+    }
+
+    // Create attendance record
+    await LiveShowAttendance.create({
+      liveShowId: show._id,
+      fanId: req.user._id,
+      starId: show.starId,
+      transactionId: transaction._id,
+      attendanceFee: amount
+    });
+
+    // Mark as joined
+    const updated = await LiveShow.findByIdAndUpdate(
+      id,
+      {
+        $addToSet: { attendees: req.user._id },
+        $inc: { currentAttendees: 1 }
+      },
+      { new: true }
+    ).populate('starId', 'name pseudo profilePic availableForBookings');
+
+    const data = setPerUserFlags(sanitizeLiveShow(updated), updated, req);
+    return res.json({ success: true, message: 'Joined live show successfully', data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Get current user's joined live shows
+export const getMyJoinedLiveShows = async (req, res) => {
+  try {
+    const shows = await LiveShow.find({ attendees: req.user._id })
+      .populate('starId', 'name pseudo profilePic availableForBookings')
+      .sort({ date: -1 });
+
+    const data = shows.map(show => setPerUserFlags(sanitizeLiveShow(show), show, req));
+    return res.json({ success: true, data });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -222,6 +312,24 @@ export const cancelLiveShow = async (req, res) => {
     const show = await LiveShow.findById(id);
     if (!show) return res.status(404).json({ success: false, message: 'Live show not found' });
     if (show.starId.toString() !== req.user._id.toString() && req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Only the star can cancel this show' });
+
+    // Cancel all pending attendance transactions and refund coins
+    const attendances = await LiveShowAttendance.find({ 
+      liveShowId: show._id, 
+      status: 'active' 
+    });
+
+    for (const attendance of attendances) {
+      try {
+        await cancelTransaction(attendance.transactionId);
+        attendance.status = 'cancelled';
+        attendance.cancelledAt = new Date();
+        await attendance.save();
+      } catch (transactionError) {
+        console.error('Failed to cancel attendance transaction:', transactionError);
+        // Continue with other cancellations even if one fails
+      }
+    }
 
     const updated = await LiveShow.findByIdAndUpdate(id, { status: 'cancelled' }, { new: true })
       .populate('starId', 'name pseudo profilePic availableForBookings');
@@ -267,22 +375,12 @@ export const getStarUpcomingShows = async (req, res) => {
 
     const shows = await LiveShow.find({
       starId,
-      status: 'scheduled',
+      status: 'active',
       date: { $gt: new Date() }
     })
     .sort({ date: 1 });
 
-    const showsData = shows.map(show => {
-      const sanitized = sanitizeLiveShow(show);
-      if (req.user && req.user.role === 'fan') {
-        sanitized.isFavorite = req.user.favorites.includes(starId);
-      } else {
-        sanitized.isFavorite = false;
-      }
-      // Always include isLiked for all authenticated users
-      sanitized.isLiked = Array.isArray(show.likes) && show.likes.some(u => u.toString() === req.user._id.toString());
-      return sanitized;
-    });
+    const showsData = shows.map(show => setPerUserFlags(sanitizeLiveShow(show), show, req));
 
     return res.json({ success: true, data: showsData });
   } catch (err) {
@@ -298,22 +396,12 @@ export const getStarAllShows = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(starId)) return res.status(400).json({ success: false, message: 'Invalid star ID' });
 
     const filter = { starId };
-    const allowedStatuses = ['pending', 'scheduled', 'cancelled'];
+    const allowedStatuses = ['active', 'cancelled'];
     if (status && allowedStatuses.includes(status)) filter.status = status;
 
     const shows = await LiveShow.find(filter).sort({ date: -1 });
 
-    const showsData = shows.map(show => {
-      const sanitized = sanitizeLiveShow(show);
-      if (req.user && req.user.role === 'fan') {
-        sanitized.isFavorite = req.user.favorites.includes(starId);
-      } else {
-        sanitized.isFavorite = false;
-      }
-      // Always include isLiked for all authenticated users
-      sanitized.isLiked = Array.isArray(show.likes) && show.likes.some(u => u.toString() === req.user._id.toString());
-      return sanitized;
-    });
+    const showsData = shows.map(show => setPerUserFlags(sanitizeLiveShow(show), show, req));
 
     return res.json({ success: true, data: showsData });
   } catch (err) {
@@ -339,6 +427,39 @@ export const toggleLikeLiveShow = async (req, res) => {
     const data = sanitizeLiveShow(updated);
     data.isLiked = !hasLiked;
     return res.json({ success: true, message: hasLiked ? 'Unliked' : 'Liked', data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Complete live show attendance and transfer coins to star
+export const completeLiveShowAttendance = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ success: false, message: 'Invalid live show ID' });
+
+    const show = await LiveShow.findById(id);
+    if (!show) return res.status(404).json({ success: false, message: 'Live show not found' });
+    if (show.starId.toString() !== req.user._id.toString() && req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Only the star can complete this show' });
+
+    // Complete all active attendance transactions and transfer coins to star
+    const attendances = await LiveShowAttendance.find({ 
+      liveShowId: show._id, 
+      status: 'active' 
+    });
+
+    for (const attendance of attendances) {
+      try {
+        await completeTransaction(attendance.transactionId);
+        attendance.status = 'completed';
+        await attendance.save();
+      } catch (transactionError) {
+        console.error('Failed to complete attendance transaction:', transactionError);
+        // Continue with other completions even if one fails
+      }
+    }
+
+    return res.json({ success: true, message: 'Live show attendance completed and coins transferred' });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
