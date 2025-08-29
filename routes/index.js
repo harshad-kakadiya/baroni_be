@@ -14,6 +14,7 @@ import transactionRouter from './api/transactions.js';
 import favoritesRouter from './api/favorites.js';
 import liveShowsRouter from './api/liveShows.js';
 import reportUsersRouter from './api/reportUsers.js';
+import agoraRouter from './api/agora.js';
 
 const router = express.Router();
 
@@ -32,6 +33,7 @@ router.use('/star',starRouter);
 router.use('/favorites', favoritesRouter);
 router.use('/live-shows', liveShowsRouter);
 router.use('/report-users', reportUsersRouter);
+router.use('/agora', agoraRouter);
 
 export default router;
 
