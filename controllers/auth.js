@@ -9,6 +9,7 @@ import {createAccessToken, createRefreshToken, verifyRefreshToken} from '../util
 import {uploadFile} from '../utils/uploadFile.js';
 import {uploadVideo} from '../utils/uploadFile.js';
 import {generateUniqueBaroniId} from '../utils/baroniIdGenerator.js';
+import {initializeUserCoins} from '../services/transactionService.js';
 import DedicationRequest from '../models/DedicationRequest.js';
 import Availability from '../models/Availability.js';
 import Appointment from '../models/Appointment.js';
@@ -89,6 +90,9 @@ export const register = async (req, res) => {
       password: hashedPassword,
       role
     });
+
+    // Initialize user with 1000 coins
+    await initializeUserCoins(user._id);
 
     // Auto-login
     const accessToken = createAccessToken({ userId: user._id });
