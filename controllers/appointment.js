@@ -1,6 +1,9 @@
 import { validationResult } from 'express-validator';
 import Availability from '../models/Availability.js';
 import Appointment from '../models/Appointment.js';
+import { createTransaction, completeTransaction, cancelTransaction } from '../services/transactionService.js';
+import { TRANSACTION_TYPES, TRANSACTION_DESCRIPTIONS } from '../utils/transactionConstants.js';
+import Transaction from '../models/Transaction.js'; // Added missing import for Transaction
 
 const toUser = (u) => (
   u && u._id ? {
@@ -32,6 +35,8 @@ const sanitize = (doc) => ({
   time: doc.time,
   price: doc.price,
   status: doc.status,
+  transactionId: doc.transactionId,
+  completedAt: doc.completedAt,
   createdAt: doc.createdAt,
   updatedAt: doc.updatedAt,
 });
@@ -40,14 +45,54 @@ export const createAppointment = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
-    const { starId, availabilityId, timeSlotId, price } = req.body;
+    const { starId, availabilityId, timeSlotId, price , paymentMode = 'coin', paymentDescription } = req.body;
 
     const availability = await Availability.findOne({ _id: availabilityId, userId: starId });
     if (!availability) return res.status(404).json({ success: false, message: 'Availability not found' });
 
     const slot = availability.timeSlots.find((s) => String(s._id) === String(timeSlotId));
-    if (!slot) return res.status(404).json({ success: false, message: 'Time slot not found' });
+    if (!slot) return res.status(404).json({ success: false, message: 'Time slot unavailable' });
     if (slot.status === 'unavailable') return res.status(409).json({ success: false, message: 'Time slot unavailable' });
+
+    // Create transaction before creating appointment
+    let transactionResult;
+    try {
+      transactionResult = await createTransaction({
+        type: TRANSACTION_TYPES.APPOINTMENT_PAYMENT,
+        payerId: req.user._id,
+        receiverId: starId,
+        amount: price,
+        description: paymentMode === 'external' && paymentDescription ? String(paymentDescription) : TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.APPOINTMENT_PAYMENT],
+        paymentMode: paymentMode,
+        metadata: {
+          appointmentType: 'booking',
+          availabilityId,
+          timeSlotId,
+          date: availability.date,
+          time: slot.slot
+        }
+      });
+    } catch (transactionError) {
+      return res.status(400).json({
+        success: false,
+        message: 'Transaction failed: ' + transactionError.message
+      });
+    }
+
+    // Get the created transaction ID
+    const transaction = await Transaction.findOne({
+      payerId: req.user._id,
+      receiverId: starId,
+      type: TRANSACTION_TYPES.APPOINTMENT_PAYMENT,
+      status: 'pending'
+    }).sort({ createdAt: -1 });
+
+    if (!transaction) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve transaction'
+      });
+    }
 
     const created = await Appointment.create({
       starId,
@@ -58,6 +103,7 @@ export const createAppointment = async (req, res) => {
       time: slot.slot,
       price,
       status: 'pending',
+      transactionId: transaction._id,
     });
     return res.status(201).json({ success: true, data: sanitize(created) });
   } catch (err) {
@@ -126,6 +172,15 @@ export const rejectAppointment = async (req, res) => {
     if (!appt) return res.status(404).json({ success: false, message: 'Appointment not found' });
     if (appt.status !== 'pending') return res.status(400).json({ success: false, message: 'Only pending can be rejected' });
     appt.status = 'rejected';
+    // Cancel and refund the pending transaction, if any
+    if (appt.transactionId) {
+      try {
+        await cancelTransaction(appt.transactionId);
+      } catch (transactionError) {
+        console.error('Failed to cancel transaction for rejected appointment:', transactionError);
+        // Proceed with rejection even if refund fails
+      }
+    }
     const updated = await appt.save();
     return res.json({ success: true, data: sanitize(updated) });
   } catch (err) {
@@ -143,6 +198,16 @@ export const cancelAppointment = async (req, res) => {
     const appt = await Appointment.findOne(filter);
     if (!appt) return res.status(404).json({ success: false, message: 'Appointment not found' });
     if (appt.status === 'cancelled') return res.status(400).json({ success: false, message: 'Already cancelled' });
+
+    // Cancel the transaction and refund coins if it's pending
+    if (appt.transactionId && appt.status === 'pending') {
+      try {
+        await cancelTransaction(appt.transactionId);
+      } catch (transactionError) {
+        console.error('Failed to cancel transaction:', transactionError);
+        // Continue with appointment cancellation even if transaction cancellation fails
+      }
+    }
 
     // If previously approved, free the reserved slot
     if (appt.status === 'approved') {
@@ -208,4 +273,37 @@ export const rescheduleAppointment = async (req, res) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
+
+export const completeAppointment = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    const { id } = req.params;
+    const appt = await Appointment.findOne({ _id: id, starId: req.user._id });
+    if (!appt) return res.status(404).json({ success: false, message: 'Appointment not found' });
+    if (appt.status !== 'approved') return res.status(400).json({ success: false, message: 'Only approved appointments can be completed' });
+
+    // Complete the transaction and transfer coins to star
+    if (appt.transactionId) {
+      try {
+        await completeTransaction(appt.transactionId);
+      } catch (transactionError) {
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to complete transaction: ' + transactionError.message
+        });
+      }
+    }
+
+    appt.status = 'completed';
+    appt.completedAt = new Date();
+    const updated = await appt.save();
+
+    return res.json({ success: true, data: sanitize(updated) });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+
 
