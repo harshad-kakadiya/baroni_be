@@ -1,6 +1,6 @@
 import { body, validationResult } from "express-validator";
 
-exports.storeMessageValidator = [
+export const storeMessageValidator = [
     body("channelName")
         .notEmpty()
         .withMessage("Channel name is required")

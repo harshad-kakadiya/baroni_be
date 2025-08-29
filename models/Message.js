@@ -9,4 +9,5 @@ const messageSchema = new mongoose.Schema({
     seenBy: [String]
 }, {timestamps: true});
 
-module.exports = mongoose.model('Message', messageSchema);
+const MessageModel=  mongoose.model('Message', messageSchema);
+export default MessageModel;

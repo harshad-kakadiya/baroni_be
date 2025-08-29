@@ -7,4 +7,5 @@ const conversationSchema = new mongoose.Schema({
     unreadCount: Object
 }, { timestamps: true });
 
-module.exports = mongoose.model('Conversation', conversationSchema);
+const ConversationModel = mongoose.model('Conversation', conversationSchema);
+export default ConversationModel;
