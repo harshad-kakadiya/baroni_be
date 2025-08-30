@@ -246,6 +246,20 @@ export const getStarById = async (req, res) => {
             .limit(10)
         ]);
 
+        // Add isLiked field to each upcoming show
+        const upcomingShowsWithLikeStatus = upcomingShows.map(show => {
+            const showData = show.toObject();
+            if (req.user) {
+                // Check if the current user has liked this show
+                showData.isLiked = Array.isArray(show.likes) && show.likes.some(likeId => 
+                    likeId.toString() === req.user._id.toString()
+                );
+            } else {
+                showData.isLiked = false;
+            }
+            return showData;
+        });
+
         res.status(200).json({
             success: true,
             data: {
@@ -254,7 +268,7 @@ export const getStarById = async (req, res) => {
                 services,
                 dedicationSamples,
                 availability,
-                upcomingShows
+                upcomingShows: upcomingShowsWithLikeStatus
             },
         });
     } catch (error) {
