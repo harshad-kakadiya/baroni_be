@@ -30,10 +30,14 @@ export const getDashboard = async (req, res) => {
           role: 'star',
           // Only include stars that have filled up their details
           $and: [
-            { name: { $exists: true, $ne: null, $ne: '' } },
-            { pseudo: { $exists: true, $ne: null, $ne: '' } },
-            { about: { $exists: true, $ne: null, $ne: '' } },
-            { location: { $exists: true, $ne: null, $ne: '' } },
+            { name: { $exists: true, $ne: null } },
+            { name: { $ne: '' } },
+            { pseudo: { $exists: true, $ne: null } },
+            { pseudo: { $ne: '' } },
+            { about: { $exists: true, $ne: null } },
+            { about: { $ne: '' } },
+            { location: { $exists: true, $ne: null } },
+            { location: { $ne: '' } },
             { profession: { $exists: true, $ne: null } }
           ]
         })
