@@ -5,6 +5,11 @@ import mongoose from 'mongoose';
 // Add a star to favorites
 export const addToFavorites = async (req, res) => {
   try {
+    // Check if user is authenticated
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ success: false, errors: errors.array() });
@@ -44,6 +49,7 @@ export const addToFavorites = async (req, res) => {
       data: { starId, added: true }
     });
   } catch (err) {
+    console.error('Error in addToFavorites:', err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -51,6 +57,11 @@ export const addToFavorites = async (req, res) => {
 // Remove a star from favorites
 export const removeFromFavorites = async (req, res) => {
   try {
+    // Check if user is authenticated
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ success: false, errors: errors.array() });
@@ -86,6 +97,7 @@ export const removeFromFavorites = async (req, res) => {
       data: { starId, removed: true }
     });
   } catch (err) {
+    console.error('Error in removeFromFavorites:', err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -93,6 +105,11 @@ export const removeFromFavorites = async (req, res) => {
 // Toggle favorite status (add if not present, remove if present)
 export const toggleFavorite = async (req, res) => {
   try {
+    // Check if user is authenticated
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ success: false, errors: errors.array() });
@@ -144,6 +161,7 @@ export const toggleFavorite = async (req, res) => {
       });
     }
   } catch (err) {
+    console.error('Error in toggleFavorite:', err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -151,6 +169,11 @@ export const toggleFavorite = async (req, res) => {
 // Get user's favorites list
 export const getFavorites = async (req, res) => {
   try {
+    // Check if user is authenticated
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+
     const fanId = req.user._id;
 
     // Check if user is a fan
@@ -161,7 +184,7 @@ export const getFavorites = async (req, res) => {
     // Get user with populated favorites
     const fan = await User.findById(fanId).populate({
       path: 'favorites',
-      select: '-password -passwordResetToken -passwordResetExpires',
+      select: 'name pseudo profilePic about location profession role',
       match: { role: 'star' } // Only include actual stars
     });
 
@@ -169,12 +192,16 @@ export const getFavorites = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
+    // Filter out any null values that might occur from the match condition
+    const validFavorites = fan.favorites.filter(star => star !== null);
+
     return res.json({
       success: true,
-      data: fan.favorites,
-      count: fan.favorites.length
+      data: validFavorites,
+      count: validFavorites.length
     });
   } catch (err) {
+    console.error('Error in getFavorites:', err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };
