@@ -14,6 +14,9 @@ import { requireAuth } from '../../middlewares/auth.js';
 
 const router = express.Router();
 
+// Apply authentication middleware to all routes
+router.use(requireAuth);
+
 router.post('/add', addToFavoritesValidator, addToFavorites);
 router.post('/remove', removeFromFavoritesValidator, removeFromFavorites);
 router.post('/toggle', toggleFavoriteValidator, toggleFavorite);
