@@ -5,6 +5,7 @@ import Service from '../models/Service.js';
 import DedicationSample from '../models/DedicationSample.js';
 import Appointment from '../models/Appointment.js';
 import Availability from '../models/Availability.js';
+import LiveShow from '../models/LiveShow.js';
 
 const sanitizeUser = (user) => ({
   id: user._id,
@@ -23,14 +24,32 @@ export const getDashboard = async (req, res) => {
     const role = user.role;
 
     if (role === 'fan') {
-      // Fan dashboard: stars and categories
-      const [stars, categories] = await Promise.all([
-        User.find({ role: 'star' })
+      // Fan dashboard: stars with filled details, categories, and upcoming shows
+      const [stars, categories, upcomingShows] = await Promise.all([
+        User.find({ 
+          role: 'star',
+          // Only include stars that have filled up their details
+          $and: [
+            { name: { $exists: true, $ne: null, $ne: '' } },
+            { pseudo: { $exists: true, $ne: null, $ne: '' } },
+            { about: { $exists: true, $ne: null, $ne: '' } },
+            { location: { $exists: true, $ne: null, $ne: '' } },
+            { profession: { $exists: true, $ne: null } }
+          ]
+        })
           .populate('profession')
           .select('name pseudo profilePic about location profession')
           .sort({ createdAt: -1 })
           .limit(20),
         Category.find().sort({ name: 1 }),
+        // Get all upcoming live shows
+        LiveShow.find({
+          status: 'active',
+          date: { $gt: new Date() }
+        })
+        .populate('starId', 'name pseudo profilePic')
+        .sort({ date: 1 })
+        .limit(10)
       ]);
 
       return res.json({
@@ -43,13 +62,31 @@ export const getDashboard = async (req, res) => {
             image: cat.image,
             description: cat.description,
           })),
+          upcomingShows: upcomingShows.map(show => ({
+            id: show._id,
+            sessionTitle: show.sessionTitle,
+            date: show.date,
+            time: show.time,
+            attendanceFee: show.attendanceFee,
+            maxCapacity: show.maxCapacity,
+            currentAttendees: show.currentAttendees,
+            showCode: show.showCode,
+            description: show.description,
+            thumbnail: show.thumbnail,
+            star: show.starId ? {
+              id: show.starId._id,
+              name: show.starId.name,
+              pseudo: show.starId.pseudo,
+              profilePic: show.starId.profilePic
+            } : null
+          }))
         },
       });
     }
 
     if (role === 'star') {
-      // Star dashboard: upcoming bookings, earnings, and engaged fans
-      const [upcomingBookings, earnings, engagedFans] = await Promise.all([
+      // Star dashboard: upcoming bookings, earnings, engaged fans, and live shows
+      const [upcomingBookings, earnings, engagedFans, upcomingLiveShows, liveShowEarnings] = await Promise.all([
         // Upcoming approved appointments
         Appointment.find({
           starId: user._id,
@@ -70,7 +107,22 @@ export const getDashboard = async (req, res) => {
         Appointment.distinct('fanId', {
           starId: user._id,
           status: { $in: ['approved', 'pending'] }
+        }),
+
+        // Get upcoming live shows
+        LiveShow.find({
+          starId: user._id,
+          status: 'active',
+          date: { $gt: new Date() }
         })
+        .sort({ date: 1 })
+        .limit(10),
+
+        // Calculate earnings from live shows
+        LiveShow.aggregate([
+          { $match: { starId: user._id, status: 'active' } },
+          { $group: { _id: null, totalEarnings: { $sum: '$hostingPrice' } } }
+        ])
       ]);
 
       // Get fan details for engaged fans
@@ -80,7 +132,9 @@ export const getDashboard = async (req, res) => {
       .select('name pseudo profilePic')
       .limit(20);
 
-      const totalEarnings = earnings.length > 0 ? earnings[0].totalEarnings : 0;
+      const appointmentEarnings = earnings.length > 0 ? earnings[0].totalEarnings : 0;
+      const liveShowEarningsTotal = liveShowEarnings.length > 0 ? liveShowEarnings[0].totalEarnings : 0;
+      const totalEarnings = appointmentEarnings + liveShowEarningsTotal;
 
       return res.json({
         success: true,
@@ -97,8 +151,23 @@ export const getDashboard = async (req, res) => {
             time: booking.time,
             status: booking.status
           })),
+          upcomingLiveShows: upcomingLiveShows.map(show => ({
+            id: show._id,
+            sessionTitle: show.sessionTitle,
+            date: show.date,
+            time: show.time,
+            attendanceFee: show.attendanceFee,
+            hostingPrice: show.hostingPrice,
+            maxCapacity: show.maxCapacity,
+            currentAttendees: show.currentAttendees,
+            showCode: show.showCode,
+            description: show.description,
+            thumbnail: show.thumbnail
+          })),
           earnings: {
             totalEarnings,
+            appointmentEarnings,
+            liveShowEarnings: liveShowEarningsTotal,
             currency: 'USD'
           },
           engagedFans: fanDetails.map(fan => ({
@@ -106,7 +175,12 @@ export const getDashboard = async (req, res) => {
             name: fan.name,
             pseudo: fan.pseudo,
             profilePic: fan.profilePic
-          }))
+          })),
+          stats: {
+            totalBookings: upcomingBookings.length,
+            totalLiveShows: upcomingLiveShows.length,
+            totalEngagedFans: fanDetails.length
+          }
         },
       });
     }
