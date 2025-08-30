@@ -138,20 +138,20 @@ export const getAllStars = async (req, res) => {
             });
         }
 
-        // Check if user is authenticated and is a fan to add favorite status
+        // Check if user is authenticated to add favorite/liked status
         let starsData = stars.map(star => star.toObject());
 
-        if (req.user && req.user.role === 'fan') {
-            const fan = req.user;
+        if (req.user) {
+            // Check if each star is in user's favorites
             starsData = starsData.map(star => ({
                 ...star,
-                isFavorite: fan.favorites.includes(star._id)
+                isLiked: req.user.favorites.includes(star._id)
             }));
         } else {
-            // For non-fans or unauthenticated users, set isFavorite to false
+            // For unauthenticated users, set isLiked to false
             starsData = starsData.map(star => ({
                 ...star,
-                isFavorite: false
+                isLiked: false
             }));
         }
 
@@ -208,20 +208,26 @@ export const getStarById = async (req, res) => {
             });
         }
 
-        // Check if user is authenticated and is a fan to add favorite status
+        // Check if user is authenticated to add favorite/liked status
         let starData = star.toObject();
 
-        if (req.user && req.user.role === 'fan') {
-            const fan = req.user;
-            starData.isFavorite = fan.favorites.includes(id);
-            const [hasActiveAppointment, hasActiveDedication] = await Promise.all([
-                Appointment.exists({ starId: id, fanId: fan._id, status: { $in: ['pending', 'approved'] } }),
-                DedicationRequest.exists({ starId: id, fanId: fan._id, status: { $in: ['pending', 'approved'] } })
-            ]);
-            starData.isMessage = Boolean(hasActiveAppointment || hasActiveDedication);
+        if (req.user) {
+            // Check if the star is in user's favorites
+            starData.isLiked = req.user.favorites.includes(id);
+            
+            // Additional fan-specific checks
+            if (req.user.role === 'fan') {
+                const [hasActiveAppointment, hasActiveDedication] = await Promise.all([
+                    Appointment.exists({ starId: id, fanId: req.user._id, status: { $in: ['pending', 'approved'] } }),
+                    DedicationRequest.exists({ starId: id, fanId: req.user._id, status: { $in: ['pending', 'approved'] } })
+                ]);
+                starData.isMessage = Boolean(hasActiveAppointment || hasActiveDedication);
+            } else {
+                starData.isMessage = false;
+            }
         } else {
-            // For non-fans or unauthenticated users, set isFavorite to false
-            starData.isFavorite = false;
+            // For unauthenticated users, set isLiked to false
+            starData.isLiked = false;
             starData.isMessage = false;
         }
 

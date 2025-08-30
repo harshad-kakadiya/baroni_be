@@ -14,6 +14,8 @@ import DedicationRequest from '../models/DedicationRequest.js';
 import Availability from '../models/Availability.js';
 import Appointment from '../models/Appointment.js';
 import ContactSupport from '../models/ContactSupport.js';
+import Transaction from '../models/Transaction.js';
+import LiveShowAttendance from '../models/LiveShowAttendance.js';
 import mongoose from 'mongoose';
 
 const sanitizeUser = (user) => ({
@@ -397,6 +399,7 @@ export const me = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
     let extra = {};
+    
     if (user.role === 'star' || user.role === 'admin') {
       const [dedications, services, dedicationSamples] = await Promise.all([
         Dedication.find({ userId: user._id }).sort({ createdAt: -1 }),
@@ -409,6 +412,129 @@ export const me = async (req, res) => {
         dedicationSamples: dedicationSamples.map((x) => ({ id: x._id, type: x.type, video: x.video, description: x.description, userId: x.userId, createdAt: x.createdAt, updatedAt: x.updatedAt })),
       };
     }
+    
+    if (user.role === 'fan') {
+      // Get fan's purchases
+      const [appointments, dedicationRequests, liveShowAttendances, transactions] = await Promise.all([
+        // Appointments (bookings with stars)
+        Appointment.find({ fanId: user._id })
+          .populate('starId', 'name pseudo profilePic')
+          .populate('availabilityId')
+          .sort({ createdAt: -1 })
+          .limit(20),
+        
+        // Dedication requests
+        DedicationRequest.find({ fanId: user._id })
+          .populate('starId', 'name pseudo profilePic')
+          .sort({ createdAt: -1 })
+          .limit(20),
+        
+        // Live show attendances
+        LiveShowAttendance.find({ fanId: user._id })
+          .populate('liveShowId')
+          .populate('starId', 'name pseudo profilePic')
+          .sort({ createdAt: -1 })
+          .limit(20),
+        
+        // All transactions
+        Transaction.find({ payerId: user._id })
+          .populate('receiverId', 'name pseudo profilePic role')
+          .sort({ createdAt: -1 })
+          .limit(20)
+      ]);
+      
+      extra = {
+        purchases: {
+          appointments: appointments.map(apt => ({
+            id: apt._id,
+            type: 'appointment',
+            star: apt.starId ? {
+              id: apt.starId._id,
+              name: apt.starId.name,
+              pseudo: apt.starId.pseudo,
+              profilePic: apt.starId.profilePic
+            } : null,
+            date: apt.date,
+            time: apt.time,
+            price: apt.price,
+            status: apt.status,
+            transactionId: apt.transactionId,
+            createdAt: apt.createdAt,
+            completedAt: apt.completedAt
+          })),
+          dedicationRequests: dedicationRequests.map(req => ({
+            id: req._id,
+            type: 'dedication_request',
+            trackingId: req.trackingId,
+            star: req.starId ? {
+              id: req.starId._id,
+              name: req.starId.name,
+              pseudo: req.starId.pseudo,
+              profilePic: req.starId.profilePic
+            } : null,
+            occasion: req.occasion,
+            eventName: req.eventName,
+            eventDate: req.eventDate,
+            description: req.description,
+            price: req.price,
+            status: req.status,
+            videoUrl: req.videoUrl,
+            transactionId: req.transactionId,
+            createdAt: req.createdAt,
+            completedAt: req.completedAt
+          })),
+          liveShowAttendances: liveShowAttendances.map(att => ({
+            id: att._id,
+            type: 'live_show_attendance',
+            show: att.liveShowId ? {
+              id: att.liveShowId._id,
+              sessionTitle: att.liveShowId.sessionTitle,
+              date: att.liveShowId.date,
+              time: att.liveShowId.time,
+              showCode: att.liveShowId.showCode
+            } : null,
+            star: att.starId ? {
+              id: att.starId._id,
+              name: att.starId.name,
+              pseudo: att.starId.pseudo,
+              profilePic: att.starId.profilePic
+            } : null,
+            attendanceFee: att.attendanceFee,
+            status: att.status,
+            transactionId: att.transactionId,
+            joinedAt: att.joinedAt,
+            createdAt: att.createdAt
+          })),
+          transactions: transactions.map(txn => ({
+            id: txn._id,
+            type: txn.type,
+            receiver: txn.receiverId ? {
+              id: txn.receiverId._id,
+              name: txn.receiverId.name,
+              pseudo: txn.receiverId.pseudo,
+              profilePic: txn.receiverId.profilePic,
+              role: txn.receiverId.role
+            } : null,
+            amount: txn.amount,
+            description: txn.description,
+            paymentMode: txn.paymentMode,
+            status: txn.status,
+            metadata: txn.metadata,
+            createdAt: txn.createdAt
+          }))
+        },
+        purchaseStats: {
+          totalAppointments: appointments.length,
+          totalDedicationRequests: dedicationRequests.length,
+          totalLiveShowAttendances: liveShowAttendances.length,
+          totalTransactions: transactions.length,
+          totalSpent: transactions
+            .filter(txn => txn.status === 'completed')
+            .reduce((sum, txn) => sum + txn.amount, 0)
+        }
+      };
+    }
+    
     return res.json({ success: true, data: { ...sanitizeUser(user), ...extra } });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
