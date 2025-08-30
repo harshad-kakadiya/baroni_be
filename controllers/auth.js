@@ -33,6 +33,7 @@ const sanitizeUser = (user) => ({
   role: user.role,
   availableForBookings: user.availableForBookings,
   appNotification: user.appNotification,
+  coinBalance: user.coinBalance,
 });
 
 export const register = async (req, res) => {
