@@ -103,7 +103,17 @@ export const becomeStar = async (req, res) => {
 export const getAllStars = async (req, res) => {
     try {
         const { q, country } = req.query;
-        const filter = { role: "star" };
+        const filter = { 
+            role: "star",
+            // Only include stars that have filled up their details
+            $and: [
+                { name: { $exists: true, $ne: null, $ne: '' } },
+                { pseudo: { $exists: true, $ne: null, $ne: '' } },
+                { about: { $exists: true, $ne: null, $ne: '' } },
+                { location: { $exists: true, $ne: null, $ne: '' } },
+                { profession: { $exists: true, $ne: null } }
+            ]
+        };
         if (country) {
             filter.country = country;
         }
@@ -167,15 +177,26 @@ export const getStarById = async (req, res) => {
             });
         }
 
-        // fetch star basic info
-        const star = await User.findOne({ _id: id, role: "star" }).select(
+        // fetch star basic info with details check
+        const star = await User.findOne({ 
+            _id: id, 
+            role: "star",
+            // Only return stars that have filled up their details
+            $and: [
+                { name: { $exists: true, $ne: null, $ne: '' } },
+                { pseudo: { $exists: true, $ne: null, $ne: '' } },
+                { about: { $exists: true, $ne: null, $ne: '' } },
+                { location: { $exists: true, $ne: null, $ne: '' } },
+                { profession: { $exists: true, $ne: null } }
+            ]
+        }).select(
             "-password -passwordResetToken -passwordResetExpires"
         );
 
         if (!star) {
             return res.status(404).json({
                 success: false,
-                message: "Star not found",
+                message: "Star not found or profile incomplete",
             });
         }
 
@@ -205,7 +226,7 @@ export const getStarById = async (req, res) => {
             LiveShow.find({
                 starId: id,
                 date: { $gt: new Date() },
-                status: 'scheduled'
+                status: 'active'
             })
             .sort({ date: 1 })
             .limit(10)
@@ -219,29 +240,13 @@ export const getStarById = async (req, res) => {
                 services,
                 dedicationSamples,
                 availability,
-                upcomingShows: upcomingShows.map(show => ({
-                    id: show._id,
-                    sessionTitle: show.sessionTitle,
-                    date: show.date,
-                    time: show.time,
-                    attendanceFee: show.attendanceFee,
-                    hostingPrice: show.hostingPrice,
-                    maxCapacity: show.maxCapacity,
-                    showCode: show.showCode,
-                    inviteLink: show.inviteLink,
-                    currentAttendees: show.currentAttendees,
-                    status: show.status,
-                    description: show.description,
-                    thumbnail: show.thumbnail,
-                    likeCount: Array.isArray(show.likes) ? show.likes.length : 0,
-                    isLiked: Array.isArray(show.likes) && show.likes.some(u => u.toString() === req.user._id.toString())
-                }))
+                upcomingShows
             },
         });
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: "Server error while fetching star",
+            message: "Server error while fetching star details",
             error: error.message,
         });
     }
