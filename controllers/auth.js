@@ -121,6 +121,7 @@ export const login = async (req, res) => {
 
     const { contact, email, isMobile } = req.body;
     let user;
+    
     if (isMobile) {
       if (!contact) return res.status(400).json({ success: false, message: 'Contact is required for mobile login' });
       if (contact && !req.body.password) {
@@ -131,6 +132,7 @@ export const login = async (req, res) => {
       }
       user = await User.findOne({ contact });
     } else {
+      // Email login - allow login with just email when isMobile is false
       if (!email) return res.status(400).json({ success: false, message: 'Email is required for email login' });
       user = await User.findOne({ email: email.toLowerCase() });
     }
@@ -139,16 +141,27 @@ export const login = async (req, res) => {
       return res.status(401).json({ success: false, message: 'User not found' });
     }
 
-    if (!user.password && user.contact) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
-    }
+    // For mobile login, password is required
+    if (isMobile) {
+      if (!user.password && user.contact) {
+        return res.status(401).json({ success: false, message: 'Invalid credentials' });
+      }
 
-   if(req.body.password) {
-     const ok = await bcrypt.compare(req.body.password, user.password);
-     if (!ok) {
-       return res.status(401).json({ success: false, message: 'Invalid credentials' });
-     }
-   }
+      if (req.body.password) {
+        const ok = await bcrypt.compare(req.body.password, user.password);
+        if (!ok) {
+          return res.status(401).json({ success: false, message: 'Invalid credentials' });
+        }
+      }
+    } else {
+      // For email login, password is optional
+      if (req.body.password && user.password) {
+        const ok = await bcrypt.compare(req.body.password, user.password);
+        if (!ok) {
+          return res.status(401).json({ success: false, message: 'Invalid credentials' });
+        }
+      }
+    }
 
     const accessToken = createAccessToken({ userId: user._id });
     const refreshToken = createRefreshToken({ userId: user._id });
@@ -559,6 +572,47 @@ export const softDeleteAccount = async (req, res) => {
     // If already soft-deleted, return idempotent response
     if (user.isDeleted) {
       return res.json({ success: true, message: 'Account already marked for deletion', data: { deletedAt: user.deletedAt } });
+    }
+
+    // Check for active appointments and dedication requests
+    const [activeAppointments, activeDedicationRequests] = await Promise.all([
+      // Check for active appointments (pending or approved)
+      Appointment.find({
+        $or: [
+          { fanId: userId, status: { $in: ['pending', 'approved'] } },
+          { starId: userId, status: { $in: ['pending', 'approved'] } }
+        ]
+      }),
+      // Check for active dedication requests (pending or approved)
+      DedicationRequest.find({
+        $or: [
+          { fanId: userId, status: { $in: ['pending', 'approved'] } },
+          { starId: userId, status: { $in: ['pending', 'approved'] } }
+        ]
+      })
+    ]);
+
+    // If user has active appointments or dedication requests, prevent deletion
+    if (activeAppointments.length > 0 || activeDedicationRequests.length > 0) {
+      const pendingItems = [];
+      
+      if (activeAppointments.length > 0) {
+        pendingItems.push(`${activeAppointments.length} active appointment(s)`);
+      }
+      
+      if (activeDedicationRequests.length > 0) {
+        pendingItems.push(`${activeDedicationRequests.length} active dedication request(s)`);
+      }
+
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete account. You have ${pendingItems.join(' and ')}. Please complete, cancel, or reject them first.`,
+        data: {
+          activeAppointments: activeAppointments.length,
+          activeDedicationRequests: activeDedicationRequests.length,
+          totalPending: activeAppointments.length + activeDedicationRequests.length
+        }
+      });
     }
 
     // Soft delete the user (mark as deleted)

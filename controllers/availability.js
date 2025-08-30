@@ -1,5 +1,6 @@
 import { validationResult } from 'express-validator';
 import Availability from '../models/Availability.js';
+import Appointment from '../models/Appointment.js'; // Added import for Appointment
 
 const sanitize = (doc) => ({
   id: doc._id,
@@ -207,6 +208,35 @@ export const deleteTimeSlotByDate = async (req, res) => {
     const availability = await Availability.findOne({ userId: req.user._id, date });
     if (!availability) return res.status(404).json({ success: false, message: 'Availability for this date not found' });
 
+    // Find the specific time slot to check its status
+    const timeSlot = availability.timeSlots.find((t) => t.slot === slotToDelete);
+    if (!timeSlot) {
+      return res.status(404).json({ success: false, message: 'Time slot not found' });
+    }
+
+    // Check if the time slot is booked (unavailable status)
+    if (timeSlot.status === 'unavailable') {
+      // Check if there are any pending or approved appointments for this slot
+      const appointment = await Appointment.findOne({
+        starId: req.user._id,
+        availabilityId: availability._id,
+        timeSlotId: timeSlot._id,
+        status: { $in: ['pending', 'approved'] }
+      });
+
+      if (appointment) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot delete this time slot. It has an active appointment. Please complete or reject the appointment first.',
+          data: {
+            appointmentId: appointment._id,
+            appointmentStatus: appointment.status,
+            fanId: appointment.fanId
+          }
+        });
+      }
+    }
+
     const beforeCount = availability.timeSlots.length;
     const remaining = (availability.timeSlots || []).filter((t) => t.slot !== slotToDelete);
 
@@ -237,6 +267,35 @@ export const deleteTimeSlotById = async (req, res) => {
 
     const availability = await Availability.findOne({ _id: availabilityId, userId: req.user._id });
     if (!availability) return res.status(404).json({ success: false, message: 'Availability not found' });
+
+    // Find the specific time slot to check its status
+    const timeSlot = availability.timeSlots.find((t) => String(t._id) === String(slotId));
+    if (!timeSlot) {
+      return res.status(404).json({ success: false, message: 'Time slot not found' });
+    }
+
+    // Check if the time slot is booked (unavailable status)
+    if (timeSlot.status === 'unavailable') {
+      // Check if there are any pending or approved appointments for this slot
+      const appointment = await Appointment.findOne({
+        starId: req.user._id,
+        availabilityId: availability._id,
+        timeSlotId: timeSlot._id,
+        status: { $in: ['pending', 'approved'] }
+      });
+
+      if (appointment) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot delete this time slot. It has an active appointment. Please complete or reject the appointment first.',
+          data: {
+            appointmentId: appointment._id,
+            appointmentStatus: appointment.status,
+            fanId: appointment.fanId
+          }
+        });
+      }
+    }
 
     const beforeCount = availability.timeSlots.length;
     availability.timeSlots = (availability.timeSlots || []).filter((t) => String(t._id) !== String(slotId));
