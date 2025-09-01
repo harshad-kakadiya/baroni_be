@@ -13,6 +13,7 @@ import {
     permanentlyDeleteUser,
     getSoftDeletedUsers,
     toggleAvailableForBookings,
+    updateFcmToken,
 } from '../../controllers/auth.js';
 import { registerValidator, loginValidator, completeProfileValidator, checkUserValidator } from '../../validators/authValidators.js';
 import { requireAuth, requireRole } from '../../middlewares/auth.js';
@@ -45,6 +46,7 @@ router.get('/delete-request', requireAuth, requireRole('admin'), getSoftDeletedU
 router.delete('/users/:userId', requireAuth, requireRole('admin'), permanentlyDeleteUser);
 
 router.patch('/toggle-availability', requireAuth, toggleAvailableForBookings);
+router.patch('/fcm-token', requireAuth, updateFcmToken);
 
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 router.get(
