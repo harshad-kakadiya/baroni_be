@@ -4,6 +4,7 @@ import Appointment from '../models/Appointment.js';
 import { createTransaction, completeTransaction, cancelTransaction } from '../services/transactionService.js';
 import { TRANSACTION_TYPES, TRANSACTION_DESCRIPTIONS } from '../utils/transactionConstants.js';
 import Transaction from '../models/Transaction.js'; // Added missing import for Transaction
+import NotificationHelper from '../utils/notificationHelper.js';
 
 const toUser = (u) => (
   u && u._id ? {
@@ -105,6 +106,14 @@ export const createAppointment = async (req, res) => {
       status: 'pending',
       transactionId: transaction._id,
     });
+
+    // Send notification to star about new appointment request
+    try {
+      await NotificationHelper.sendAppointmentNotification('APPOINTMENT_CREATED', created);
+    } catch (notificationError) {
+      console.error('Error sending appointment notification:', notificationError);
+    }
+
     return res.status(201).json({ success: true, data: sanitize(created) });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -157,6 +166,13 @@ export const approveAppointment = async (req, res) => {
       }
     }
 
+    // Send notification to fan about appointment approval
+    try {
+      await NotificationHelper.sendAppointmentNotification('APPOINTMENT_ACCEPTED', updated);
+    } catch (notificationError) {
+      console.error('Error sending appointment approval notification:', notificationError);
+    }
+
     return res.json({ success: true, data: sanitize(updated) });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -182,6 +198,14 @@ export const rejectAppointment = async (req, res) => {
       }
     }
     const updated = await appt.save();
+    
+    // Send notification to fan about appointment rejection
+    try {
+      await NotificationHelper.sendAppointmentNotification('APPOINTMENT_REJECTED', updated);
+    } catch (notificationError) {
+      console.error('Error sending appointment rejection notification:', notificationError);
+    }
+    
     return res.json({ success: true, data: sanitize(updated) });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
