@@ -12,7 +12,8 @@ import {
   rescheduleLiveShow, toggleLikeLiveShow,
   joinLiveShow,
   getMyJoinedLiveShows,
-  completeLiveShowAttendance
+  completeLiveShowAttendance,
+  getMyShows
 } from '../../controllers/liveShow.js';
 import {
   createLiveShowValidator,
@@ -32,6 +33,7 @@ router.get('/code/:showCode', getLiveShowByCode);
 router.get('/star/:starId/upcoming', getStarUpcomingShows);
 router.get('/star/:starId', getStarAllShows);
 router.get('/me/joined', getMyJoinedLiveShows);
+router.get('/me/shows', getMyShows);
 router.get('/:id', getLiveShowById);
 
 // CRUD operations for live shows (star only)
