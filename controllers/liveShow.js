@@ -8,6 +8,7 @@ import mongoose from 'mongoose';
 import { createTransaction, completeTransaction, cancelTransaction } from '../services/transactionService.js';
 import { TRANSACTION_TYPES, TRANSACTION_DESCRIPTIONS } from '../utils/transactionConstants.js';
 import Transaction from '../models/Transaction.js';
+import NotificationHelper from '../utils/notificationHelper.js';
 
 const sanitizeLiveShow = (show) => ({
   id: show._id,
@@ -105,6 +106,13 @@ export const createLiveShow = async (req, res) => {
     });
 
     await liveShow.populate('starId', 'name pseudo profilePic');
+
+    // Send notification to star's followers
+    try {
+      await NotificationHelper.sendLiveShowNotification('LIVE_SHOW_CREATED', liveShow);
+    } catch (notificationError) {
+      console.error('Error sending live show notification:', notificationError);
+    }
 
     return res.status(201).json({ success: true, message: 'Live show created successfully and is now open for joining', data: sanitizeLiveShow(liveShow) });
   } catch (err) {
@@ -300,6 +308,23 @@ export const joinLiveShow = async (req, res) => {
     ).populate('starId', 'name pseudo profilePic availableForBookings');
 
     const data = setPerUserFlags(sanitizeLiveShow(updated), updated, req);
+    
+    // Send notification to star about new attendee
+    try {
+      await NotificationHelper.sendCustomNotification(
+        show.starId,
+        'New Live Show Attendee',
+        `A fan has joined your live show "${show.sessionTitle}"`,
+        {
+          type: 'live_show_attendee',
+          liveShowId: show._id.toString(),
+          attendeeId: req.user._id.toString()
+        }
+      );
+    } catch (notificationError) {
+      console.error('Error sending attendee notification:', notificationError);
+    }
+    
     return res.json({ success: true, message: 'Joined live show successfully', data });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -351,6 +376,13 @@ export const cancelLiveShow = async (req, res) => {
     const updated = await LiveShow.findByIdAndUpdate(id, { status: 'cancelled' }, { new: true })
       .populate('starId', 'name pseudo profilePic availableForBookings');
 
+    // Send notification to attendees about cancellation
+    try {
+      await NotificationHelper.sendLiveShowNotification('LIVE_SHOW_CANCELLED', updated);
+    } catch (notificationError) {
+      console.error('Error sending live show cancellation notification:', notificationError);
+    }
+
     return res.json({ success: true, message: 'Live show cancelled', data: sanitizeLiveShow(updated) });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -377,6 +409,13 @@ export const rescheduleLiveShow = async (req, res) => {
 
     const updated = await LiveShow.findByIdAndUpdate(id, payload, { new: true, runValidators: true })
       .populate('starId', 'name pseudo profilePic availableForBookings');
+
+    // Send notification to attendees about rescheduling
+    try {
+      await NotificationHelper.sendLiveShowNotification('LIVE_SHOW_RESCHEDULED', updated);
+    } catch (notificationError) {
+      console.error('Error sending live show reschedule notification:', notificationError);
+    }
 
     return res.json({ success: true, message: 'Live show rescheduled', data: sanitizeLiveShow(updated) });
   } catch (err) {
