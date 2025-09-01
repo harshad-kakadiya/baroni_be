@@ -19,7 +19,24 @@ const sanitizeLiveShow = (show) => ({
   maxCapacity: show.maxCapacity,
   showCode: show.showCode,
   inviteLink: show.inviteLink,
-  starId: show.starId,
+  starId: show.starId ? {
+    id: show.starId._id,
+    baroniId: show.starId.baroniId,
+    name: show.starId.name,
+    pseudo: show.starId.pseudo,
+    profilePic: show.starId.profilePic,
+    availableForBookings: show.starId.availableForBookings,
+    about: show.starId.about,
+    location: show.starId.location,
+    country: show.starId.country,
+    preferredLanguage: show.starId.preferredLanguage,
+    coinBalance: show.starId.coinBalance,
+    profession: show.starId.profession ? {
+      id: show.starId.profession._id,
+      name: show.starId.profession.name,
+      image: show.starId.profession.image
+    } : null
+  } : null,
   status: show.status,
   currentAttendees: show.currentAttendees,
   description: show.description,
@@ -460,6 +477,67 @@ export const completeLiveShowAttendance = async (req, res) => {
     }
 
     return res.json({ success: true, message: 'Live show attendance completed and coins transferred' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Get my shows based on user role (joined shows for fans, hosted shows for stars)
+export const getMyShows = async (req, res) => {
+  try {
+    const { status, upcoming } = req.query;
+    let shows = [];
+
+    if (req.user.role === 'fan') {
+      // For fans: get shows they have joined
+      const filter = { attendees: req.user._id };
+      if (status && ['active', 'cancelled'].includes(status)) filter.status = status;
+      if (upcoming === 'true') {
+        filter.date = { $gt: new Date() };
+        filter.status = 'active';
+      }
+
+      shows = await LiveShow.find(filter)
+        .populate({
+          path: 'starId',
+          select: 'baroniId name pseudo profilePic availableForBookings about location country preferredLanguage coinBalance',
+          populate: {
+            path: 'profession',
+            select: 'name image'
+          }
+        })
+        .sort({ date: -1 });
+    } else if (req.user.role === 'star') {
+      // For stars: get shows they have hosted
+      const filter = { starId: req.user._id };
+      if (status && ['active', 'cancelled'].includes(status)) filter.status = status;
+      if (upcoming === 'true') {
+        filter.date = { $gt: new Date() };
+        filter.status = 'active';
+      }
+
+      shows = await LiveShow.find(filter)
+        .populate({
+          path: 'starId',
+          select: 'baroniId name pseudo profilePic availableForBookings about location country preferredLanguage coinBalance',
+          populate: {
+            path: 'profession',
+            select: 'name image'
+          }
+        })
+        .sort({ date: -1 });
+    } else {
+      return res.status(403).json({ success: false, message: 'Access denied. Only fans and stars can access this endpoint.' });
+    }
+
+    const showsData = shows.map(show => setPerUserFlags(sanitizeLiveShow(show), show, req));
+    
+    return res.json({ 
+      success: true, 
+      data: showsData,
+      role: req.user.role,
+      count: showsData.length
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
