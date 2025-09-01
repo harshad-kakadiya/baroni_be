@@ -13,7 +13,6 @@ const sanitizeUser = (user) => ({
   pseudo: user.pseudo,
   profilePic: user.profilePic,
   about: user.about,
-  location: user.location,
   profession: user.profession,
   role: user.role,
 });
@@ -26,7 +25,7 @@ export const getDashboard = async (req, res) => {
     if (role === 'fan') {
       // Fan dashboard: stars with filled details, categories, and upcoming shows
       const [stars, categories, upcomingShows] = await Promise.all([
-        User.find({ 
+        User.find({
           role: 'star',
           // Only include stars that have filled up their details
           $and: [
@@ -36,13 +35,11 @@ export const getDashboard = async (req, res) => {
             { pseudo: { $ne: '' } },
             { about: { $exists: true, $ne: null } },
             { about: { $ne: '' } },
-            { location: { $exists: true, $ne: null } },
-            { location: { $ne: '' } },
             { profession: { $exists: true, $ne: null } }
           ]
         })
           .populate('profession')
-          .select('name pseudo profilePic about location profession')
+          .select('name pseudo profilePic about profession')
           .sort({ createdAt: -1 })
           .limit(20),
         Category.find().sort({ name: 1 }),
