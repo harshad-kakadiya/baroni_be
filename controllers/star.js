@@ -181,22 +181,10 @@ export const getStarById = async (req, res) => {
             });
         }
 
-        // fetch star basic info with details check
+        // fetch star basic info
         const star = await User.findOne({ 
             _id: id, 
-            role: "star",
-            // Only return stars that have filled up their details
-            $and: [
-                { name: { $exists: true, $ne: null } },
-                { name: { $ne: '' } },
-                { pseudo: { $exists: true, $ne: null } },
-                { pseudo: { $ne: '' } },
-                { about: { $exists: true, $ne: null } },
-                { about: { $ne: '' } },
-                { location: { $exists: true, $ne: null } },
-                { location: { $ne: '' } },
-                { profession: { $exists: true, $ne: null } }
-            ]
+            role: "star"
         }).select(
             "-password -passwordResetToken -passwordResetExpires"
         );
@@ -204,7 +192,7 @@ export const getStarById = async (req, res) => {
         if (!star) {
             return res.status(404).json({
                 success: false,
-                message: "Star not found or profile incomplete",
+                message: "Star not found",
             });
         }
 
@@ -249,6 +237,13 @@ export const getStarById = async (req, res) => {
             .limit(10)
         ]);
 
+        // Combine all services into one array
+        const allServices = [
+            ...dedications.map(d => ({ ...d.toObject(), type: 'dedication' })),
+            ...services.map(s => ({ ...s.toObject(), type: 'service' })),
+            ...dedicationSamples.map(ds => ({ ...ds.toObject(), type: 'dedicationSample' }))
+        ];
+
         // Add isLiked field to each upcoming show
         const upcomingShowsWithLikeStatus = upcomingShows.map(show => {
             const showData = show.toObject();
@@ -267,9 +262,7 @@ export const getStarById = async (req, res) => {
             success: true,
             data: {
                 star: starData,
-                dedications,
-                services,
-                dedicationSamples,
+                allServices,
                 availability,
                 upcomingShows: upcomingShowsWithLikeStatus
             },
