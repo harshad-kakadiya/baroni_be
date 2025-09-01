@@ -236,7 +236,10 @@ export const getStarById = async (req, res) => {
             Dedication.find({ userId: id }),
             Service.find({ userId: id }),
             DedicationSample.find({ userId: id }),
-            Availability.find({ userId: id }),
+            Availability.find({ 
+                userId: id,
+                date: { $gte: new Date() } // Only current and future availabilities
+            }).sort({ date: 1 }),
             LiveShow.find({
                 starId: id,
                 date: { $gt: new Date() },
