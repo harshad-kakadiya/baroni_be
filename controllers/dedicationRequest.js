@@ -5,6 +5,7 @@ import {uploadVideo} from '../utils/uploadFile.js';
 import { createTransaction, completeTransaction, cancelTransaction } from '../services/transactionService.js';
 import { TRANSACTION_TYPES, TRANSACTION_DESCRIPTIONS } from '../utils/transactionConstants.js';
 import Transaction from '../models/Transaction.js';
+import NotificationHelper from '../utils/notificationHelper.js';
 
 const sanitize = (doc) => ({
   id: doc._id,
@@ -88,6 +89,13 @@ export const createDedicationRequest = async (req, res) => {
       price,
       transactionId: transaction._id,
     });
+
+    // Send notification to star about new dedication request
+    try {
+      await NotificationHelper.sendDedicationNotification('DEDICATION_REQUEST', created);
+    } catch (notificationError) {
+      console.error('Error sending dedication request notification:', notificationError);
+    }
 
     return res.status(201).json({ success: true, data: sanitize(created) });
   } catch (err) {
@@ -175,6 +183,14 @@ export const approveDedicationRequest = async (req, res) => {
     item.approvedAt = new Date();
 
     const updated = await item.save();
+    
+    // Send notification to fan about dedication request approval
+    try {
+      await NotificationHelper.sendDedicationNotification('DEDICATION_ACCEPTED', updated);
+    } catch (notificationError) {
+      console.error('Error sending dedication approval notification:', notificationError);
+    }
+    
     return res.json({ success: true, data: sanitize(updated) });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -212,6 +228,14 @@ export const rejectDedicationRequest = async (req, res) => {
     }
 
     const updated = await item.save();
+    
+    // Send notification to fan about dedication request rejection
+    try {
+      await NotificationHelper.sendDedicationNotification('DEDICATION_REJECTED', updated);
+    } catch (notificationError) {
+      console.error('Error sending dedication rejection notification:', notificationError);
+    }
+    
     return res.json({ success: true, data: sanitize(updated) });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
