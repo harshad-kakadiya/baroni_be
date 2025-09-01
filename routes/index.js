@@ -16,6 +16,7 @@ import liveShowsRouter from './api/liveShows.js';
 import reportUsersRouter from './api/reportUsers.js';
 import agoraRouter from './api/agora.js';
 import Messaging from "./api/messaging.js";
+import notificationsRouter from './api/notifications.js';
 
 const router = express.Router();
 
@@ -36,6 +37,7 @@ router.use('/live-shows', liveShowsRouter);
 router.use('/report-users', reportUsersRouter);
 router.use('/messages', Messaging);
 router.use('/agora', agoraRouter);
+router.use('/notifications', notificationsRouter);
 
 export default router;
 
