@@ -1,5 +1,6 @@
 import MessageModel from '../models/Message.js';
 import ConversationModel from '../models/Conversation.js';
+import NotificationHelper from '../utils/notificationHelper.js';
 
 export const storeMessage = async (req, res) => {
     const { conversationId, senderId, receiverId, message, type } = req.body;
@@ -13,6 +14,16 @@ export const storeMessage = async (req, res) => {
         lastMessageAt: new Date(),
         $inc: { [`unreadCount.${receiverId}`]: 1 }
     });
+
+    // Send notification to receiver about new message
+    try {
+      await NotificationHelper.sendMessageNotification(msg, {
+        senderId: senderId.toString(),
+        conversationId: conversationId.toString()
+      });
+    } catch (notificationError) {
+      console.error('Error sending message notification:', notificationError);
+    }
 
     res.json(msg);
 };
