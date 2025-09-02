@@ -90,6 +90,9 @@ export const createDedicationRequest = async (req, res) => {
       transactionId: transaction._id,
     });
 
+    // Populate star info for response
+    await created.populate('starId', 'name pseudo profilePic');
+
     // Send notification to star about new dedication request
     try {
       await NotificationHelper.sendDedicationNotification('DEDICATION_REQUEST', created);
