@@ -17,6 +17,9 @@ const sanitizeLiveShow = (show) => ({
   time: show.time,
   attendanceFee: show.attendanceFee,
   hostingPrice: show.hostingPrice,
+  transactionId: show.transactionId,
+  hostingPaymentMode: show.hostingPaymentMode,
+  hostingPaymentDescription: show.hostingPaymentDescription,
   maxCapacity: show.maxCapacity,
   showCode: show.showCode,
   inviteLink: show.inviteLink,
@@ -77,10 +80,43 @@ export const createLiveShow = async (req, res) => {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { sessionTitle, date, time, attendanceFee, hostingPrice, maxCapacity, description } = req.body;
+    const { sessionTitle, date, time, attendanceFee, hostingPrice, maxCapacity, description, hostingPaymentMode = 'coin', hostingPaymentDescription } = req.body;
 
-    // Note: Hosting price is now just a display field, no transaction needed
-    // Shows are immediately active and open for joining
+    // Hosting requires a transaction (escrow) to admin; external/coin allowed
+    // Find admin receiver
+    const adminUser = await User.findOne({ role: 'admin' });
+    if (!adminUser) {
+      return res.status(500).json({ success: false, message: 'Admin account not configured' });
+    }
+
+    // Create hosting transaction before creating show
+    try {
+      await createTransaction({
+        type: TRANSACTION_TYPES.LIVE_SHOW_HOSTING_PAYMENT,
+        payerId: req.user._id,
+        receiverId: adminUser._id,
+        amount: Number(hostingPrice || 0),
+        description: hostingPaymentMode === 'external' && hostingPaymentDescription ? String(hostingPaymentDescription) : TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.LIVE_SHOW_HOSTING_PAYMENT],
+        paymentMode: hostingPaymentMode,
+        metadata: {
+          showType: 'live_show_hosting',
+          requestedAt: new Date()
+        }
+      });
+    } catch (transactionError) {
+      return res.status(400).json({ success: false, message: 'Hosting payment failed: ' + transactionError.message });
+    }
+
+    // Retrieve the created hosting transaction
+    const hostingTxn = await Transaction.findOne({
+      payerId: req.user._id,
+      receiverId: adminUser._id,
+      type: TRANSACTION_TYPES.LIVE_SHOW_HOSTING_PAYMENT,
+      status: 'pending'
+    }).sort({ createdAt: -1 });
+    if (!hostingTxn) {
+      return res.status(500).json({ success: false, message: 'Failed to retrieve hosting transaction' });
+    }
 
     const showCode = await generateUniqueShowCode();
     const inviteLink = `${process.env.FRONTEND_URL || 'https://app.baroni.com'}/live/${showCode}`;
@@ -102,7 +138,10 @@ export const createLiveShow = async (req, res) => {
       starId: req.user._id,
       status: 'active', // Show is immediately active
       description,
-      thumbnail: thumbnailUrl
+      thumbnail: thumbnailUrl,
+      transactionId: hostingTxn._id,
+      hostingPaymentMode: hostingPaymentMode,
+      hostingPaymentDescription: hostingPaymentMode === 'external' && hostingPaymentDescription ? String(hostingPaymentDescription) : undefined
     });
 
     await liveShow.populate('starId', 'name pseudo profilePic');
