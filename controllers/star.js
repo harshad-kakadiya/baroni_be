@@ -236,6 +236,12 @@ export const getStarById = async (req, res) => {
                 .limit(10)
         ]);
 
+        // Build unified allservices array (dedications + services)
+        const allservices = [
+            ...dedications.map(d => ({ ...d.toObject(), itemType: 'dedication' })),
+            ...services.map(s => ({ ...s.toObject(), itemType: 'service' }))
+        ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
         // Add isLiked field to each upcoming show
         const upcomingShowsWithLikeStatus = upcomingShows.map(show => {
             const showData = show.toObject();
@@ -254,8 +260,7 @@ export const getStarById = async (req, res) => {
             success: true,
             data: {
                 star: starData,
-                dedications,
-                services,
+                allservices,
                 dedicationSamples,
                 availability,
                 upcomingShows: upcomingShowsWithLikeStatus
