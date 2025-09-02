@@ -6,6 +6,7 @@ import DedicationSample from '../models/DedicationSample.js';
 import Appointment from '../models/Appointment.js';
 import Availability from '../models/Availability.js';
 import LiveShow from '../models/LiveShow.js';
+import Transaction from "../models/Transaction.js";
 
 const sanitizeUser = (user) => ({
   id: user._id,
@@ -74,6 +75,8 @@ export const getDashboard = async (req, res) => {
             showCode: show.showCode,
             description: show.description,
             thumbnail: show.thumbnail,
+            likeCount: Array.isArray(show.likes) ? show.likes.length : 0,
+            isLiked: Array.isArray(show.likes) && req.user ? show.likes.some(u => u.toString() === req.user._id.toString()) : false,
             star: show.starId ? {
               id: show.starId._id,
               name: show.starId.name,
@@ -87,7 +90,7 @@ export const getDashboard = async (req, res) => {
 
     if (role === 'star') {
       // Star dashboard: upcoming bookings, earnings, engaged fans, and live shows
-      const [upcomingBookings, earnings, engagedFans, upcomingLiveShows, liveShowEarnings] = await Promise.all([
+      const [upcomingBookings, earnings, engagedFans, upcomingLiveShows, liveShowEarnings, escrowCoins] = await Promise.all([
         // Upcoming approved appointments
         Appointment.find({
           starId: user._id,
@@ -123,6 +126,11 @@ export const getDashboard = async (req, res) => {
         LiveShow.aggregate([
           { $match: { starId: user._id, status: 'active' } },
           { $group: { _id: null, totalEarnings: { $sum: '$hostingPrice' } } }
+        ]),
+        // Escrow coins: pending transactions where receiver is the star
+        Transaction.aggregate([
+          { $match: { receiverId: user._id, status: 'pending' } },
+          { $group: { _id: null, escrow: { $sum: '$amount' } } }
         ])
       ]);
 
@@ -136,6 +144,7 @@ export const getDashboard = async (req, res) => {
       const appointmentEarnings = earnings.length > 0 ? earnings[0].totalEarnings : 0;
       const liveShowEarningsTotal = liveShowEarnings.length > 0 ? liveShowEarnings[0].totalEarnings : 0;
       const totalEarnings = appointmentEarnings + liveShowEarningsTotal;
+      const pendingEscrow = escrowCoins.length > 0 ? escrowCoins[0].escrow : 0;
 
       return res.json({
         success: true,
@@ -163,13 +172,16 @@ export const getDashboard = async (req, res) => {
             currentAttendees: show.currentAttendees,
             showCode: show.showCode,
             description: show.description,
-            thumbnail: show.thumbnail
+            thumbnail: show.thumbnail,
+            likeCount: Array.isArray(show.likes) ? show.likes.length : 0,
+            isLiked: Array.isArray(show.likes) && req.user ? show.likes.some(u => u.toString() === req.user._id.toString()) : false
           })),
           earnings: {
             totalEarnings,
             appointmentEarnings,
             liveShowEarnings: liveShowEarningsTotal,
-            currency: 'USD'
+            currency: 'USD',
+            escrowCoins: pendingEscrow
           },
           engagedFans: fanDetails.map(fan => ({
             id: fan._id,
