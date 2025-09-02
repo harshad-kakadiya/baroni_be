@@ -72,6 +72,19 @@ const liveShowSchema = new mongoose.Schema(
     thumbnail: {
       type: String
     }
+    ,
+    transactionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Transaction',
+      index: true
+    },
+    hostingPaymentMode: {
+      type: String,
+      enum: ['coin', 'external']
+    },
+    hostingPaymentDescription: {
+      type: String
+    }
   },
   { timestamps: true }
 );
