@@ -121,7 +121,7 @@ export const login = async (req, res) => {
 
     const { contact, email, isMobile } = req.body;
     let user;
-    
+
     if (isMobile) {
       if (!contact) return res.status(400).json({ success: false, message: 'Contact is required for mobile login' });
       if (contact && !req.body.password) {
@@ -203,7 +203,7 @@ export const completeProfile = async (req, res) => {
       }
       user.profession = profession;
     }
-    
+
     // Handle availableForBookings field
     if (typeof availableForBookings === 'boolean') {
       user.availableForBookings = availableForBookings;
@@ -213,7 +213,7 @@ export const completeProfile = async (req, res) => {
     if (typeof appNotification === 'boolean') {
       user.appNotification = appNotification;
     }
-    
+
     // Handle profile picture update
     if (req.files && req.files.length > 0) {
       const profilePicFile = req.files.find(file => file.fieldname === 'profilePic');
@@ -412,7 +412,7 @@ export const me = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
     let extra = {};
-    
+
     if (user.role === 'star' || user.role === 'admin') {
       const [dedications, services, dedicationSamples] = await Promise.all([
         Dedication.find({ userId: user._id }).sort({ createdAt: -1 }),
@@ -425,14 +425,14 @@ export const me = async (req, res) => {
         dedicationSamples: dedicationSamples.map((x) => ({ id: x._id, type: x.type, video: x.video, description: x.description, userId: x.userId, createdAt: x.createdAt, updatedAt: x.updatedAt })),
       };
     }
-    
+
     if (user.role === 'fan') {
       // Get fan's transactions only
       const transactions = await Transaction.find({ payerId: user._id })
         .populate('receiverId', 'name pseudo profilePic role')
         .sort({ createdAt: -1 })
         .limit(20);
-      
+
       extra = {
         transactions: transactions.map(txn => ({
           id: txn._id,
@@ -459,7 +459,7 @@ export const me = async (req, res) => {
         }
       };
     }
-    
+
     return res.json({ success: true, data: { ...sanitizeUser(user), ...extra } });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -507,11 +507,11 @@ export const softDeleteAccount = async (req, res) => {
     // If user has active appointments or dedication requests, prevent deletion
     if (activeAppointments.length > 0 || activeDedicationRequests.length > 0) {
       const pendingItems = [];
-      
+
       if (activeAppointments.length > 0) {
         pendingItems.push(`${activeAppointments.length} active appointment(s)`);
       }
-      
+
       if (activeDedicationRequests.length > 0) {
         pendingItems.push(`${activeDedicationRequests.length} active dedication request(s)`);
       }
@@ -534,8 +534,8 @@ export const softDeleteAccount = async (req, res) => {
       deletedAt
     });
 
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       message: 'Account marked for deletion successfully',
       data: { deletedAt }
     });
@@ -556,9 +556,9 @@ export const toggleAvailableForBookings = async (req, res) => {
 
     // Validate the boolean value
     if (typeof availableForBookings !== 'boolean') {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'availableForBookings must be a boolean value (true or false)' 
+      return res.status(400).json({
+        success: false,
+        message: 'availableForBookings must be a boolean value (true or false)'
       });
     }
 
@@ -573,8 +573,8 @@ export const toggleAvailableForBookings = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       message: `Successfully ${availableForBookings ? 'enabled' : 'disabled'} bookings availability`,
       data: sanitizeUser(updatedUser)
     });
@@ -616,19 +616,19 @@ export const permanentlyDeleteUser = async (req, res) => {
       // If user is a star, clean up star-related data
       if (user.role === 'star') {
         await DedicationRequest.deleteMany({ starId: userId });
-        
+
         // Delete dedications
         await Dedication.deleteMany({ userId });
-        
+
         // Delete services
         await Service.deleteMany({ userId });
-        
+
         // Delete dedication samples
         await DedicationSample.deleteMany({ userId });
-        
+
         // Delete availabilities
         await Availability.deleteMany({ userId });
-        
+
         // Cancel/delete appointments where user is the star
         await Appointment.updateMany(
           { starId: userId, status: { $in: ['pending', 'confirmed'] } },
@@ -640,7 +640,7 @@ export const permanentlyDeleteUser = async (req, res) => {
       if (user.role === 'fan') {
         // Delete dedication requests where user is the fan
         await DedicationRequest.deleteMany({ fanId: userId });
-        
+
         // Cancel/delete appointments where user is the fan
         await Appointment.updateMany(
           { fanId: userId, status: { $in: ['pending', 'confirmed'] } },
@@ -659,8 +659,8 @@ export const permanentlyDeleteUser = async (req, res) => {
     // Permanently delete the user
     await User.findByIdAndDelete(userId);
 
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       message: 'User permanently deleted successfully',
       data: { deletedAt: new Date(), userId }
     });
@@ -701,9 +701,9 @@ export const updateFcmToken = async (req, res) => {
     const { fcmToken } = req.body;
 
     if (!fcmToken || typeof fcmToken !== 'string') {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'FCM token is required and must be a string' 
+      return res.status(400).json({
+        success: false,
+        message: 'FCM token is required and must be a string'
       });
     }
 
@@ -718,8 +718,8 @@ export const updateFcmToken = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       message: 'FCM token updated successfully',
       data: sanitizeUser(updatedUser)
     });
