@@ -103,7 +103,7 @@ export const becomeStar = async (req, res) => {
 export const getAllStars = async (req, res) => {
     try {
         const { q, country } = req.query;
-        const filter = { 
+        const filter = {
             role: "star",
             // Only include stars that have filled up their details
             $and: [
@@ -181,18 +181,17 @@ export const getStarById = async (req, res) => {
             });
         }
 
-        // fetch star basic info
-        const star = await User.findOne({ 
-            _id: id, 
-            role: "star"
-        }).select(
+        // fetch star basic info with details check
+        const star = await User.findOne({
+            _id: id,
+            role: "star"}).select(
             "-password -passwordResetToken -passwordResetExpires"
         );
 
         if (!star) {
             return res.status(404).json({
                 success: false,
-                message: "Star not found",
+                message: "Star not found or profile incomplete",
             });
         }
 
@@ -202,7 +201,7 @@ export const getStarById = async (req, res) => {
         if (req.user) {
             // Check if the star is in user's favorites
             starData.isLiked = req.user.favorites.includes(id);
-            
+
             // Additional fan-specific checks
             if (req.user.role === 'fan') {
                 const [hasActiveAppointment, hasActiveDedication] = await Promise.all([
@@ -224,7 +223,7 @@ export const getStarById = async (req, res) => {
             Dedication.find({ userId: id }),
             Service.find({ userId: id }),
             DedicationSample.find({ userId: id }),
-            Availability.find({ 
+            Availability.find({
                 userId: id,
                 date: { $gte: new Date() } // Only current and future availabilities
             }).sort({ date: 1 }),
@@ -233,23 +232,16 @@ export const getStarById = async (req, res) => {
                 date: { $gt: new Date() },
                 status: 'active'
             })
-            .sort({ date: 1 })
-            .limit(10)
+                .sort({ date: 1 })
+                .limit(10)
         ]);
-
-        // Combine all services into one array
-        const allServices = [
-            ...dedications.map(d => ({ ...d.toObject(), type: 'dedication' })),
-            ...services.map(s => ({ ...s.toObject(), type: 'service' })),
-            ...dedicationSamples.map(ds => ({ ...ds.toObject(), type: 'dedicationSample' }))
-        ];
 
         // Add isLiked field to each upcoming show
         const upcomingShowsWithLikeStatus = upcomingShows.map(show => {
             const showData = show.toObject();
             if (req.user) {
                 // Check if the current user has liked this show
-                showData.isLiked = Array.isArray(show.likes) && show.likes.some(likeId => 
+                showData.isLiked = Array.isArray(show.likes) && show.likes.some(likeId =>
                     likeId.toString() === req.user._id.toString()
                 );
             } else {
@@ -262,7 +254,9 @@ export const getStarById = async (req, res) => {
             success: true,
             data: {
                 star: starData,
-                allServices,
+                dedications,
+                services,
+                dedicationSamples,
                 availability,
                 upcomingShows: upcomingShowsWithLikeStatus
             },
