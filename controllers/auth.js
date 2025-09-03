@@ -420,9 +420,12 @@ export const me = async (req, res) => {
         Service.find({ userId: user._id }).sort({ createdAt: -1 }),
         DedicationSample.find({ userId: user._id }).sort({ createdAt: -1 }),
       ]);
+      const allservices = [
+        ...dedications.map(d => ({ id: d._id, type: d.type, price: d.price, userId: d.userId, createdAt: d.createdAt, updatedAt: d.updatedAt, itemType: 'dedication' })),
+        ...services.map(s => ({ id: s._id, type: s.type, price: s.price, userId: s.userId, createdAt: s.createdAt, updatedAt: s.updatedAt, itemType: 'service' }))
+      ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       extra = {
-        dedications: dedications.map((d) => ({ id: d._id, type: d.type, price: d.price, userId: d.userId, createdAt: d.createdAt, updatedAt: d.updatedAt })),
-        services: services.map((s) => ({ id: s._id, type: s.type, price: s.price, userId: s.userId, createdAt: s.createdAt, updatedAt: s.updatedAt })),
+        allservices,
         dedicationSamples: dedicationSamples.map((x) => ({ id: x._id, type: x.type, video: x.video, description: x.description, userId: x.userId, createdAt: x.createdAt, updatedAt: x.updatedAt })),
       };
     }
