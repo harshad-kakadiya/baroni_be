@@ -19,8 +19,7 @@ export const storeMessage = async (req, res) => {
             conversation = await ConversationModel.create({
                 participants,
                 lastMessage: '',
-                lastMessageAt: null,
-                unreadCount: { [senderId]: 0, [receiverId]: 0 }
+                lastMessageAt: null
             });
         }
 
@@ -44,8 +43,7 @@ export const storeMessage = async (req, res) => {
 
     await ConversationModel.findByIdAndUpdate(actualConversationId, {
         lastMessage: message,
-        lastMessageAt: new Date(),
-        $inc: { [`unreadCount.${receiverId}`]: 1 }
+        lastMessageAt: new Date()
     });
 
     // Send notification to receiver about new message
@@ -110,7 +108,6 @@ export const getUserConversations = async (req, res) => {
                     _id: conv._id,
                     lastMessage: conv.lastMessage,
                     lastMessageAt: conv.lastMessageAt,
-                    unreadCount: conv.unreadCount[userId] || 0,
                     otherParticipant: otherUser,
                     createdAt: conv.createdAt,
                     updatedAt: conv.updatedAt
