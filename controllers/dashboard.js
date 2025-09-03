@@ -181,7 +181,7 @@ export const getDashboard = async (req, res) => {
             appointmentEarnings,
             liveShowEarnings: liveShowEarningsTotal,
             currency: 'USD',
-            escrowCoins: pendingEscrow
+            escrowFunds: pendingEscrow
           },
           engagedFans: fanDetails.map(fan => ({
             id: fan._id,
