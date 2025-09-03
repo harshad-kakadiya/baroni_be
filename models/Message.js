@@ -2,11 +2,18 @@ import mongoose from 'mongoose';
 
 const messageSchema = new mongoose.Schema({
     conversationId: String,
-    senderId: String,
-    receiverId: String,
+    senderId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    receiverId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
     message: String,
-    type: {type: String, default: "text"},
-    seenBy: [String]
+    type: {type: String, default: "text"}
 }, {timestamps: true});
 
 const MessageModel=  mongoose.model('Message', messageSchema);

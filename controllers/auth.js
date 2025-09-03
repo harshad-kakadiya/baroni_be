@@ -45,7 +45,7 @@ export const register = async (req, res) => {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { contact, email, password,role } = req.body;
+    const { contact, email, password, role, fcmToken } = req.body;
 
     // Check if we have either contact or email
     if (!contact && !email) {
@@ -91,7 +91,8 @@ export const register = async (req, res) => {
       contact,
       email: normalizedEmail,
       password: hashedPassword,
-      role
+      role,
+      fcmToken
     });
 
     // Initialize user with 1000 coins
