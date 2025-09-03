@@ -225,7 +225,7 @@ export const getStarById = async (req, res) => {
             DedicationSample.find({ userId: id }),
             Availability.find({
                 userId: id,
-                date: { $gte: new Date() } // Only current and future availabilities
+                date: { $gte: new Date().toISOString().split('T')[0] } // Only current and future availabilities (YYYY-MM-DD format)
             }).sort({ date: 1 }),
             LiveShow.find({
                 starId: id,
