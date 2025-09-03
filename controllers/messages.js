@@ -4,13 +4,18 @@ import User from '../models/User.js';
 import NotificationHelper from '../utils/notificationHelper.js';
 
 export const storeMessage = async (req, res) => {
-    const { conversationId, senderId, receiverId, message, type } = req.body;
+    const { conversationId, receiverId, message, type } = req.body;
+    const authSenderId = req.user && req.user._id ? req.user._id : null;
+
+    if (!authSenderId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
 
     let actualConversationId = conversationId;
 
     // If no conversationId provided, create or find conversation between sender and receiver
-    if (!conversationId && senderId && receiverId) {
-        const participants = [String(senderId), String(receiverId)].sort();
+    if (!conversationId && authSenderId && receiverId) {
+        const participants = [String(authSenderId), String(receiverId)].sort();
 
         let conversation = await ConversationModel.findOne({ participants });
 
@@ -29,13 +34,13 @@ export const storeMessage = async (req, res) => {
     if (!actualConversationId) {
         return res.status(400).json({
             success: false,
-            message: 'Conversation ID is required or senderId and receiverId must be provided'
+            message: 'Conversation ID is required or receiverId must be provided'
         });
     }
 
     const msg = await MessageModel.create({
         conversationId: actualConversationId,
-        senderId,
+        senderId: authSenderId,
         receiverId,
         message,
         type
@@ -49,7 +54,7 @@ export const storeMessage = async (req, res) => {
     // Send notification to receiver about new message
     try {
       await NotificationHelper.sendMessageNotification(msg, {
-        senderId: senderId.toString(),
+        senderId: authSenderId.toString(),
         conversationId: actualConversationId
       });
     } catch (notificationError) {
