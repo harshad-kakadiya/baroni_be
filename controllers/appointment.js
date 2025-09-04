@@ -51,6 +51,46 @@ export const createAppointment = async (req, res) => {
     const availability = await Availability.findOne({ _id: availabilityId, userId: starId });
     if (!availability) return res.status(404).json({ success: false, message: 'Availability not found' });
 
+    // Validate that the appointment date is not in the past
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const appointmentDate = new Date(availability.date);
+    
+    if (appointmentDate < today) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Cannot book appointments for past dates' 
+      });
+    }
+
+    // If the appointment is for today, validate that the time slot is not in the past
+    const isToday = appointmentDate.getTime() === today.getTime();
+    if (isToday) {
+      const slot = availability.timeSlots.find((s) => String(s._id) === String(timeSlotId));
+      if (slot) {
+        const now = new Date();
+        const currentTime = now.getHours() * 60 + now.getMinutes();
+        
+        const timeMatch = slot.slot.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+        if (timeMatch) {
+          let hour = parseInt(timeMatch[1], 10);
+          const minute = parseInt(timeMatch[2], 10);
+          const ampm = timeMatch[3].toUpperCase();
+          
+          if (ampm === 'PM' && hour !== 12) hour += 12;
+          if (ampm === 'AM' && hour === 12) hour = 0;
+          
+          const slotTime = hour * 60 + minute;
+          if (slotTime <= currentTime) {
+            return res.status(400).json({ 
+              success: false, 
+              message: `Cannot book appointments for past time slots. Time slot "${slot.slot}" is in the past.` 
+            });
+          }
+        }
+      }
+    }
+
     const slot = availability.timeSlots.find((s) => String(s._id) === String(timeSlotId));
     if (!slot) return res.status(404).json({ success: false, message: 'Time slot unavailable' });
     if (slot.status === 'unavailable') return res.status(409).json({ success: false, message: 'Time slot unavailable' });
@@ -269,6 +309,44 @@ export const rescheduleAppointment = async (req, res) => {
     // Verify new availability belongs to the same star and slot is available
     const availability = await Availability.findOne({ _id: availabilityId, userId: appt.starId });
     if (!availability) return res.status(404).json({ success: false, message: 'Availability not found for this star' });
+    
+    // Validate that the rescheduled date is not in the past
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const rescheduleDate = new Date(availability.date);
+    
+    if (rescheduleDate < today) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Cannot reschedule appointments to past dates' 
+      });
+    }
+
+    // If rescheduling to today, validate that the time slot is not in the past
+    const isToday = rescheduleDate.getTime() === today.getTime();
+    if (isToday) {
+      const now = new Date();
+      const currentTime = now.getHours() * 60 + now.getMinutes();
+      
+      const timeMatch = availability.timeSlots.find(s => String(s._id) === String(timeSlotId))?.slot?.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      if (timeMatch) {
+        let hour = parseInt(timeMatch[1], 10);
+        const minute = parseInt(timeMatch[2], 10);
+        const ampm = timeMatch[3].toUpperCase();
+        
+        if (ampm === 'PM' && hour !== 12) hour += 12;
+        if (ampm === 'AM' && hour === 12) hour = 0;
+        
+        const slotTime = hour * 60 + minute;
+        if (slotTime <= currentTime) {
+          return res.status(400).json({ 
+            success: false, 
+            message: `Cannot reschedule appointments to past time slots. Time slot is in the past.` 
+          });
+        }
+      }
+    }
+    
     const newSlot = availability.timeSlots.find((s) => String(s._id) === String(timeSlotId));
     if (!newSlot) return res.status(404).json({ success: false, message: 'Time slot not found' });
     if (newSlot.status === 'unavailable') return res.status(409).json({ success: false, message: 'Time slot unavailable' });
