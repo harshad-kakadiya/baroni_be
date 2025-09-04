@@ -285,6 +285,16 @@ export const getStarById = async (req, res) => {
                 .limit(10)
         ]);
 
+        // compute average rating and total reviews for the star
+        const ratingAgg = await Review.aggregate([
+            { $match: { starId: new mongoose.Types.ObjectId(id) } },
+            { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } }
+        ]);
+        const avg = ratingAgg && ratingAgg.length ? Math.round((ratingAgg[0].avg || 0) * 10) / 10 : 0;
+        const count = ratingAgg && ratingAgg.length ? ratingAgg[0].count : 0;
+        starData.averageRating = avg;
+        starData.totalReviews = count;
+
         // fetch latest 5 reviews for this star
         const latestReviews = await Review.find({ starId: id })
             .populate('reviewerId', 'name pseudo profilePic')
