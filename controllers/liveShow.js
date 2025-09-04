@@ -122,8 +122,14 @@ export const createLiveShow = async (req, res) => {
     const inviteLink = `${process.env.FRONTEND_URL || 'https://app.baroni.com'}/live/${showCode}`;
 
     let thumbnailUrl = undefined;
-    if (req.file && req.file.buffer) {
+    if (req.body && typeof req.body.thumbnail === 'string' && req.body.thumbnail.trim()) {
+      thumbnailUrl = req.body.thumbnail.trim();
+    } else if (req.file && req.file.buffer) {
       thumbnailUrl = await uploadFile(req.file.buffer);
+    }
+
+    if (!thumbnailUrl) {
+      return res.status(400).json({ success: false, message: 'Thumbnail is required to create a live show' });
     }
 
     const liveShow = await LiveShow.create({
