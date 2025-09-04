@@ -10,8 +10,7 @@ import mongoose from 'mongoose';
 const updateStarRating = async (starId) => {
   try {
     const reviews = await Review.find({ 
-      starId, 
-      isVisible: true 
+      starId
     });
     
     if (reviews.length === 0) {
@@ -272,8 +271,7 @@ export const getStarReviews = async (req, res) => {
     const skip = (page - 1) * limit;
 
     const reviews = await Review.find({ 
-      starId, 
-      isVisible: true 
+      starId
     })
     .populate('reviewerId', 'name pseudo profilePic')
     .sort({ createdAt: -1 })
@@ -281,8 +279,7 @@ export const getStarReviews = async (req, res) => {
     .limit(parseInt(limit));
 
     const totalReviews = await Review.countDocuments({ 
-      starId, 
-      isVisible: true 
+      starId
     });
 
     const star = await User.findById(starId).select('averageRating totalReviews');

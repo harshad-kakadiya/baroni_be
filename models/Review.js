@@ -44,10 +44,6 @@ const reviewSchema = new mongoose.Schema(
       type: String, 
       enum: ['appointment', 'dedication', 'live_show'], 
       required: true 
-    },
-    isVisible: { 
-      type: Boolean, 
-      default: true 
     }
   },
   { timestamps: true }

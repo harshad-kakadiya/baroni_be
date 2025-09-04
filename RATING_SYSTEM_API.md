@@ -18,7 +18,6 @@ The rating system allows fans to review and rate stars after completing appointm
 - `dedicationRequestId`: ObjectId (ref: DedicationRequest) - Associated dedication (if applicable)
 - `liveShowId`: ObjectId (ref: LiveShow) - Associated live show (if applicable)
 - `reviewType`: String (enum: 'appointment', 'dedication', 'live_show')
-- `isVisible`: Boolean (default: true) - Whether review is visible
 
 ## API Endpoints
 
@@ -201,7 +200,7 @@ The rating system allows fans to review and rate stars after completing appointm
 
 5. **Automatic Rating Calculation**: Star's average rating and total review count are automatically updated when reviews are submitted, updated, or deleted.
 
-6. **Review Visibility**: Reviews are visible by default but can be hidden by setting `isVisible: false`.
+6. **Review Visibility**: All reviews are visible by default.
 
 ## Integration with Existing APIs
 

@@ -10,19 +10,49 @@ import DedicationRequest from "../models/DedicationRequest.js";
 import Transaction from "../models/Transaction.js";
 import { createTransaction, completeTransaction } from "../services/transactionService.js";
 import { TRANSACTION_DESCRIPTIONS, TRANSACTION_TYPES } from "../utils/transactionConstants.js";
-import { generateUniqueGoldBaroniId } from "../utils/baroniIdGenerator.js";
+import { generateUniqueGoldBaroniId, generateUniqueBaroniId } from "../utils/baroniIdGenerator.js";
+
+/**
+ * Get available baroni ID patterns for becoming a star
+ * Returns standard and gold baroni ID patterns that the user can choose from
+ */
+export const getBaroniIdPatterns = async (req, res) => {
+    try {
+        // Generate a standard baroni ID pattern
+        const standardId = await generateUniqueBaroniId();
+        
+        // Generate a gold baroni ID pattern
+        const goldId = await generateUniqueGoldBaroniId();
+        
+        return res.status(200).json({
+            success: true,
+            data: {
+                standard: {
+                    pattern: standardId,
+                    description: "Standard 5-digit baroni ID"
+                },
+                gold: {
+                    pattern: goldId,
+                    description: "Gold baroni ID with special pattern (AAAAA or ABABA)"
+                }
+            }
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: err.message });
+    }
+};
 
 /**
  * Fan pays to become a Star (Standard or Gold)
- * Body: { plan: 'standard' | 'gold', amount: number, paymentMode: 'coin' | 'external', paymentDescription? }
- * - If plan is 'standard': keep existing baroniId
- * - If plan is 'gold': assign a unique GOLD patterned baroniId
+ * Body: { plan: 'standard' | 'gold', amount: number, paymentMode: 'coin' | 'external', paymentDescription?, baroniId? }
+ * - If plan is 'standard': use provided baroniId or keep existing baroniId
+ * - If plan is 'gold': use provided baroniId or assign a unique GOLD patterned baroniId
  * - Transaction is created with receiver = admin (first admin user)
  * - On success, user role becomes 'star'
  */
 export const becomeStar = async (req, res) => {
     try {
-        const { plan, amount, paymentMode = 'coin', paymentDescription } = req.body;
+        const { plan, amount, paymentMode = 'coin', paymentDescription, baroniId } = req.body;
 
         if (req.user.role !== 'fan') {
             return res.status(403).json({ success: false, message: 'Only fans can become stars' });
@@ -35,6 +65,18 @@ export const becomeStar = async (req, res) => {
         const numericAmount = Number(amount);
         if (!numericAmount || numericAmount <= 0) {
             return res.status(400).json({ success: false, message: 'Invalid amount' });
+        }
+
+        // Validate baroniId if provided
+        if (baroniId) {
+            // Check if the provided baroniId already exists
+            const existingUser = await User.findOne({ baroniId: String(baroniId) });
+            if (existingUser) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Baroni ID already exists, please try again' 
+                });
+            }
         }
 
         // Find an admin user to receive the payment
@@ -73,12 +115,18 @@ export const becomeStar = async (req, res) => {
         // Complete the transaction (credit admin wallet for coin mode, mark completed for external)
         await completeTransaction(transaction._id);
 
-        // If Gold, generate a new GOLD-formatted unique baroniId
+        // Handle baroniId assignment based on plan and provided baroniId
         let updates = { role: 'star' };
-        if (String(plan) === 'gold') {
+        
+        if (baroniId) {
+            // Use the provided baroniId
+            updates.baroniId = String(baroniId);
+        } else if (String(plan) === 'gold') {
+            // Generate a new GOLD-formatted unique baroniId if no baroniId provided
             const newGoldId = await generateUniqueGoldBaroniId();
             updates.baroniId = newGoldId;
         }
+        // For standard plan without baroniId, keep existing baroniId (no update needed)
 
         const updatedUser = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true });
 
