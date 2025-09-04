@@ -55,6 +55,49 @@ export const createAvailability = async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
     const { date, timeSlots, status } = req.body;
+
+    // Validate that the date is not in the past
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set to start of today
+    const inputDate = new Date(date);
+    
+    if (inputDate < today) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Cannot create availability for past dates' 
+      });
+    }
+
+    // If the date is today, validate that time slots are not in the past
+    const isToday = inputDate.getTime() === today.getTime();
+    if (isToday) {
+      const now = new Date();
+      const currentTime = now.getHours() * 60 + now.getMinutes(); // Current time in minutes
+      
+      // Validate time slots are not in the past
+      for (const timeSlot of timeSlots) {
+        const slotString = typeof timeSlot === 'string' ? timeSlot : timeSlot.slot;
+        const timeMatch = slotString.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+        if (timeMatch) {
+          let hour = parseInt(timeMatch[1], 10);
+          const minute = parseInt(timeMatch[2], 10);
+          const ampm = timeMatch[3].toUpperCase();
+          
+          // Convert to 24-hour format
+          if (ampm === 'PM' && hour !== 12) hour += 12;
+          if (ampm === 'AM' && hour === 12) hour = 0;
+          
+          const slotTime = hour * 60 + minute;
+          if (slotTime <= currentTime) {
+            return res.status(400).json({ 
+              success: false, 
+              message: `Cannot create availability for past time slots. Time slot "${slotString}" is in the past.` 
+            });
+          }
+        }
+      }
+    }
+
     let normalized = [];
     try {
       normalized = Array.isArray(timeSlots)
@@ -152,9 +195,55 @@ export const updateAvailability = async (req, res) => {
     const { date, timeSlots, status } = req.body;
     const item = await Availability.findOne({ _id: req.params.id, userId: req.user._id });
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
-    if (date) item.date = String(date).trim();
+    
+    // Validate date if provided
+    if (date) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const inputDate = new Date(date);
+      
+      if (inputDate < today) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Cannot update availability to past dates' 
+        });
+      }
+      item.date = String(date).trim();
+    }
     if (Array.isArray(timeSlots)) {
       try {
+        // If updating time slots for today, validate they're not in the past
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const itemDate = new Date(item.date);
+        const isToday = itemDate.getTime() === today.getTime();
+        
+        if (isToday) {
+          const now = new Date();
+          const currentTime = now.getHours() * 60 + now.getMinutes();
+          
+          for (const timeSlot of timeSlots) {
+            const slotString = typeof timeSlot === 'string' ? timeSlot : timeSlot.slot;
+            const timeMatch = slotString.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+            if (timeMatch) {
+              let hour = parseInt(timeMatch[1], 10);
+              const minute = parseInt(timeMatch[2], 10);
+              const ampm = timeMatch[3].toUpperCase();
+              
+              if (ampm === 'PM' && hour !== 12) hour += 12;
+              if (ampm === 'AM' && hour === 12) hour = 0;
+              
+              const slotTime = hour * 60 + minute;
+              if (slotTime <= currentTime) {
+                return res.status(400).json({ 
+                  success: false, 
+                  message: `Cannot update availability with past time slots. Time slot "${slotString}" is in the past.` 
+                });
+              }
+            }
+          }
+        }
+        
         item.timeSlots = timeSlots.map((t) => {
           if (typeof t === 'string') {
             return { slot: normalizeTimeSlotString(String(t)), status: 'available' };
