@@ -210,9 +210,17 @@ export const completeProfile = async (req, res) => {
       user.availableForBookings = availableForBookings;
     }
 
-    // Handle appNotification field
-    if (typeof appNotification === 'boolean') {
-      user.appNotification = appNotification;
+    // Handle appNotification field (coerce string to boolean if needed)
+    if (typeof appNotification !== 'undefined') {
+      const toBoolean = (value) => {
+        if (typeof value === 'boolean') return value;
+        if (typeof value === 'string') {
+          const normalized = value.trim().toLowerCase();
+          return ['true', '1', 'yes', 'on'].includes(normalized);
+        }
+        return Boolean(value);
+      };
+      user.appNotification = toBoolean(appNotification);
     }
 
     // Handle profile picture update
