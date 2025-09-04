@@ -142,7 +142,7 @@ export const createLiveShow = async (req, res) => {
       showCode,
       inviteLink,
       starId: req.user._id,
-      status: 'active', // Show is immediately active
+      status: 'pending',
       description,
       thumbnail: thumbnailUrl,
       transactionId: hostingTxn._id,
@@ -170,13 +170,13 @@ export const getAllLiveShows = async (req, res) => {
   try {
     const { status, starId, upcoming } = req.query;
 
-    const allowedStatuses = ['active', 'cancelled'];
+    const allowedStatuses = ['pending', 'completed', 'cancelled'];
     const filter = {};
     if (status && allowedStatuses.includes(status)) filter.status = status;
     if (starId && mongoose.Types.ObjectId.isValid(starId)) filter.starId = starId;
     if (upcoming === 'true') {
       filter.date = { $gt: new Date() };
-      filter.status = 'active';
+      filter.status = 'pending';
     }
 
     const shows = await LiveShow.find(filter).populate('starId', 'name pseudo profilePic availableForBookings').sort({ date: 1 });
@@ -277,7 +277,7 @@ export const joinLiveShow = async (req, res) => {
 
     const show = await LiveShow.findById(id);
     if (!show) return res.status(404).json({ success: false, message: 'Live show not found' });
-    if (show.status !== 'active') return res.status(400).json({ success: false, message: 'Show is not open for joining' });
+    if (show.status !== 'pending') return res.status(400).json({ success: false, message: 'Show is not open for joining' });
 
     // Check if already joined
     const alreadyJoined = Array.isArray(show.attendees) && show.attendees.some(u => u.toString() === req.user._id.toString());
@@ -476,7 +476,7 @@ export const getStarUpcomingShows = async (req, res) => {
 
     const shows = await LiveShow.find({
       starId,
-      status: 'active',
+      status: 'pending',
       date: { $gt: new Date() }
     })
     .sort({ date: 1 });
@@ -497,7 +497,7 @@ export const getStarAllShows = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(starId)) return res.status(400).json({ success: false, message: 'Invalid star ID' });
 
     const filter = { starId };
-    const allowedStatuses = ['active', 'cancelled'];
+    const allowedStatuses = ['pending', 'completed', 'cancelled'];
     if (status && allowedStatuses.includes(status)) filter.status = status;
 
     const shows = await LiveShow.find(filter).sort({ date: -1 });
@@ -560,6 +560,8 @@ export const completeLiveShowAttendance = async (req, res) => {
       }
     }
 
+    // Mark show as completed
+    await LiveShow.findByIdAndUpdate(id, { status: 'completed' });
     return res.json({ success: true, message: 'Live show attendance completed and coins transferred' });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -575,10 +577,10 @@ export const getMyShows = async (req, res) => {
     if (req.user.role === 'fan') {
       // For fans: get shows they have joined
       const filter = { attendees: req.user._id };
-      if (status && ['active', 'cancelled'].includes(status)) filter.status = status;
+      if (status && ['pending', 'completed', 'cancelled'].includes(status)) filter.status = status;
       if (upcoming === 'true') {
         filter.date = { $gt: new Date() };
-        filter.status = 'active';
+        filter.status = 'pending';
       }
 
       shows = await LiveShow.find(filter)
@@ -594,10 +596,10 @@ export const getMyShows = async (req, res) => {
     } else if (req.user.role === 'star') {
       // For stars: get shows they have hosted
       const filter = { starId: req.user._id };
-      if (status && ['active', 'cancelled'].includes(status)) filter.status = status;
+      if (status && ['pending', 'completed', 'cancelled'].includes(status)) filter.status = status;
       if (upcoming === 'true') {
         filter.date = { $gt: new Date() };
-        filter.status = 'active';
+        filter.status = 'pending';
       }
 
       shows = await LiveShow.find(filter)

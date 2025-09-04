@@ -36,6 +36,10 @@ const updateStarRating = async (starId) => {
 // Submit a review for an appointment
 export const submitAppointmentReview = async (req, res) => {
   try {
+    // Only fans can submit reviews
+    if (req.user.role !== 'fan') {
+      return res.status(403).json({ success: false, message: 'Only fans can submit reviews' });
+    }
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ success: false, errors: errors.array() });
@@ -110,6 +114,10 @@ export const submitAppointmentReview = async (req, res) => {
 // Submit a review for a dedication request
 export const submitDedicationReview = async (req, res) => {
   try {
+    // Only fans can submit reviews
+    if (req.user.role !== 'fan') {
+      return res.status(403).json({ success: false, message: 'Only fans can submit reviews' });
+    }
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ success: false, errors: errors.array() });
@@ -191,17 +199,17 @@ export const submitLiveShowReview = async (req, res) => {
 
     const { liveShowId, rating, comment } = req.body;
 
-    // Validate live show exists and user attended it
+    // Validate live show exists, user attended it, and it is completed
     const liveShow = await LiveShow.findOne({
       _id: liveShowId,
       attendees: req.user._id,
-      status: 'active'
+      status: 'completed'
     });
 
     if (!liveShow) {
       return res.status(404).json({ 
         success: false, 
-        message: 'Live show not found or you did not attend this show' 
+        message: 'Live show not found, not completed, or you did not attend this show' 
       });
     }
 
@@ -259,7 +267,6 @@ export const submitLiveShowReview = async (req, res) => {
 export const getStarReviews = async (req, res) => {
   try {
     const { starId } = req.params;
-    const { page = 1, limit = 10 } = req.query;
 
     if (!mongoose.Types.ObjectId.isValid(starId)) {
       return res.status(400).json({ 
@@ -268,19 +275,11 @@ export const getStarReviews = async (req, res) => {
       });
     }
 
-    const skip = (page - 1) * limit;
-
     const reviews = await Review.find({ 
       starId
     })
     .populate('reviewerId', 'name pseudo profilePic')
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(parseInt(limit));
-
-    const totalReviews = await Review.countDocuments({ 
-      starId
-    });
+    .sort({ createdAt: -1 });
 
     const star = await User.findById(starId).select('averageRating totalReviews');
 
@@ -302,14 +301,7 @@ export const getStarReviews = async (req, res) => {
         })),
         star: {
           averageRating: star?.averageRating || 0,
-          totalReviews: star?.totalReviews || 0
-        },
-        pagination: {
-          currentPage: parseInt(page),
-          totalPages: Math.ceil(totalReviews / limit),
-          totalReviews,
-          hasNext: page * limit < totalReviews,
-          hasPrev: page > 1
+          totalReviews: reviews.length
         }
       }
     });
@@ -321,20 +313,14 @@ export const getStarReviews = async (req, res) => {
 // Get user's submitted reviews
 export const getMyReviews = async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
-    const skip = (page - 1) * limit;
+    // If the requester is a star, return all reviews received for the star
+    // If the requester is a fan, return reviews submitted by the fan
+    const isStar = req.user.role === 'star';
+    const filter = isStar ? { starId: req.user._id } : { reviewerId: req.user._id };
 
-    const reviews = await Review.find({ 
-      reviewerId: req.user._id 
-    })
-    .populate('starId', 'name pseudo profilePic')
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(parseInt(limit));
-
-    const totalReviews = await Review.countDocuments({ 
-      reviewerId: req.user._id 
-    });
+    const reviews = await Review.find(filter)
+      .populate(isStar ? 'reviewerId' : 'starId', 'name pseudo profilePic')
+      .sort({ createdAt: -1 });
 
     return res.json({
       success: true,
@@ -343,22 +329,27 @@ export const getMyReviews = async (req, res) => {
           id: review._id,
           rating: review.rating,
           comment: review.comment,
-          star: {
-            id: review.starId._id,
-            name: review.starId.name,
-            pseudo: review.starId.pseudo,
-            profilePic: review.starId.profilePic
-          },
+          // If star is requesting, include reviewer details; otherwise include star details
+          ...(isStar
+            ? {
+                reviewer: {
+                  id: review.reviewerId._id,
+                  name: review.reviewerId.name,
+                  pseudo: review.reviewerId.pseudo,
+                  profilePic: review.reviewerId.profilePic
+                }
+              }
+            : {
+                star: {
+                  id: review.starId._id,
+                  name: review.starId.name,
+                  pseudo: review.starId.pseudo,
+                  profilePic: review.starId.profilePic
+                }
+              }),
           reviewType: review.reviewType,
           createdAt: review.createdAt
-        })),
-        pagination: {
-          currentPage: parseInt(page),
-          totalPages: Math.ceil(totalReviews / limit),
-          totalReviews,
-          hasNext: page * limit < totalReviews,
-          hasPrev: page > 1
-        }
+        }))
       }
     });
   } catch (err) {

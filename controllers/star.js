@@ -11,6 +11,7 @@ import Transaction from "../models/Transaction.js";
 import { createTransaction, completeTransaction } from "../services/transactionService.js";
 import { TRANSACTION_DESCRIPTIONS, TRANSACTION_TYPES } from "../utils/transactionConstants.js";
 import { generateUniqueGoldBaroniId, generateUniqueBaroniId } from "../utils/baroniIdGenerator.js";
+import Review from "../models/Review.js";
 
 /**
  * Get available baroni ID patterns for becoming a star
@@ -278,11 +279,17 @@ export const getStarById = async (req, res) => {
             LiveShow.find({
                 starId: id,
                 date: { $gt: new Date() },
-                status: 'active'
+                status: 'pending'
             })
                 .sort({ date: 1 })
                 .limit(10)
         ]);
+
+        // fetch latest 5 reviews for this star
+        const latestReviews = await Review.find({ starId: id })
+            .populate('reviewerId', 'name pseudo profilePic')
+            .sort({ createdAt: -1 })
+            .limit(5);
 
         // Build unified allservices array (dedications + services)
         const allservices = [
@@ -311,7 +318,20 @@ export const getStarById = async (req, res) => {
                 allservices,
                 dedicationSamples,
                 availability,
-                upcomingShows: upcomingShowsWithLikeStatus
+                upcomingShows: upcomingShowsWithLikeStatus,
+                latestReviews: latestReviews.map(r => ({
+                    id: r._id,
+                    rating: r.rating,
+                    comment: r.comment,
+                    reviewer: {
+                        id: r.reviewerId._id,
+                        name: r.reviewerId.name,
+                        pseudo: r.reviewerId.pseudo,
+                        profilePic: r.reviewerId.profilePic,
+                    },
+                    reviewType: r.reviewType,
+                    createdAt: r.createdAt,
+                }))
             },
         });
     } catch (error) {

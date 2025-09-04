@@ -55,28 +55,30 @@ reviewSchema.index({ reviewerId: 1, starId: 1 });
 reviewSchema.index({ reviewType: 1, createdAt: -1 });
 
 // Ensure one review per appointment/dedication/live show per fan
+// Ensure one review per item type by using partial unique indexes
+// Partial indexes avoid collisions when unrelated IDs are missing/null
 reviewSchema.index({ 
   reviewerId: 1, 
   appointmentId: 1 
 }, { 
-  unique: true, 
-  sparse: true 
+  unique: true,
+  partialFilterExpression: { appointmentId: { $exists: true, $ne: null } }
 });
 
 reviewSchema.index({ 
   reviewerId: 1, 
   dedicationRequestId: 1 
 }, { 
-  unique: true, 
-  sparse: true 
+  unique: true,
+  partialFilterExpression: { dedicationRequestId: { $exists: true, $ne: null } }
 });
 
 reviewSchema.index({ 
   reviewerId: 1, 
   liveShowId: 1 
 }, { 
-  unique: true, 
-  sparse: true 
+  unique: true,
+  partialFilterExpression: { liveShowId: { $exists: true, $ne: null } }
 });
 
 const Review = mongoose.model('Review', reviewSchema);

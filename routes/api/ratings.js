@@ -1,5 +1,5 @@
 import express from 'express';
-import { requireAuth } from '../../middlewares/auth.js';
+import { requireAuth, requireRole } from '../../middlewares/auth.js';
 import {
   submitAppointmentReview,
   submitDedicationReview,
@@ -23,20 +23,20 @@ const router = express.Router();
 
 router.use(requireAuth);
 
-// Submit review for appointment
-router.post('/appointment', submitAppointmentReviewValidation, submitAppointmentReview);
+// Submit review for appointment (fan only)
+router.post('/appointment', requireRole('fan'), submitAppointmentReviewValidation, submitAppointmentReview);
 
-// Submit review for dedication request
-router.post('/dedication', submitDedicationReviewValidation, submitDedicationReview);
+// Submit review for dedication request (fan only)
+router.post('/dedication', requireRole('fan'), submitDedicationReviewValidation, submitDedicationReview);
 
-// Submit review for live show
-router.post('/live-show', submitLiveShowReviewValidation, submitLiveShowReview);
+// Submit review for live show (fan only)
+router.post('/live-show', requireRole('fan'), submitLiveShowReviewValidation, submitLiveShowReview);
 
 // Get reviews for a specific star (public)
 router.get('/star/:starId', getStarReviewsValidation, getStarReviews);
 
-// Get current user's reviews
-router.get('/my-reviews', getMyReviewsValidation, getMyReviews);
+// Get current user's reviews (fans: submitted reviews, stars: received reviews)
+router.get('/', getMyReviewsValidation, getMyReviews);
 
 // Update a review
 router.put('/:reviewId', updateReviewValidation, updateReview);
