@@ -19,6 +19,8 @@ import { uploadMixed } from '../../middlewares/upload.js';
 
 const router = express.Router();
 
+router.use(requireAuth);
+
 router.post(
   '/',
   uploadMixed.any(),
