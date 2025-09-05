@@ -15,6 +15,51 @@ export const storeMessage = async (req, res) => {
 
     // If no conversationId provided, create or find conversation between sender and receiver
     if (!conversationId && authSenderId && receiverId) {
+        // Validate conversation rules before creating/finding conversation
+        if (String(authSenderId) === String(receiverId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'You cannot start a conversation with yourself'
+            });
+        }
+
+        // Get sender and receiver user details to validate roles
+        const [sender, receiver] = await Promise.all([
+            User.findById(authSenderId).select('role'),
+            User.findById(receiverId).select('role')
+        ]);
+
+        if (!sender || !receiver) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid sender or receiver'
+            });
+        }
+
+        // Check if both users are fans (not allowed)
+        if (sender.role === 'fan' && receiver.role === 'fan') {
+            return res.status(400).json({
+                success: false,
+                message: 'Fans cannot start conversations with other fans'
+            });
+        }
+
+        // Check if both users are stars (not allowed)
+        if (sender.role === 'star' && receiver.role === 'star') {
+            return res.status(400).json({
+                success: false,
+                message: 'Stars cannot start conversations with other stars'
+            });
+        }
+
+        // Check if both users are admins (not allowed)
+        if (sender.role === 'admin' && receiver.role === 'admin') {
+            return res.status(400).json({
+                success: false,
+                message: 'Admins cannot start conversations with other admins'
+            });
+        }
+
         const participants = [String(authSenderId), String(receiverId)].sort();
 
         let conversation = await ConversationModel.findOne({ participants });
