@@ -154,6 +154,7 @@ export const getAllStars = async (req, res) => {
         const { q, country } = req.query;
         const filter = {
             role: "star",
+            hidden: { $ne: true }, // Exclude hidden stars from general search
             // Only include stars that have filled up their details
             $and: [
                 { name: { $exists: true, $ne: null } },
@@ -172,7 +173,59 @@ export const getAllStars = async (req, res) => {
         }
         if (q && q.trim()) {
             const regex = new RegExp(q.trim(), "i");
-            filter.$or = [{ name: regex }, { pseudo: regex }];
+            const searchQuery = [{ name: regex }, { pseudo: regex }];
+            
+            // Check if the search query looks like a baroniId (5 digits)
+            if (/^\d{5}$/.test(q.trim())) {
+                // For baroniId search, also include hidden stars
+                const baroniIdFilter = {
+                    role: "star",
+                    baroniId: q.trim(),
+                    // Only include stars that have filled up their details
+                    $and: [
+                        { name: { $exists: true, $ne: null } },
+                        { name: { $ne: '' } },
+                        { pseudo: { $exists: true, $ne: null } },
+                        { pseudo: { $ne: '' } },
+                        { about: { $exists: true, $ne: null } },
+                        { about: { $ne: '' } },
+                        { location: { $exists: true, $ne: null } },
+                        { location: { $ne: '' } },
+                        { profession: { $exists: true, $ne: null } }
+                    ]
+                };
+                if (country) {
+                    baroniIdFilter.country = country;
+                }
+                
+                const stars = await User.find(baroniIdFilter).select(
+                    "-password -passwordResetToken -passwordResetExpires"
+                );
+                
+                // Check if user is authenticated to add favorite/liked status
+                let starsData = stars.map(star => star.toObject());
+
+                if (req.user) {
+                    // Check if each star is in user's favorites
+                    starsData = starsData.map(star => ({
+                        ...star,
+                        isLiked: req.user.favorites.includes(star._id)
+                    }));
+                } else {
+                    // For unauthenticated users, set isLiked to false
+                    starsData = starsData.map(star => ({
+                        ...star,
+                        isLiked: false
+                    }));
+                }
+
+                return res.status(200).json({
+                    success: true,
+                    data: starsData,
+                });
+            }
+            
+            filter.$or = searchQuery;
         }
 
         const stars = await User.find(filter).select(

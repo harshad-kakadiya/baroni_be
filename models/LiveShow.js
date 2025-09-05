@@ -51,8 +51,8 @@ const liveShowSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['active', 'cancelled'],
-      default: 'active'
+      enum: ['pending', 'completed', 'cancelled'],
+      default: 'pending'
     },
     currentAttendees: {
       type: Number,
@@ -104,9 +104,9 @@ liveShowSchema.virtual('isAtCapacity').get(function() {
   return this.currentAttendees >= this.maxCapacity;
 });
 
-// Virtual for checking if show is upcoming (active in future)
+// Virtual for checking if show is upcoming (pending in future)
 liveShowSchema.virtual('isUpcoming').get(function() {
-  return this.date > new Date() && this.status === 'active';
+  return this.date > new Date() && this.status === 'pending';
 });
 
 const LiveShow = mongoose.model('LiveShow', liveShowSchema);

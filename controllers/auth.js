@@ -35,6 +35,7 @@ const sanitizeUser = (user) => ({
   role: user.role,
   availableForBookings: user.availableForBookings,
   appNotification: user.appNotification,
+  hidden: user.hidden,
   coinBalance: user.coinBalance,
 });
 
@@ -178,7 +179,7 @@ export const completeProfile = async (req, res) => {
     const user = req.user;
     if (!user?._id) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
-    const { name, pseudo, preferredLanguage, preferredCurrency, country, email, contact, about, location, profession, profilePic, availableForBookings, appNotification } = req.body;
+    const { name, pseudo, preferredLanguage, preferredCurrency, country, email, contact, about, location, profession, profilePic, availableForBookings, appNotification, hidden } = req.body;
     let { dedications, services, dedicationSamples } = req.body;
 
 
@@ -221,6 +222,19 @@ export const completeProfile = async (req, res) => {
         return Boolean(value);
       };
       user.appNotification = toBoolean(appNotification);
+    }
+
+    // Handle hidden field (coerce string to boolean if needed)
+    if (typeof hidden !== 'undefined') {
+      const toBoolean = (value) => {
+        if (typeof value === 'boolean') return value;
+        if (typeof value === 'string') {
+          const normalized = value.trim().toLowerCase();
+          return ['true', '1', 'yes', 'on'].includes(normalized);
+        }
+        return Boolean(value);
+      };
+      user.hidden = toBoolean(hidden);
     }
 
     // Handle profile picture update

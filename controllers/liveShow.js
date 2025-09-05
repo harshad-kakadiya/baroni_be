@@ -403,7 +403,7 @@ export const cancelLiveShow = async (req, res) => {
     // Cancel all pending attendance transactions and refund coins
     const attendances = await LiveShowAttendance.find({ 
       liveShowId: show._id, 
-      status: 'active' 
+      status: 'pending' 
     });
 
     for (const attendance of attendances) {
@@ -543,10 +543,10 @@ export const completeLiveShowAttendance = async (req, res) => {
     if (!show) return res.status(404).json({ success: false, message: 'Live show not found' });
     if (show.starId.toString() !== req.user._id.toString() && req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Only the star can complete this show' });
 
-    // Complete all active attendance transactions and transfer coins to star
+    // Complete all pending attendance transactions and transfer coins to star
     const attendances = await LiveShowAttendance.find({ 
       liveShowId: show._id, 
-      status: 'active' 
+      status: 'pending' 
     });
 
     for (const attendance of attendances) {

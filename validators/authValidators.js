@@ -24,7 +24,8 @@ export const completeProfileValidator = [
   body('about').optional().trim().isLength({ max: 500 }).withMessage('About must be less than 500 characters'),
   body('location').optional().trim().isLength({ max: 100 }).withMessage('Location must be less than 100 characters'),
   body('profession').optional().isMongoId(),
-  body('availableForBookings').optional().isBoolean().withMessage('availableForBookings must be a boolean value')
+  body('availableForBookings').optional().isBoolean().withMessage('availableForBookings must be a boolean value'),
+  body('hidden').optional().isBoolean().withMessage('hidden must be a boolean value')
 ];
 
 export const checkUserValidator = [

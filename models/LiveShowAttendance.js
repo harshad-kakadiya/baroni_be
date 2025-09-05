@@ -32,8 +32,8 @@ const liveShowAttendanceSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['active', 'cancelled', 'refunded'],
-      default: 'active',
+      enum: ['pending', 'completed', 'cancelled', 'refunded'],
+      default: 'pending',
       index: true
     },
     joinedAt: {

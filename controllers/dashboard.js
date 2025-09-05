@@ -46,7 +46,7 @@ export const getDashboard = async (req, res) => {
         Category.find().sort({ name: 1 }),
         // Get all upcoming live shows
         LiveShow.find({
-          status: 'active',
+          status: 'pending',
           date: { $gt: new Date() }
         })
         .populate('starId', 'name pseudo profilePic')
@@ -116,7 +116,7 @@ export const getDashboard = async (req, res) => {
         // Get upcoming live shows
         LiveShow.find({
           starId: user._id,
-          status: 'active',
+          status: 'pending',
           date: { $gt: new Date() }
         })
         .sort({ date: 1 })
@@ -124,7 +124,7 @@ export const getDashboard = async (req, res) => {
 
         // Calculate earnings from live shows
         LiveShow.aggregate([
-          { $match: { starId: user._id, status: 'active' } },
+          { $match: { starId: user._id, status: 'pending' } },
           { $group: { _id: null, totalEarnings: { $sum: '$hostingPrice' } } }
         ]),
         // Escrow coins: pending transactions where receiver is the star
