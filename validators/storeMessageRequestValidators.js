@@ -1,22 +1,15 @@
 import { body, validationResult } from "express-validator";
 
 export const storeMessageValidator = [
-    body("channelName")
-        .notEmpty()
-        .withMessage("Channel name is required")
+    body("conversationId")
+        .optional()
         .isString()
-        .withMessage("Channel name must be a string"),
-
-    body("senderId")
-        .notEmpty()
-        .withMessage("Sender ID is required")
-        .isString()
-        .withMessage("Sender ID must be a string"),
+        .withMessage("conversationId must be a string"),
 
     body("receiverId")
         .optional()
         .isString()
-        .withMessage("Receiver ID must be a string"),
+        .withMessage("receiverId must be a string when creating new conversation"),
 
     body("message")
         .notEmpty()
@@ -24,15 +17,10 @@ export const storeMessageValidator = [
         .isString()
         .withMessage("Message must be a string"),
 
-    body("messageType")
+    body("type")
         .optional()
         .isIn(["text", "image", "video", "file"])
-        .withMessage("Message type must be one of: text, image, video, file"),
-
-    body("timestamp")
-        .optional()
-        .isISO8601()
-        .withMessage("Timestamp must be a valid ISO8601 date"),
+        .withMessage("type must be one of: text, image, video, file"),
 
     // Middleware to check validation results
     (req, res, next) => {
