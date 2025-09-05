@@ -206,9 +206,17 @@ export const completeProfile = async (req, res) => {
       user.profession = profession;
     }
 
-    // Handle availableForBookings field
-    if (typeof availableForBookings === 'boolean') {
-      user.availableForBookings = availableForBookings;
+    // Handle availableForBookings field (coerce string/values to boolean)
+    if (typeof availableForBookings !== 'undefined') {
+      const toBoolean = (value) => {
+        if (typeof value === 'boolean') return value;
+        if (typeof value === 'string') {
+          const normalized = value.trim().toLowerCase();
+          return ['true', '1', 'yes', 'on'].includes(normalized);
+        }
+        return Boolean(value);
+      };
+      user.availableForBookings = toBoolean(availableForBookings);
     }
 
     // Handle appNotification field (coerce string to boolean if needed)
@@ -580,18 +588,21 @@ export const toggleAvailableForBookings = async (req, res) => {
     const userId = req.user._id;
     const { availableForBookings } = req.body;
 
-    // Validate the boolean value
-    if (typeof availableForBookings !== 'boolean') {
-      return res.status(400).json({
-        success: false,
-        message: 'availableForBookings must be a boolean value (true or false)'
-      });
-    }
+    // Coerce the value to boolean
+    const toBoolean = (value) => {
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        return ['true', '1', 'yes', 'on'].includes(normalized);
+      }
+      return Boolean(value);
+    };
+    const coerced = toBoolean(availableForBookings);
 
     // Update the user's availableForBookings status
     const updatedUser = await User.findByIdAndUpdate(
       userId,
-      { availableForBookings },
+      { availableForBookings: coerced },
       { new: true }
     ).select('-password -passwordResetToken -passwordResetExpires');
 
@@ -601,7 +612,7 @@ export const toggleAvailableForBookings = async (req, res) => {
 
     return res.json({
       success: true,
-      message: `Successfully ${availableForBookings ? 'enabled' : 'disabled'} bookings availability`,
+      message: `Successfully ${coerced ? 'enabled' : 'disabled'} bookings availability`,
       data: sanitizeUser(updatedUser)
     });
   } catch (err) {
