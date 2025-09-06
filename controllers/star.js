@@ -297,6 +297,9 @@ export const getStarById = async (req, res) => {
             });
         }
 
+        // Increment profile impressions count for this star
+        await User.findByIdAndUpdate(id, { $inc: { profileImpressions: 1 } });
+
         // Check if user is authenticated to add favorite/liked status
         let starData = star.toObject();
 

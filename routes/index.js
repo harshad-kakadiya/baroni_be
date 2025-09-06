@@ -18,6 +18,7 @@ import agoraRouter from './api/agora.js';
 import Messaging from "./api/messaging.js";
 import notificationsRouter from './api/notifications.js';
 import ratingsRouter from './api/ratings.js';
+import analyticsRouter from './api/analytics.js';
 
 const router = express.Router();
 
@@ -40,6 +41,7 @@ router.use('/messages', Messaging);
 router.use('/agora', agoraRouter);
 router.use('/notifications', notificationsRouter);
 router.use('/ratings', ratingsRouter);
+router.use('/analytics', analyticsRouter);
 
 export default router;
 
