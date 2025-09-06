@@ -14,3 +14,4 @@ router.put('/:id', updateReportValidator, updateReport);
 router.delete('/:id', deleteReport);
 
 export default router;
+

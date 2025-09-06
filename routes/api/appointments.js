@@ -25,7 +25,11 @@ router.post('/:id/reschedule', [
   body('availabilityId').isMongoId(),
   body('timeSlotId').isMongoId(),
 ], rescheduleAppointment);
-router.post('/:id/complete', requireRole('star', 'admin'), idParamValidator, completeAppointment);
+router.post('/:id/complete', [
+  requireRole('star', 'admin'),
+  idParamValidator,
+  body('callDuration').isNumeric().withMessage('Call duration must be a number').isFloat({ min: 0 }).withMessage('Call duration must be greater than or equal to 0')
+], completeAppointment);
 
 export default router;
 

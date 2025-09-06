@@ -381,6 +381,7 @@ export const completeAppointment = async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
     const { id } = req.params;
+    const { callDuration } = req.body;
     const appt = await Appointment.findOne({ _id: id, starId: req.user._id });
     if (!appt) return res.status(404).json({ success: false, message: 'Appointment not found' });
     if (appt.status !== 'approved') return res.status(400).json({ success: false, message: 'Only approved appointments can be completed' });
@@ -399,6 +400,7 @@ export const completeAppointment = async (req, res) => {
 
     appt.status = 'completed';
     appt.completedAt = new Date();
+    appt.callDuration = callDuration;
     const updated = await appt.save();
 
     return res.json({ success: true, data: sanitize(updated) });
