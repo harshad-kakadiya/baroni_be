@@ -22,12 +22,16 @@ class NotificationHelper {
 
     // Send to fan
     if (appointment.fanId) {
-      await notificationService.sendToUser(appointment.fanId.name, template, data);
+      await notificationService.sendToUser(appointment.fanId, template, data, {
+        relatedEntity: { type: 'appointment', id: appointment._id }
+      });
     }
 
     // Send to star
     if (appointment.starId) {
-      await notificationService.sendToUser(appointment.starId.name, template, data);
+      await notificationService.sendToUser(appointment.starId, template, data, {
+        relatedEntity: { type: 'appointment', id: appointment._id }
+      });
     }
   }
 
@@ -58,12 +62,16 @@ class NotificationHelper {
 
     // Send to fan
     if (appointment.fanId) {
-      await notificationService.sendToUser(appointment.fanId, fanTemplate, data);
+      await notificationService.sendToUser(appointment.fanId, fanTemplate, data, {
+        relatedEntity: { type: 'appointment', id: appointment._id }
+      });
     }
 
     // Send to star
     if (appointment.starId) {
-      await notificationService.sendToUser(appointment.starId, starTemplate, data);
+      await notificationService.sendToUser(appointment.starId, starTemplate, data, {
+        relatedEntity: { type: 'appointment', id: appointment._id }
+      });
     }
   }
 
@@ -88,7 +96,9 @@ class NotificationHelper {
 
     // Send to the user who made the payment
     if (transaction.userId) {
-      await notificationService.sendToUser(transaction.userId, template, data);
+      await notificationService.sendToUser(transaction.userId, template, data, {
+        relatedEntity: { type: 'transaction', id: transaction._id }
+      });
     }
   }
 
@@ -112,12 +122,16 @@ class NotificationHelper {
 
     // Send to the star who received the rating
     if (rating.starId) {
-      await notificationService.sendToUser(rating.starId, template, data);
+      await notificationService.sendToUser(rating.starId, template, data, {
+        relatedEntity: { type: 'rating', id: rating._id }
+      });
     }
 
     // Send to the fan who gave the rating (for thanks message)
     if (type === 'RATING_THANKS' && rating.fanId) {
-      await notificationService.sendToUser(rating.fanId, template, data);
+      await notificationService.sendToUser(rating.fanId, template, data, {
+        relatedEntity: { type: 'rating', id: rating._id }
+      });
     }
   }
 
@@ -154,7 +168,9 @@ class NotificationHelper {
       case 'LIVE_SHOW_RESCHEDULED':
         // Send to star and all attendees
         if (liveShow.starId) {
-          await notificationService.sendToUser(liveShow.starId, template, data);
+          await notificationService.sendToUser(liveShow.starId, template, data, {
+            relatedEntity: { type: 'live_show', id: liveShow._id }
+          });
         }
         await this.sendToLiveShowAttendees(liveShow._id, template, data);
         break;
@@ -187,17 +203,23 @@ class NotificationHelper {
       };
 
       if (dedication.fanId) {
-        await notificationService.sendToUser(dedication.fanId, customTemplate, data);
+        await notificationService.sendToUser(dedication.fanId, customTemplate, data, {
+          relatedEntity: { type: 'dedication', id: dedication._id }
+        });
       }
     } else {
       // Send to star for new requests
       if (type === 'DEDICATION_REQUEST' && dedication.starId) {
-        await notificationService.sendToUser(dedication.starId, template, data);
+        await notificationService.sendToUser(dedication.starId, template, data, {
+          relatedEntity: { type: 'dedication', id: dedication._id }
+        });
       }
 
       // Send to fan for rejections
       if (type === 'DEDICATION_REJECTED' && dedication.fanId) {
-        await notificationService.sendToUser(dedication.fanId, template, data);
+        await notificationService.sendToUser(dedication.fanId, template, data, {
+          relatedEntity: { type: 'dedication', id: dedication._id }
+        });
       }
     }
   }
@@ -217,8 +239,10 @@ class NotificationHelper {
     };
 
     // Send to the recipient
-    if (message.recipientId) {
-      await notificationService.sendToUser(message.recipientId, template, data);
+    if (message.receiverId) {
+      await notificationService.sendToUser(message.receiverId, template, data, {
+        relatedEntity: { type: 'message', id: message._id }
+      });
     }
   }
 
@@ -236,7 +260,9 @@ class NotificationHelper {
       const followerIds = followers.map(follower => follower._id);
 
       if (followerIds.length > 0) {
-        await notificationService.sendToMultipleUsers(followerIds, template, data);
+        await notificationService.sendToMultipleUsers(followerIds, template, data, {
+          relatedEntity: { type: 'live_show', id: starId }
+        });
       }
     } catch (error) {
       console.error('Error sending notification to star followers:', error);
@@ -261,7 +287,9 @@ class NotificationHelper {
         .map(attendance => attendance.userId._id);
 
       if (attendeeIds.length > 0) {
-        await notificationService.sendToMultipleUsers(attendeeIds, template, data);
+        await notificationService.sendToMultipleUsers(attendeeIds, template, data, {
+          relatedEntity: { type: 'live_show', id: liveShowId }
+        });
       }
     } catch (error) {
       console.error('Error sending notification to live show attendees:', error);

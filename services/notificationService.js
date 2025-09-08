@@ -1,5 +1,6 @@
 import admin from 'firebase-admin';
 import User  from '../models/User.js';
+import Notification from '../models/Notification.js';
 
 // Initialize Firebase Admin SDK
 let firebaseApp;
@@ -40,10 +41,39 @@ class NotificationService {
    * @param {string} userId - User ID to send notification to
    * @param {Object} notificationData - Notification data
    * @param {Object} data - Additional data payload
+   * @param {Object} options - Additional options for notification storage
    */
-  async sendToUser(userId, notificationData, data = {}) {
+  async sendToUser(userId, notificationData, data = {}, options = {}) {
+    // Create notification record in database first
+    const notificationRecord = new Notification({
+      user: userId,
+      title: notificationData.title,
+      body: notificationData.body,
+      type: notificationData.type || 'general',
+      data: data,
+      expiresAt: options.expiresAt,
+      relatedEntity: options.relatedEntity,
+      deliveryStatus: 'pending'
+    });
+
+    try {
+      await notificationRecord.save();
+    } catch (dbError) {
+      console.error(`Error saving notification to database for user ${userId}:`, dbError);
+      // Continue with FCM sending even if DB save fails
+    }
+
     if (!isFirebaseInitialized || !this.messaging) {
       console.log('Firebase not initialized. Notification not sent.');
+      // Update notification status to failed
+      try {
+        await Notification.findByIdAndUpdate(notificationRecord._id, {
+          deliveryStatus: 'failed',
+          failureReason: 'Firebase not initialized'
+        });
+      } catch (updateError) {
+        console.error('Error updating notification status:', updateError);
+      }
       return { success: false, message: 'Firebase not initialized' };
     }
 
@@ -51,6 +81,15 @@ class NotificationService {
       const user = await User.findById(userId);
       if (!user || !user.fcmToken) {
         console.log(`No FCM token found for user ${userId}`);
+        // Update notification status to failed
+        try {
+          await Notification.findByIdAndUpdate(notificationRecord._id, {
+            deliveryStatus: 'failed',
+            failureReason: 'No FCM token found'
+          });
+        } catch (updateError) {
+          console.error('Error updating notification status:', updateError);
+        }
         return { success: false, message: 'No FCM token found' };
       }
 
@@ -84,9 +123,30 @@ class NotificationService {
 
       const response = await this.messaging.send(message);
       console.log(`Notification sent to user ${userId}:`, response);
-      return { success: true, messageId: response };
+      
+      // Update notification status to sent
+      try {
+        await Notification.findByIdAndUpdate(notificationRecord._id, {
+          deliveryStatus: 'sent',
+          fcmMessageId: response
+        });
+      } catch (updateError) {
+        console.error('Error updating notification status:', updateError);
+      }
+      
+      return { success: true, messageId: response, notificationId: notificationRecord._id };
     } catch (error) {
       console.error(`Error sending notification to user ${userId}:`, error);
+
+      // Update notification status to failed
+      try {
+        await Notification.findByIdAndUpdate(notificationRecord._id, {
+          deliveryStatus: 'failed',
+          failureReason: error.message
+        });
+      } catch (updateError) {
+        console.error('Error updating notification status:', updateError);
+      }
 
       // If token is invalid, remove it from user
       if (error.code === 'messaging/invalid-registration-token' ||
@@ -95,7 +155,7 @@ class NotificationService {
         console.log(`Removed invalid FCM token for user ${userId}`);
       }
 
-      return { success: false, error: error.message };
+      return { success: false, error: error.message, notificationId: notificationRecord._id };
     }
   }
 
@@ -104,18 +164,69 @@ class NotificationService {
    * @param {Array} userIds - Array of user IDs
    * @param {Object} notificationData - Notification data
    * @param {Object} data - Additional data payload
+   * @param {Object} options - Additional options for notification storage
    */
-  async sendToMultipleUsers(userIds, notificationData, data = {}) {
+  async sendToMultipleUsers(userIds, notificationData, data = {}, options = {}) {
+    // Create notification records in database first
+    const notificationRecords = [];
+    for (const userId of userIds) {
+      const notificationRecord = new Notification({
+        user: userId,
+        title: notificationData.title,
+        body: notificationData.body,
+        type: notificationData.type || 'general',
+        data: data,
+        expiresAt: options.expiresAt,
+        relatedEntity: options.relatedEntity,
+        deliveryStatus: 'pending'
+      });
+      notificationRecords.push(notificationRecord);
+    }
+
+    try {
+      await Notification.insertMany(notificationRecords);
+    } catch (dbError) {
+      console.error('Error saving notifications to database:', dbError);
+      // Continue with FCM sending even if DB save fails
+    }
+
     if (!isFirebaseInitialized || !this.messaging) {
       console.log('Firebase not initialized. Multicast notification not sent.');
+      // Update all notification statuses to failed
+      try {
+        const notificationIds = notificationRecords.map(n => n._id);
+        await Notification.updateMany(
+          { _id: { $in: notificationIds } },
+          {
+            deliveryStatus: 'failed',
+            failureReason: 'Firebase not initialized'
+          }
+        );
+      } catch (updateError) {
+        console.error('Error updating notification statuses:', updateError);
+      }
       return { success: false, message: 'Firebase not initialized' };
     }
 
     try {
       const users = await User.find({ _id: { $in: userIds }, fcmToken: { $exists: true, $ne: null } });
       const tokens = users.map(user => user.fcmToken);
+      const validUserIds = users.map(user => user._id);
 
       if (tokens.length === 0) {
+        // Update all notification statuses to failed
+        try {
+          const notificationIds = notificationRecords.map(n => n._id);
+          await Notification.updateMany(
+            { _id: { $in: notificationIds } },
+            {
+              deliveryStatus: 'failed',
+              failureReason: 'No valid FCM tokens found'
+            }
+          );
+        } catch (updateError) {
+          console.error('Error updating notification statuses:', updateError);
+        }
         return { success: false, message: 'No valid FCM tokens found' };
       }
 
@@ -150,14 +261,45 @@ class NotificationService {
       const response = await this.messaging.sendMulticast(message);
       console.log(`Multicast notification sent:`, response);
 
-      // Handle failed tokens
-      if (response.failureCount > 0) {
+      // Update notification statuses based on delivery results
+      try {
+        const successfulTokens = [];
         const failedTokens = [];
+        
         response.responses.forEach((resp, idx) => {
-          if (!resp.success) {
+          if (resp.success) {
+            successfulTokens.push(tokens[idx]);
+          } else {
             failedTokens.push(tokens[idx]);
           }
         });
+
+        // Update successful notifications
+        if (successfulTokens.length > 0) {
+          const successfulUserIds = users
+            .filter(user => successfulTokens.includes(user.fcmToken))
+            .map(user => user._id);
+          
+          await Notification.updateMany(
+            { user: { $in: successfulUserIds }, deliveryStatus: 'pending' },
+            { deliveryStatus: 'sent' }
+          );
+        }
+
+        // Update failed notifications
+        if (failedTokens.length > 0) {
+          const failedUserIds = users
+            .filter(user => failedTokens.includes(user.fcmToken))
+            .map(user => user._id);
+          
+          await Notification.updateMany(
+            { user: { $in: failedUserIds }, deliveryStatus: 'pending' },
+            { 
+              deliveryStatus: 'failed',
+              failureReason: 'FCM delivery failed'
+            }
+          );
+        }
 
         // Remove invalid tokens
         if (failedTokens.length > 0) {
@@ -167,6 +309,8 @@ class NotificationService {
           );
           console.log(`Removed ${failedTokens.length} invalid FCM tokens`);
         }
+      } catch (updateError) {
+        console.error('Error updating notification statuses:', updateError);
       }
 
       return {
@@ -176,6 +320,21 @@ class NotificationService {
       };
     } catch (error) {
       console.error('Error sending multicast notification:', error);
+      
+      // Update all notification statuses to failed
+      try {
+        const notificationIds = notificationRecords.map(n => n._id);
+        await Notification.updateMany(
+          { _id: { $in: notificationIds } },
+          {
+            deliveryStatus: 'failed',
+            failureReason: error.message
+          }
+        );
+      } catch (updateError) {
+        console.error('Error updating notification statuses:', updateError);
+      }
+      
       return { success: false, error: error.message };
     }
   }
@@ -278,6 +437,34 @@ class NotificationService {
       return { success: true };
     } catch (error) {
       console.error(`Error unsubscribing user ${userId} from topic ${topic}:`, error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Create a notification record without sending it
+   * @param {string} userId - User ID
+   * @param {Object} notificationData - Notification data
+   * @param {Object} data - Additional data payload
+   * @param {Object} options - Additional options for notification storage
+   */
+  async createNotification(userId, notificationData, data = {}, options = {}) {
+    try {
+      const notificationRecord = new Notification({
+        user: userId,
+        title: notificationData.title,
+        body: notificationData.body,
+        type: notificationData.type || 'general',
+        data: data,
+        expiresAt: options.expiresAt,
+        relatedEntity: options.relatedEntity,
+        deliveryStatus: 'pending'
+      });
+
+      await notificationRecord.save();
+      return { success: true, notificationId: notificationRecord._id };
+    } catch (error) {
+      console.error(`Error creating notification for user ${userId}:`, error);
       return { success: false, error: error.message };
     }
   }

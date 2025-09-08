@@ -134,7 +134,7 @@ export const listMessages = async (req, res) => {
 
 export const getUserConversations = async (req, res) => {
     try {
-        const userId = req.user._id;
+        const userId = String(req.user._id);
 
         // Get conversations where user is a participant
         const conversations = await ConversationModel.find({
@@ -147,7 +147,7 @@ export const getUserConversations = async (req, res) => {
         const conversationsWithDetails = await Promise.all(
             conversations.map(async (conv) => {
                 // Get the other participant (not the current user)
-                const otherParticipantId = conv.participants.find(p => p !== userId);
+                const otherParticipantId = conv.participants.find(participantId => participantId !== userId);
 
                 // Get user details for the other participant
                 const otherUser = await User.findById(otherParticipantId)

@@ -2,6 +2,11 @@ import express from 'express';
 import { requireAuth } from '../../middlewares/auth.js';
 import { updateFcmToken } from '../../controllers/auth.js';
 import notificationService from '../../services/notificationService.js';
+import {
+  getUserNotifications,
+  deleteNotification,
+  getNotificationStats
+} from '../../controllers/notification.js';
 
 const router = express.Router();
 
@@ -97,5 +102,14 @@ router.post('/test', async (req, res) => {
     });
   }
 });
+
+// Get user notifications with pagination and filtering
+router.get('/', getUserNotifications);
+
+// Get notification statistics
+router.get('/stats', getNotificationStats);
+
+// Delete a specific notification
+router.delete('/:notificationId', deleteNotification);
 
 export default router;
