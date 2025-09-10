@@ -45,3 +45,4 @@ router.put('/:reviewId', updateReviewValidation, updateReview);
 router.delete('/:reviewId', deleteReviewValidation, deleteReview);
 
 export default router;
+
