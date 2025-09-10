@@ -14,7 +14,7 @@ export function GenerateRtmAgoraToken(userId) {
     );
 }
 
-export function GenerateRtcAgoraToken(channelName, userId) {
+export function GenerateRtcAgoraToken(userId, channelName) {
     return agora.RtcTokenBuilder.buildTokenWithUid(
         AGORA_APP_ID,
         AGORA_APP_CERTIFICATE,
