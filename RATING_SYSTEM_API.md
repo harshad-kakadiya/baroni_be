@@ -260,3 +260,4 @@ Star profiles now display:
 - Paginated list of reviews
 - Show reviewer info and review date
 - Display review type (appointment/dedication/live show)
+
