@@ -19,7 +19,7 @@ export function GenerateRtcAgoraToken(userId, channelName) {
         AGORA_APP_ID,
         AGORA_APP_CERTIFICATE,
         channelName,
-        String(userId),
+        userId,
         agora.RtcRole.PUBLISHER,
         Math.floor(Date.now() / 1000) + AGORA_TOKEN_EXPIRATION
     );
