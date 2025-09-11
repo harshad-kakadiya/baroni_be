@@ -36,6 +36,10 @@ const notificationSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed, 
       default: {} 
     },
+    // Arbitrary JSON string provided by frontend to be stored as-is
+    customPayload: {
+      type: String
+    },
     sentAt: { 
       type: Date, 
       default: Date.now,
