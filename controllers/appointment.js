@@ -14,6 +14,7 @@ const toUser = (u) => (
     profilePic: u.profilePic,
     email: u.email,
     contact: u.contact,
+    baroniId: u.baroniId,
     role: u.role,
   } : u
 );
@@ -55,11 +56,11 @@ export const createAppointment = async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const appointmentDate = new Date(availability.date);
-    
+
     if (appointmentDate < today) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Cannot book appointments for past dates' 
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot book appointments for past dates'
       });
     }
 
@@ -70,21 +71,21 @@ export const createAppointment = async (req, res) => {
       if (slot) {
         const now = new Date();
         const currentTime = now.getHours() * 60 + now.getMinutes();
-        
+
         const timeMatch = slot.slot.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
         if (timeMatch) {
           let hour = parseInt(timeMatch[1], 10);
           const minute = parseInt(timeMatch[2], 10);
           const ampm = timeMatch[3].toUpperCase();
-          
+
           if (ampm === 'PM' && hour !== 12) hour += 12;
           if (ampm === 'AM' && hour === 12) hour = 0;
-          
+
           const slotTime = hour * 60 + minute;
           if (slotTime <= currentTime) {
-            return res.status(400).json({ 
-              success: false, 
-              message: `Cannot book appointments for past time slots. Time slot "${slot.slot}" is in the past.` 
+            return res.status(400).json({
+              success: false,
+              message: `Cannot book appointments for past time slots. Time slot "${slot.slot}" is in the past.`
             });
           }
         }
@@ -172,8 +173,8 @@ export const listAppointments = async (req, res) => {
     const isStar = req.user.role === 'star' || req.user.role === 'admin';
     const filter = isStar ? { starId: req.user._id } : { fanId: req.user._id };
     const items = await Appointment.find(filter)
-      .populate('starId', 'name pseudo profilePic email contact role')
-      .populate('fanId', 'name pseudo profilePic email contact role')
+      .populate('starId', 'name pseudo profilePic baroniId email contact role')
+      .populate('fanId', 'name pseudo profilePic baroniId email contact role')
       .populate('availabilityId')
       .sort({ createdAt: -1 });
 
@@ -245,14 +246,14 @@ export const rejectAppointment = async (req, res) => {
       }
     }
     const updated = await appt.save();
-    
+
     // Send notification to fan about appointment rejection
     try {
       await NotificationHelper.sendAppointmentNotification('APPOINTMENT_REJECTED', updated);
     } catch (notificationError) {
       console.error('Error sending appointment rejection notification:', notificationError);
     }
-    
+
     return res.json({ success: true, data: sanitize(updated) });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -316,16 +317,16 @@ export const rescheduleAppointment = async (req, res) => {
     // Verify new availability belongs to the same star and slot is available
     const availability = await Availability.findOne({ _id: availabilityId, userId: appt.starId });
     if (!availability) return res.status(404).json({ success: false, message: 'Availability not found for this star' });
-    
+
     // Validate that the rescheduled date is not in the past
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const rescheduleDate = new Date(availability.date);
-    
+
     if (rescheduleDate < today) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Cannot reschedule appointments to past dates' 
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot reschedule appointments to past dates'
       });
     }
 
@@ -334,26 +335,26 @@ export const rescheduleAppointment = async (req, res) => {
     if (isToday) {
       const now = new Date();
       const currentTime = now.getHours() * 60 + now.getMinutes();
-      
+
       const timeMatch = availability.timeSlots.find(s => String(s._id) === String(timeSlotId))?.slot?.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
       if (timeMatch) {
         let hour = parseInt(timeMatch[1], 10);
         const minute = parseInt(timeMatch[2], 10);
         const ampm = timeMatch[3].toUpperCase();
-        
+
         if (ampm === 'PM' && hour !== 12) hour += 12;
         if (ampm === 'AM' && hour === 12) hour = 0;
-        
+
         const slotTime = hour * 60 + minute;
         if (slotTime <= currentTime) {
-          return res.status(400).json({ 
-            success: false, 
-            message: `Cannot reschedule appointments to past time slots. Time slot is in the past.` 
+          return res.status(400).json({
+            success: false,
+            message: `Cannot reschedule appointments to past time slots. Time slot is in the past.`
           });
         }
       }
     }
-    
+
     const newSlot = availability.timeSlots.find((s) => String(s._id) === String(timeSlotId));
     if (!newSlot) return res.status(404).json({ success: false, message: 'Time slot not found' });
     if (newSlot.status === 'unavailable') return res.status(409).json({ success: false, message: 'Time slot unavailable' });

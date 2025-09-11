@@ -11,8 +11,8 @@ export const AgoraRtmToken = (req,res) => {
 
 export const AgoraRtcToken = (req,res) => {
     const { channel } = req.body;
-    const uid = req.user && req.user._id ? String(req.user._id) : null;
-    
+    const uid = req.user && req.user.baroniId ? String(req.user.baroniId) : null;
+
     if (!channel) return res.status(400).json({ error: "Channel is required" });
     if (!uid) return res.status(401).json({ error: "Unauthorized" });
 
