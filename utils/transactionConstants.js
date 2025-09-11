@@ -14,15 +14,18 @@ export const TRANSACTION_TYPES = {
 // Payment Modes
 export const PAYMENT_MODES = {
   COIN: 'coin',
-  EXTERNAL: 'external'
+  EXTERNAL: 'external',
+  HYBRID: 'hybrid'
 };
 
 // Transaction Statuses
 export const TRANSACTION_STATUSES = {
+  INITIATED: 'initiated',
   PENDING: 'pending',
   COMPLETED: 'completed',
   CANCELLED: 'cancelled',
-  REFUNDED: 'refunded'
+  REFUNDED: 'refunded',
+  FAILED: 'failed'
 };
 
 // Default transaction descriptions

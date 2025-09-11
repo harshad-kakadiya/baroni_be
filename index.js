@@ -8,6 +8,7 @@ import './config/passport.js';
 import apiRoutes from './routes/index.js';
 import { notFoundHandler, globalErrorHandler } from './middlewares/errorHandler.js';
 import notificationScheduler from './services/notificationScheduler.js';
+import { startRefundScheduler } from './services/refundScheduler.js';
 
 dotenv.config();
 
@@ -37,6 +38,9 @@ app.listen(PORT, () => {
   
   // Initialize notification scheduler
   notificationScheduler.init();
+  
+  // Start refund scheduler
+  startRefundScheduler();
 });
 
 

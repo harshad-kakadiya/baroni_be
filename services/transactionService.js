@@ -1,9 +1,140 @@
 import Transaction from '../models/Transaction.js';
 import User from '../models/User.js';
 import mongoose from 'mongoose';
+import orangeMoneyService from './orangeMoneyService.js';
+import { TRANSACTION_STATUSES, PAYMENT_MODES } from '../utils/transactionConstants.js';
 
 /**
- * Create a transaction between users with pending status
+ * Create a hybrid transaction with coin + external payment logic
+ * @param {Object} transactionData - Transaction data
+ * @param {string} transactionData.type - Transaction type
+ * @param {string} transactionData.payerId - Payer user ID
+ * @param {string} transactionData.receiverId - Receiver user ID
+ * @param {number} transactionData.amount - Total transaction amount
+ * @param {string} transactionData.description - Transaction description
+ * @param {Object} transactionData.metadata - Additional metadata
+ * @param {string} transactionData.userPhone - User's phone number for external payment
+ * @param {string} transactionData.starName - Star's name (optional)
+ * @returns {Promise<Object>} Created transaction
+ */
+export const createHybridTransaction = async (transactionData) => {
+  const session = await mongoose.startSession();
+
+  try {
+    let createdTransaction = null;
+    let externalPaymentMessage = null;
+    await session.withTransaction(async () => {
+      const { 
+        type, 
+        payerId, 
+        receiverId, 
+        amount, 
+        description, 
+        metadata, 
+        userPhone, 
+        starName 
+      } = transactionData;
+
+      // Validate amount
+      if (amount <= 0) {
+        throw new Error('Amount must be greater than 0');
+      }
+
+      // Get payer's coin balance
+      const payer = await User.findById(payerId).session(session);
+      if (!payer) {
+        throw new Error('Payer not found');
+      }
+
+      const coinBalance = payer.coinBalance || 0;
+      let coinAmount = 0;
+      let externalAmount = 0;
+      let paymentMode = PAYMENT_MODES.COIN;
+      let externalPaymentId = null;
+
+      // Determine payment split
+      if (coinBalance >= amount) {
+        // User has enough coins - pay with coins only
+        coinAmount = amount;
+        externalAmount = 0;
+        paymentMode = PAYMENT_MODES.COIN;
+      } else {
+        // User doesn't have enough coins - use hybrid payment
+        coinAmount = coinBalance;
+        externalAmount = amount - coinBalance;
+        paymentMode = PAYMENT_MODES.HYBRID;
+
+        // Initiate external payment
+        const motif = orangeMoneyService.mapTransactionTypeToMotif(type);
+        // Validate phone number for external payment
+        if (!userPhone) {
+          throw new Error('User contact number is required for external payment');
+        }
+        const paymentResult = await orangeMoneyService.initiatePayment({
+          msisdn: userPhone,
+          montant: externalAmount,
+          motif,
+          nameStar: starName
+        });
+
+        if (!paymentResult.success) {
+          throw new Error('Failed to initiate external payment');
+        }
+
+        externalPaymentId = paymentResult.transactionId;
+        externalPaymentMessage = paymentResult.message;
+      }
+
+      // Deduct coins from payer (if any)
+      if (coinAmount > 0) {
+        await User.findByIdAndUpdate(
+          payerId,
+          { $inc: { coinBalance: -coinAmount } },
+          { session, new: true }
+        );
+      }
+
+      // Create transaction record
+      const transaction = await Transaction.create([{
+        type,
+        payerId,
+        receiverId,
+        amount,
+        description,
+        paymentMode,
+        status: paymentMode === PAYMENT_MODES.COIN ? TRANSACTION_STATUSES.PENDING : TRANSACTION_STATUSES.INITIATED,
+        coinAmount,
+        externalAmount,
+        externalPaymentId,
+        refundTimer: paymentMode === PAYMENT_MODES.HYBRID ? new Date(Date.now() + (15 * 60 * 1000)) : null,
+        metadata
+      }], { session });
+
+      createdTransaction = transaction[0];
+    });
+
+    return { 
+      success: true, 
+      message: createdTransaction?.paymentMode === PAYMENT_MODES.HYBRID 
+        ? 'Hybrid transaction initiated. Complete the external payment to proceed.'
+        : 'Transaction created successfully',
+      transactionId: createdTransaction?._id,
+      paymentMode: createdTransaction?.paymentMode,
+      coinAmount: createdTransaction?.coinAmount,
+      externalAmount: createdTransaction?.externalAmount,
+      externalPaymentId: createdTransaction?.externalPaymentId,
+      externalPaymentMessage
+    };
+
+  } catch (error) {
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+};
+
+/**
+ * Create a transaction between users with pending status (legacy method)
  * @param {Object} transactionData - Transaction data
  * @param {string} transactionData.type - Transaction type
  * @param {string} transactionData.payerId - Payer user ID
@@ -71,41 +202,61 @@ export const createTransaction = async (transactionData) => {
 /**
  * Complete a pending transaction and transfer coins to receiver
  * @param {string} transactionId - Transaction ID to complete
+ * @param {Object} session - Optional MongoDB session
  * @returns {Promise<Object>} Updated transaction
  */
-export const completeTransaction = async (transactionId) => {
-  const session = await mongoose.startSession();
+export const completeTransaction = async (transactionId, session = null) => {
+  const shouldStartSession = !session;
+  if (shouldStartSession) {
+    session = await mongoose.startSession();
+  }
 
   try {
-    await session.withTransaction(async () => {
-      const transaction = await Transaction.findById(transactionId).session(session);
-      if (!transaction) {
-        throw new Error('Transaction not found');
-      }
-
-      if (transaction.status !== 'pending') {
-        throw new Error('Transaction is not in pending status');
-      }
-
-      // Add coins to receiver regardless of payment mode. For 'external', coins are granted upon completion.
-      await User.findByIdAndUpdate(
-        transaction.receiverId,
-        { $inc: { coinBalance: transaction.amount } },
-        { session, new: true }
-      );
-
-      // Update transaction status to completed
-      transaction.status = 'completed';
-      await transaction.save({ session });
-    });
+    if (shouldStartSession) {
+      await session.withTransaction(async () => {
+        await completeTransactionInternal(transactionId, session);
+      });
+    } else {
+      await completeTransactionInternal(transactionId, session);
+    }
 
     return { success: true, message: 'Transaction completed successfully' };
 
   } catch (error) {
     throw error;
   } finally {
-    await session.endSession();
+    if (shouldStartSession) {
+      await session.endSession();
+    }
   }
+};
+
+/**
+ * Internal method to complete transaction
+ * @param {string} transactionId - Transaction ID to complete
+ * @param {Object} session - MongoDB session
+ */
+const completeTransactionInternal = async (transactionId, session) => {
+  const transaction = await Transaction.findById(transactionId).session(session);
+  if (!transaction) {
+    throw new Error('Transaction not found');
+  }
+
+  if (transaction.status !== TRANSACTION_STATUSES.PENDING) {
+    throw new Error('Transaction is not in pending status');
+  }
+
+  // Add coins to receiver
+  await User.findByIdAndUpdate(
+    transaction.receiverId,
+    { $inc: { coinBalance: transaction.amount } },
+    { session, new: true }
+  );
+
+  // Update transaction status to completed
+  transaction.status = TRANSACTION_STATUSES.COMPLETED;
+  transaction.refundTimer = null; // Clear refund timer
+  await transaction.save({ session });
 };
 
 /**

@@ -1,7 +1,7 @@
 import { validationResult } from 'express-validator';
 import Availability from '../models/Availability.js';
 import Appointment from '../models/Appointment.js';
-import { createTransaction, completeTransaction, cancelTransaction } from '../services/transactionService.js';
+import { createTransaction, createHybridTransaction, completeTransaction, cancelTransaction } from '../services/transactionService.js';
 import { TRANSACTION_TYPES, TRANSACTION_DESCRIPTIONS } from '../utils/transactionConstants.js';
 import Transaction from '../models/Transaction.js'; // Added missing import for Transaction
 import NotificationHelper from '../utils/notificationHelper.js';
@@ -46,7 +46,7 @@ export const createAppointment = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
-    const { starId, availabilityId, timeSlotId, price , paymentMode = 'coin', paymentDescription } = req.body;
+    const { starId, availabilityId, timeSlotId, price, starName } = req.body;
 
     const availability = await Availability.findOne({ _id: availabilityId, userId: starId });
     if (!availability) return res.status(404).json({ success: false, message: 'Availability not found' });
@@ -95,16 +95,17 @@ export const createAppointment = async (req, res) => {
     if (!slot) return res.status(404).json({ success: false, message: 'Time slot unavailable' });
     if (slot.status === 'unavailable') return res.status(409).json({ success: false, message: 'Time slot unavailable' });
 
-    // Create transaction before creating appointment
+    // Create hybrid transaction before creating appointment
     let transactionResult;
     try {
-      transactionResult = await createTransaction({
+      transactionResult = await createHybridTransaction({
         type: TRANSACTION_TYPES.APPOINTMENT_PAYMENT,
         payerId: req.user._id,
         receiverId: starId,
         amount: price,
-        description: paymentMode === 'external' && paymentDescription ? String(paymentDescription) : TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.APPOINTMENT_PAYMENT],
-        paymentMode: paymentMode,
+        description: TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.APPOINTMENT_PAYMENT],
+        userPhone: req.user?.contact,
+        starName,
         metadata: {
           appointmentType: 'booking',
           availabilityId,
@@ -125,7 +126,7 @@ export const createAppointment = async (req, res) => {
       payerId: req.user._id,
       receiverId: starId,
       type: TRANSACTION_TYPES.APPOINTMENT_PAYMENT,
-      status: 'pending'
+      status: { $in: ['pending', 'initiated'] }
     }).sort({ createdAt: -1 });
 
     if (!transaction) {
@@ -154,7 +155,13 @@ export const createAppointment = async (req, res) => {
       console.error('Error sending appointment notification:', notificationError);
     }
 
-    return res.status(201).json({ success: true, data: sanitize(created) });
+    const responseBody = { success: true, data: sanitize(created) };
+    if (transactionResult && transactionResult.paymentMode === 'hybrid' || transactionResult?.externalAmount > 0) {
+      if (transactionResult.externalPaymentMessage) {
+        responseBody.externalPaymentMessage = transactionResult.externalPaymentMessage;
+      }
+    }
+    return res.status(201).json(responseBody);
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

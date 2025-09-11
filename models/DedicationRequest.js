@@ -56,8 +56,16 @@ const dedicationRequestSchema = new mongoose.Schema(
     transactionId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Transaction',
-      required: true,
       index: true
+    },
+    externalPaymentId: {
+      type: String,
+      index: true
+    },
+    coinAmountReserved: {
+      type: Number,
+      min: 0,
+      default: 0
     },
     approvedAt: {
       type: Date

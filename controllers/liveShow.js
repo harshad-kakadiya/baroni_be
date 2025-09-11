@@ -5,7 +5,7 @@ import User from '../models/User.js';
 import { generateUniqueShowCode } from '../utils/liveShowCodeGenerator.js';
 import { uploadFile } from '../utils/uploadFile.js';
 import mongoose from 'mongoose';
-import { createTransaction, completeTransaction, cancelTransaction } from '../services/transactionService.js';
+import { createTransaction, createHybridTransaction, completeTransaction, cancelTransaction } from '../services/transactionService.js';
 import { TRANSACTION_TYPES, TRANSACTION_DESCRIPTIONS } from '../utils/transactionConstants.js';
 import Transaction from '../models/Transaction.js';
 import NotificationHelper from '../utils/notificationHelper.js';
@@ -80,24 +80,26 @@ export const createLiveShow = async (req, res) => {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { sessionTitle, date, time, attendanceFee, hostingPrice, maxCapacity, description, hostingPaymentMode = 'coin', hostingPaymentDescription } = req.body;
+    const { sessionTitle, date, time, attendanceFee, hostingPrice, maxCapacity, description, starName } = req.body;
 
-    // Hosting requires a transaction (escrow) to admin; external/coin allowed
+    // Hosting requires a transaction (escrow) to admin; hybrid payment
     // Find admin receiver
     const adminUser = await User.findOne({ role: 'admin' });
     if (!adminUser) {
       return res.status(500).json({ success: false, message: 'Admin account not configured' });
     }
 
-    // Create hosting transaction before creating show
+    // Create hybrid hosting transaction before creating show
+    let hostingTxnResult;
     try {
-      await createTransaction({
+      hostingTxnResult = await createHybridTransaction({
         type: TRANSACTION_TYPES.LIVE_SHOW_HOSTING_PAYMENT,
         payerId: req.user._id,
         receiverId: adminUser._id,
         amount: Number(hostingPrice || 0),
-        description: hostingPaymentMode === 'external' && hostingPaymentDescription ? String(hostingPaymentDescription) : TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.LIVE_SHOW_HOSTING_PAYMENT],
-        paymentMode: hostingPaymentMode,
+        description: TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.LIVE_SHOW_HOSTING_PAYMENT],
+        userPhone: req.user?.contact,
+        starName,
         metadata: {
           showType: 'live_show_hosting',
           requestedAt: new Date()
@@ -112,7 +114,7 @@ export const createLiveShow = async (req, res) => {
       payerId: req.user._id,
       receiverId: adminUser._id,
       type: TRANSACTION_TYPES.LIVE_SHOW_HOSTING_PAYMENT,
-      status: 'pending'
+      status: { $in: ['pending', 'initiated'] }
     }).sort({ createdAt: -1 });
     if (!hostingTxn) {
       return res.status(500).json({ success: false, message: 'Failed to retrieve hosting transaction' });
@@ -145,9 +147,7 @@ export const createLiveShow = async (req, res) => {
       status: 'pending',
       description,
       thumbnail: thumbnailUrl,
-      transactionId: hostingTxn._id,
-      hostingPaymentMode: hostingPaymentMode,
-      hostingPaymentDescription: hostingPaymentMode === 'external' && hostingPaymentDescription ? String(hostingPaymentDescription) : undefined
+      transactionId: hostingTxn._id
     });
 
     await liveShow.populate('starId', 'name pseudo profilePic');
@@ -159,7 +159,11 @@ export const createLiveShow = async (req, res) => {
       console.error('Error sending live show notification:', notificationError);
     }
 
-    return res.status(201).json({ success: true, message: 'Live show created successfully and is now open for joining', data: sanitizeLiveShow(liveShow) });
+    const resp = { success: true, message: 'Live show created successfully and is now open for joining', data: sanitizeLiveShow(liveShow) };
+    if (hostingTxnResult && hostingTxnResult.paymentMode === 'hybrid' || hostingTxnResult?.externalAmount > 0) {
+      if (hostingTxnResult.externalPaymentMessage) resp.externalPaymentMessage = hostingTxnResult.externalPaymentMessage;
+    }
+    return res.status(201).json(resp);
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -294,16 +298,19 @@ export const joinLiveShow = async (req, res) => {
 
     // Process attendance fee payment
     const amount = Number(show.attendanceFee || 0);
-    const { paymentMode = 'coin', paymentDescription } = req.body || {};
+    const { starName } = req.body || {};
+    
     if (amount > 0) {
+      let attendanceTxnResult;
       try {
-        await createTransaction({
+        attendanceTxnResult = await createHybridTransaction({
           type: TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT,
           payerId: req.user._id,
           receiverId: show.starId,
           amount,
-          description: paymentMode === 'external' && paymentDescription ? String(paymentDescription) : TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT],
-          paymentMode: paymentMode,
+          description: TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT],
+          userPhone: req.user?.contact,
+          starName,
           metadata: {
             showId: show._id,
             showCode: show.showCode,
@@ -323,7 +330,7 @@ export const joinLiveShow = async (req, res) => {
       payerId: req.user._id,
       receiverId: show.starId,
       type: TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT,
-      status: 'pending'
+      status: { $in: ['pending', 'initiated'] }
     }).sort({ createdAt: -1 });
 
     if (!transaction) {
@@ -370,7 +377,11 @@ export const joinLiveShow = async (req, res) => {
       console.error('Error sending attendee notification:', notificationError);
     }
     
-    return res.json({ success: true, message: 'Joined live show successfully', data });
+    const joinResp = { success: true, message: 'Joined live show successfully', data };
+    if (attendanceTxnResult && attendanceTxnResult.paymentMode === 'hybrid' || attendanceTxnResult?.externalAmount > 0) {
+      if (attendanceTxnResult.externalPaymentMessage) joinResp.externalPaymentMessage = attendanceTxnResult.externalPaymentMessage;
+    }
+    return res.json(joinResp);
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

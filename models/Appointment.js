@@ -10,7 +10,9 @@ const appointmentSchema = new mongoose.Schema(
     time: { type: String, required: true, trim: true },
     price: { type: Number, required: true, min: 0 },
     status: { type: String, enum: ['pending', 'approved', 'rejected', 'cancelled', 'completed'], default: 'pending', index: true },
-    transactionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Transaction', required: true},
+    transactionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Transaction' },
+    externalPaymentId: { type: String, index: true },
+    coinAmountReserved: { type: Number, min: 0, default: 0 },
     completedAt: { type: Date },
     callDuration: { type: Number, min: 0 }, // Duration in minutes
   },

@@ -22,8 +22,16 @@ const liveShowAttendanceSchema = new mongoose.Schema(
     },
     transactionId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Transaction',
-      required: true,
+      ref: 'Transaction'
+    },
+    externalPaymentId: {
+      type: String,
+      index: true
+    },
+    coinAmountReserved: {
+      type: Number,
+      min: 0,
+      default: 0
     },
     attendanceFee: {
       type: Number,

@@ -29,14 +29,32 @@ const transactionSchema = new mongoose.Schema(
     },
     paymentMode: {
       type: String,
-      enum: ['coin', 'external'],
+      enum: ['coin', 'external', 'hybrid'],
       required: true,
       index: true
     },
     status: {
       type: String,
-      enum: ['pending', 'completed', 'cancelled', 'refunded'],
-      default: 'pending',
+      enum: ['initiated', 'pending', 'completed', 'cancelled', 'refunded', 'failed'],
+      default: 'initiated',
+      index: true
+    },
+    externalPaymentId: {
+      type: String,
+      index: true
+    },
+    coinAmount: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+    externalAmount: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+    refundTimer: {
+      type: Date,
       index: true
     },
     metadata: {

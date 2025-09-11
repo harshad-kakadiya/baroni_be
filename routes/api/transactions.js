@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   createNewTransaction,
+  createNewHybridTransaction,
   getUserTransactions,
   getTransaction,
   getUserBalance
@@ -17,7 +18,14 @@ const router = express.Router();
 // All routes require authentication
 router.use(requireAuth);
 
-// Create a new transaction
+// Create a new hybrid transaction (coin + external payment)
+router.post(
+  '/hybrid',
+  createTransactionValidator,
+  createNewHybridTransaction
+);
+
+// Create a new transaction (legacy method)
 router.post(
   '/',
   createTransactionValidator,

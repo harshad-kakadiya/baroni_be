@@ -2,7 +2,7 @@ import {validationResult} from 'express-validator';
 import DedicationRequest from '../models/DedicationRequest.js';
 import {generateUniqueTrackingId} from '../utils/trackingIdGenerator.js';
 import {uploadVideo} from '../utils/uploadFile.js';
-import { createTransaction, completeTransaction, cancelTransaction } from '../services/transactionService.js';
+import { createTransaction, createHybridTransaction, completeTransaction, cancelTransaction } from '../services/transactionService.js';
 import { TRANSACTION_TYPES, TRANSACTION_DESCRIPTIONS } from '../utils/transactionConstants.js';
 import Transaction from '../models/Transaction.js';
 import NotificationHelper from '../utils/notificationHelper.js';
@@ -35,17 +35,19 @@ export const createDedicationRequest = async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
 
-    const { starId, occasion, eventName, eventDate, description, price, paymentMode = 'coin', paymentDescription } = req.body;
+    const { starId, occasion, eventName, eventDate, description, price, starName } = req.body;
 
-    // Create transaction before creating dedication request
+    // Create hybrid transaction before creating dedication request
+    let txnResult;
     try {
-      await createTransaction({
+      txnResult = await createHybridTransaction({
         type: TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT,
         payerId: req.user._id,
         receiverId: starId,
         amount: price,
-        description: paymentMode === 'external' && paymentDescription ? String(paymentDescription) : TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT],
-        paymentMode: paymentMode,
+        description: TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT],
+        userPhone: req.user?.contact,
+        starName,
         metadata: {
           occasion,
           eventName,
@@ -65,7 +67,7 @@ export const createDedicationRequest = async (req, res) => {
       payerId: req.user._id,
       receiverId: starId,
       type: TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT,
-      status: 'pending'
+      status: { $in: ['pending', 'initiated'] }
     }).sort({ createdAt: -1 });
 
     if (!transaction) {
@@ -100,7 +102,11 @@ export const createDedicationRequest = async (req, res) => {
       console.error('Error sending dedication request notification:', notificationError);
     }
 
-    return res.status(201).json({ success: true, data: sanitize(created) });
+    const body = { success: true, data: sanitize(created) };
+    if (txnResult && txnResult.paymentMode === 'hybrid' || txnResult?.externalAmount > 0) {
+      if (txnResult.externalPaymentMessage) body.externalPaymentMessage = txnResult.externalPaymentMessage;
+    }
+    return res.status(201).json(body);
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

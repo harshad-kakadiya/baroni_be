@@ -1,13 +1,67 @@
 import { validationResult } from 'express-validator';
 import { 
   createTransaction, 
+  createHybridTransaction,
   getUserTransactionHistory, 
   getTransactionById, 
- 
   getUserCoinBalance 
 } from '../services/transactionService.js';
 
-// Create a new transaction
+// Create a new hybrid transaction (coin + external payment)
+export const createNewHybridTransaction = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    const { type, receiverId, amount, description, metadata, userPhone, starName } = req.body;
+    const payerId = req.user.id;
+
+    // Validate receiver is not the same as payer
+    if (payerId === receiverId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payer and receiver cannot be the same'
+      });
+    }
+
+    // Validate required fields for hybrid transaction
+    if (!userPhone) {
+      return res.status(400).json({
+        success: false,
+        message: 'User phone number is required for hybrid transactions'
+      });
+    }
+
+    const transactionData = {
+      type,
+      payerId,
+      receiverId,
+      amount,
+      description,
+      metadata,
+      userPhone,
+      starName
+    };
+
+    const result = await createHybridTransaction(transactionData);
+
+    return res.status(201).json({
+      success: true,
+      message: result.message,
+      data: result
+    });
+  } catch (err) {
+    console.error('Error creating hybrid transaction:', err);
+    return res.status(500).json({ 
+      success: false, 
+      message: err.message || 'Error creating hybrid transaction'
+    });
+  }
+};
+
+// Create a new transaction (legacy method)
 export const createNewTransaction = async (req, res) => {
   try {
     const errors = validationResult(req);
