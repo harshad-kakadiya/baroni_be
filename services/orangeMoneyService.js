@@ -58,7 +58,7 @@ class OrangeMoneyService {
       const params = new URLSearchParams({
         msisdn,
         montant: montant.toString(),
-        préfixe: PROJECT_CODE,
+        prefixe: PROJECT_CODE,
         motif
       });
 
