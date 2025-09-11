@@ -25,33 +25,58 @@ export const getDashboard = async (req, res) => {
 
     if (role === 'fan') {
       // Fan dashboard: stars with filled details, categories, and upcoming shows
-      const [stars, categories, upcomingShows] = await Promise.all([
-        User.find({
-          role: 'star',
-          // Only include stars that have filled up their details
-          $and: [
-            { name: { $exists: true, $ne: null } },
-            { name: { $ne: '' } },
-            { pseudo: { $exists: true, $ne: null } },
-            { pseudo: { $ne: '' } },
-            { about: { $exists: true, $ne: null } },
-            { about: { $ne: '' } },
-            { profession: { $exists: true, $ne: null } }
-          ]
-        })
-          .populate('profession')
-          .select('name pseudo profilePic about profession')
-          .sort({ createdAt: -1 })
-          .limit(20),
-        Category.find().sort({ name: 1 }),
-        // Get all upcoming live shows
-        LiveShow.find({
-          status: 'pending',
-          date: { $gt: new Date() }
-        })
+      const { country } = req.query || {};
+
+      // Build star criteria
+      const starCriteria = {
+        role: 'star',
+        // Only include stars that have filled up their details
+        $and: [
+          { name: { $exists: true, $ne: null } },
+          { name: { $ne: '' } },
+          { pseudo: { $exists: true, $ne: null } },
+          { pseudo: { $ne: '' } },
+          { about: { $exists: true, $ne: null } },
+          { about: { $ne: '' } },
+          { profession: { $exists: true, $ne: null } }
+        ]
+      };
+
+      if (country) {
+        starCriteria.country = country;
+      }
+
+      const starsQuery = User.find(starCriteria)
+        .populate('profession')
+        .select('name pseudo profilePic about profession')
+        .sort({ createdAt: -1 })
+        .limit(20);
+
+      const categoriesQuery = Category.find().sort({ name: 1 });
+
+      // Build live show filter
+      const liveShowFilter = {
+        status: 'pending',
+        date: { $gt: new Date() }
+      };
+
+      let starIdsForCountry = [];
+      if (country) {
+        const starIdsDocs = await User.find({ role: 'star', country }).select('_id');
+        starIdsForCountry = starIdsDocs.map(s => s._id);
+        // If no stars in that country, ensure no shows are returned quickly
+        liveShowFilter.starId = { $in: starIdsForCountry.length ? starIdsForCountry : [null] };
+      }
+
+      const liveShowsQuery = LiveShow.find(liveShowFilter)
         .populate('starId', 'name pseudo profilePic')
         .sort({ date: 1 })
-        .limit(10)
+        .limit(10);
+
+      const [stars, categories, upcomingShows] = await Promise.all([
+        starsQuery,
+        categoriesQuery,
+        liveShowsQuery
       ]);
 
       return res.json({
