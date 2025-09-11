@@ -1,4 +1,5 @@
 import Notification from '../models/Notification.js';
+import notificationService from '../services/notificationService.js';
 
 /**
  * Get notifications for the authenticated user
@@ -155,6 +156,104 @@ export const getNotificationStats = async (req, res) => {
       success: false,
       message: 'Error fetching notification statistics'
     });
+  }
+};
+
+/**
+ * Send a test notification to the authenticated user
+ */
+export const sendTestNotification = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { title, body, data = {}, customPayload, type } = req.body;
+
+    if (!title || !body) {
+      return res.status(400).json({
+        success: false,
+        message: 'Title and body are required'
+      });
+    }
+
+    const result = await notificationService.sendToUser(
+      userId,
+      { title, body, type },
+      data,
+      { customPayload }
+    );
+
+    if (result.success) {
+      return res.json({
+        success: true,
+        message: 'Test notification sent successfully',
+        data: { notificationId: result.notificationId, messageId: result.messageId }
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      message: result.message || result.error || 'Failed to send test notification'
+    });
+  } catch (error) {
+    console.error('Error sending test notification:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Send a notification to a single user
+ */
+export const sendNotificationToUser = async (req, res) => {
+  try {
+    const { userId, title, body, type, data = {}, customPayload, expiresAt, relatedEntity } = req.body;
+
+    if (!userId || !title || !body) {
+      return res.status(400).json({ success: false, message: 'userId, title, and body are required' });
+    }
+
+    const result = await notificationService.sendToUser(
+      userId,
+      { title, body, type },
+      data,
+      { customPayload, expiresAt, relatedEntity }
+    );
+
+    if (result.success) {
+      return res.json({ success: true, data: { notificationId: result.notificationId, messageId: result.messageId } });
+    }
+
+    return res.status(400).json({ success: false, message: result.message || result.error || 'Failed to send notification' });
+  } catch (error) {
+    console.error('Error sending notification to user:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Send a notification to multiple users
+ */
+export const sendNotificationToMultipleUsers = async (req, res) => {
+  try {
+    const { userIds, title, body, type, data = {}, customPayload, expiresAt, relatedEntity } = req.body;
+
+    if (!Array.isArray(userIds) || userIds.length === 0 || !title || !body) {
+      return res.status(400).json({ success: false, message: 'userIds (non-empty array), title, and body are required' });
+    }
+
+    const result = await notificationService.sendToMultipleUsers(
+      userIds,
+      { title, body, type },
+      data,
+      { customPayload, expiresAt, relatedEntity }
+    );
+
+    if (result.success) {
+      return res.json({ success: true, data: { successCount: result.successCount, failureCount: result.failureCount } });
+    }
+
+    return res.status(400).json({ success: false, message: result.message || result.error || 'Failed to send notifications' });
+  } catch (error) {
+    console.error('Error sending notifications to multiple users:', error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
