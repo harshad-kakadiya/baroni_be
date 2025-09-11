@@ -53,10 +53,8 @@ class OrangeMoneyService {
   async initiatePayment(paymentData) {
     try {
       const token = await this.getAccessToken();
-      
-      console.log("Token : ",token)
+
       const { msisdn, montant, motif, nameStar, marchand } = paymentData;
-      console.log("PaymentData : ",paymentData)
       const params = new URLSearchParams({
         msisdn,
         montant: montant.toString(),
@@ -71,6 +69,7 @@ class OrangeMoneyService {
       if (marchand) {
         params.append('marchand', marchand);
       }
+      console.log("Response : ",`${ORANGE_MONEY_BASE_URL}/initierPaiementBaroniV2?${params.toString()}`)
       const response = await axios.post(
         `${ORANGE_MONEY_BASE_URL}/initierPaiementBaroniV2?${params.toString()}`,
         {},
