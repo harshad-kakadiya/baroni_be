@@ -51,6 +51,7 @@ class NotificationService {
       body: notificationData.body,
       type: notificationData.type || 'general',
       data: data,
+      customPayload: options.customPayload,
       expiresAt: options.expiresAt,
       relatedEntity: options.relatedEntity,
       deliveryStatus: 'pending'
@@ -101,6 +102,7 @@ class NotificationService {
         },
         data: {
           ...data,
+          ...(options.customPayload ? { customPayload: options.customPayload } : {}),
           clickAction: 'FLUTTER_NOTIFICATION_CLICK',
           sound: 'default',
         },
@@ -176,6 +178,7 @@ class NotificationService {
         body: notificationData.body,
         type: notificationData.type || 'general',
         data: data,
+        customPayload: options.customPayload,
         expiresAt: options.expiresAt,
         relatedEntity: options.relatedEntity,
         deliveryStatus: 'pending'
@@ -237,6 +240,7 @@ class NotificationService {
         },
         data: {
           ...data,
+          ...(options.customPayload ? { customPayload: options.customPayload } : {}),
           clickAction: 'FLUTTER_NOTIFICATION_CLICK',
           sound: 'default',
         },
@@ -456,6 +460,7 @@ class NotificationService {
         body: notificationData.body,
         type: notificationData.type || 'general',
         data: data,
+        customPayload: options.customPayload,
         expiresAt: options.expiresAt,
         relatedEntity: options.relatedEntity,
         deliveryStatus: 'pending'
