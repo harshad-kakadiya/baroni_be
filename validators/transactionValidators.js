@@ -45,3 +45,4 @@ export const getUserTransactionsValidator = [
     .isIn(['coin', 'external'])
     .withMessage('Payment mode must be either "coin" or "external"')
 ];
+
