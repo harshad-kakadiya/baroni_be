@@ -119,9 +119,21 @@ export const listMessages = async (req, res) => {
             .populate('receiverId', 'name pseudo profilePic baroniId role')
             .lean();
 
+        const authUserId = String(req.user && req.user._id ? req.user._id : '');
+        const messagesWithOwnership = messages.map((msg) => {
+            const sender = msg.senderId;
+            const senderIdString = sender && typeof sender === 'object' && sender._id
+                ? String(sender._id)
+                : String(sender);
+            return {
+                ...msg,
+                isMine: senderIdString === authUserId
+            };
+        });
+
         res.json({
             success: true,
-            data: messages
+            data: messagesWithOwnership
         });
     } catch (error) {
         res.status(500).json({
