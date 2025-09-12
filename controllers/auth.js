@@ -503,10 +503,6 @@ export const me = async (req, res) => {
 // Soft delete user account (mark as deleted)
 export const softDeleteAccount = async (req, res) => {
   try {
-    if (!req.user?._id) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
     const userId = req.user._id;
 
     // Ensure user exists
@@ -520,8 +516,8 @@ export const softDeleteAccount = async (req, res) => {
       return res.json({ success: true, message: 'Account already marked for deletion', data: { deletedAt: user.deletedAt } });
     }
 
-    // Check for active appointments and dedication requests
-    const [activeAppointments, activeDedicationRequests] = await Promise.all([
+    // Check for active appointments, dedication requests, and live show attendances
+    const [activeAppointments, activeDedicationRequests, activeLiveShowAttendances] = await Promise.all([
       // Check for active appointments (pending or approved)
       Appointment.find({
         $or: [
@@ -535,11 +531,16 @@ export const softDeleteAccount = async (req, res) => {
           { fanId: userId, status: { $in: ['pending', 'approved'] } },
           { starId: userId, status: { $in: ['pending', 'approved'] } }
         ]
+      }),
+      // Check for active live show attendances (pending or approved)
+      LiveShowAttendance.find({
+        fanId: userId,
+        status: { $in: ['pending', 'approved'] }
       })
     ]);
 
-    // If user has active appointments or dedication requests, prevent deletion
-    if (activeAppointments.length > 0 || activeDedicationRequests.length > 0) {
+    // If user has active commitments, prevent deletion
+    if (activeAppointments.length > 0 || activeDedicationRequests.length > 0 || activeLiveShowAttendances.length > 0) {
       const pendingItems = [];
 
       if (activeAppointments.length > 0) {
@@ -550,13 +551,18 @@ export const softDeleteAccount = async (req, res) => {
         pendingItems.push(`${activeDedicationRequests.length} active dedication request(s)`);
       }
 
+      if (activeLiveShowAttendances.length > 0) {
+        pendingItems.push(`${activeLiveShowAttendances.length} active live show attendance(s)`);
+      }
+
       return res.status(400).json({
         success: false,
         message: `Cannot delete account. You have ${pendingItems.join(' and ')}. Please complete, cancel, or reject them first.`,
         data: {
           activeAppointments: activeAppointments.length,
           activeDedicationRequests: activeDedicationRequests.length,
-          totalPending: activeAppointments.length + activeDedicationRequests.length
+          activeLiveShowAttendances: activeLiveShowAttendances.length,
+          totalPending: activeAppointments.length + activeDedicationRequests.length + activeLiveShowAttendances.length
         }
       });
     }

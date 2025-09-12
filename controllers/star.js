@@ -5,6 +5,7 @@ import DedicationSample from "../models/DedicationSample.js";
 import Service from "../models/Service.js";
 import Availability from "../models/Availability.js";
 import LiveShow from "../models/LiveShow.js";
+import LiveShowAttendance from "../models/LiveShowAttendance.js";
 import Appointment from "../models/Appointment.js";
 import DedicationRequest from "../models/DedicationRequest.js";
 import Transaction from "../models/Transaction.js";
@@ -61,6 +62,43 @@ export const becomeStar = async (req, res) => {
 
         if (!['standard', 'gold'].includes(String(plan))) {
             return res.status(400).json({ success: false, message: 'Invalid plan. Use standard or gold' });
+        }
+
+        // Check for pending commitments - fan must complete or cancel all before becoming star
+        const userId = req.user._id;
+        
+        const [pendingDedications, pendingAppointments, pendingLiveShows] = await Promise.all([
+            // Check for pending or approved dedication requests where user is the fan
+            DedicationRequest.countDocuments({
+                fanId: userId,
+                status: { $in: ['pending', 'approved'] }
+            }),
+            
+            // Check for pending or approved appointments where user is the fan
+            Appointment.countDocuments({
+                fanId: userId,
+                status: { $in: ['pending', 'approved'] }
+            }),
+            
+            // Check for pending live show attendances where user is the fan
+            LiveShowAttendance.countDocuments({
+                fanId: userId,
+                status: { $in: ['pending', 'approved'] }
+            })
+        ]);
+
+        const totalPendingCommitments = pendingDedications + pendingAppointments + pendingLiveShows;
+
+        if (totalPendingCommitments > 0) {
+            const commitmentDetails = [];
+            if (pendingDedications > 0) commitmentDetails.push(`${pendingDedications} dedication request(s)`);
+            if (pendingAppointments > 0) commitmentDetails.push(`${pendingAppointments} appointment(s)`);
+            if (pendingLiveShows > 0) commitmentDetails.push(`${pendingLiveShows} live show attendance(s)`);
+
+            return res.status(400).json({
+                success: false,
+                message: `You have ${totalPendingCommitments} pending commitment(s) that must be completed or cancelled before becoming a star: ${commitmentDetails.join(', ')}. Please complete or cancel all your pending commitments first.`
+            });
         }
 
         const numericAmount = Number(amount);
