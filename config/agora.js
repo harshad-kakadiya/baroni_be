@@ -10,7 +10,7 @@ export function GenerateRtmAgoraToken(userId) {
         AGORA_APP_CERTIFICATE,
         userId,
         agora.RtmRole.Rtm_User,
-        Math.floor(Date.now() / 1000) + AGORA_TOKEN_EXPIRATION
+        0
     );
 }
 
