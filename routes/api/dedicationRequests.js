@@ -1,12 +1,12 @@
 import express from 'express';
 import {requireAuth, requireRole} from '../../middlewares/auth.js';
 import { uploadVideoOnly } from '../../middlewares/upload.js';
-import { 
-  createDedicationRequest, 
+import {
+  createDedicationRequest,
   listDedicationRequests,
-  getDedicationRequest, 
-  approveDedicationRequest, 
-  rejectDedicationRequest, 
+  getDedicationRequest,
+  approveDedicationRequest,
+  rejectDedicationRequest,
   uploadDedicationVideo,
   completeDedicationByFan,
   cancelDedicationRequest,
@@ -17,7 +17,7 @@ import { createDedicationRequestValidator } from '../../validators/dedicationReq
 
 const router = express.Router();
 router.use(requireAuth);
-// Public route to get dedication request by tracking ID
+// Public route to get dedication request by tracking Id
 router.get('/tracking/:trackingId', trackingIdParamValidator, getDedicationRequestByTrackingId);
 
 // Unified routes for fans, stars, and admins
