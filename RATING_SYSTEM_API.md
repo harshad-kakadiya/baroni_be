@@ -261,3 +261,4 @@ Star profiles now display:
 - Show reviewer info and review date
 - Display review type (appointment/dedication/live show)
 
+
