@@ -6,6 +6,7 @@ import { createTransaction, createHybridTransaction, completeTransaction, cancel
 import { TRANSACTION_TYPES, TRANSACTION_DESCRIPTIONS } from '../utils/transactionConstants.js';
 import Transaction from '../models/Transaction.js';
 import NotificationHelper from '../utils/notificationHelper.js';
+import { deleteConversationBetweenUsers } from '../services/messagingCleanup.js';
 
 const sanitize = (doc) => ({
   id: doc._id,
@@ -77,36 +78,34 @@ export const createDedicationRequest = async (req, res) => {
       });
     }
 
-    // Generate unique tracking ID
-    const trackingId = await generateUniqueTrackingId();
-
     const created = await DedicationRequest.create({
-      trackingId,
+      trackingId: await generateUniqueTrackingId(),
       fanId: req.user._id,
       starId,
-      occasion: occasion.trim(),
-      eventName: eventName.trim(),
+      occasion,
+      eventName,
       eventDate: new Date(eventDate),
-      description: description.trim(),
+      description,
       price,
-      transactionId: transaction._id,
+      status: 'pending',
+      transactionId: transaction._id
     });
 
-    // Populate star info for response
-    await created.populate('starId', 'name pseudo profilePic');
-
-    // Send notification to star about new dedication request
+    // Notify star
     try {
-      await NotificationHelper.sendDedicationNotification('DEDICATION_REQUEST', created);
+      await NotificationHelper.sendDedicationNotification('DEDICATION_REQUEST_CREATED', created);
     } catch (notificationError) {
-      console.error('Error sending dedication request notification:', notificationError);
+      console.error('Error sending dedication notification:', notificationError);
     }
 
-    const body = { success: true, data: sanitize(created) };
+    const responseBody = { success: true, data: sanitize(created) };
     if (txnResult && txnResult.paymentMode === 'hybrid' || txnResult?.externalAmount > 0) {
-      if (txnResult.externalPaymentMessage) body.externalPaymentMessage = txnResult.externalPaymentMessage;
+      if (txnResult.externalPaymentMessage) {
+        responseBody.externalPaymentMessage = txnResult.externalPaymentMessage;
+      }
     }
-    return res.status(201).json(body);
+
+    return res.status(201).json(responseBody);
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -251,11 +250,11 @@ export const rejectDedicationRequest = async (req, res) => {
   }
 };
 
-// Star uploads video for approved dedication request
+// Star uploads the dedication video (keeps status approved, fan will complete)
 export const uploadDedicationVideo = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, message: 'Video file is required' });
+    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
 
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Video file is required' });
@@ -272,6 +271,43 @@ export const uploadDedicationVideo = async (req, res) => {
 
     if (!item) return res.status(404).json({ success: false, message: 'Approved request not found' });
 
+    // Upload video to storage
+    item.videoUrl = await uploadVideo(req.file.buffer);
+    const updated = await item.save();
+
+    // Notify fan about video upload
+    try {
+      await NotificationHelper.sendDedicationNotification('DEDICATION_VIDEO_UPLOADED', updated);
+    } catch (notificationError) {
+      console.error('Error sending dedication video upload notification:', notificationError);
+    }
+
+    return res.json({ success: true, data: sanitize(updated) });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Fan confirms completion (completes transaction and marks as completed)
+export const completeDedicationByFan = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+
+    let filter = { _id: req.params.id, status: 'approved' };
+
+    // If not admin, ensure user is the fan
+    if (req.user.role !== 'admin') {
+      filter.fanId = req.user._id;
+    }
+
+    const item = await DedicationRequest.findOne(filter);
+    if (!item) return res.status(404).json({ success: false, message: 'Approved request not found' });
+
+    if (!item.videoUrl) {
+      return res.status(400).json({ success: false, message: 'Video not uploaded yet' });
+    }
+
     // Complete the transaction and transfer coins to star
     if (item.transactionId) {
       try {
@@ -284,11 +320,14 @@ export const uploadDedicationVideo = async (req, res) => {
       }
     }
 
-    // Upload video to cloudinary
-    item.videoUrl = await uploadVideo(req.file.buffer);
     item.status = 'completed';
     item.completedAt = new Date();
     const updated = await item.save();
+
+    // Cleanup messages between fan and star after completion
+    try {
+      await deleteConversationBetweenUsers(item.fanId, item.starId);
+    } catch (_e) {}
 
     return res.json({ success: true, data: sanitize(updated) });
   } catch (err) {
@@ -319,13 +358,12 @@ export const cancelDedicationRequest = async (req, res) => {
         await cancelTransaction(item.transactionId);
       } catch (transactionError) {
         console.error('Failed to cancel transaction:', transactionError);
-        // Continue with request cancellation even if transaction cancellation fails
+        // Continue with cancellation even if refund fails
       }
     }
 
     item.status = 'cancelled';
     item.cancelledAt = new Date();
-
     const updated = await item.save();
     return res.json({ success: true, data: sanitize(updated) });
   } catch (err) {

@@ -5,6 +5,7 @@ import { createTransaction, createHybridTransaction, completeTransaction, cancel
 import { TRANSACTION_TYPES, TRANSACTION_DESCRIPTIONS } from '../utils/transactionConstants.js';
 import Transaction from '../models/Transaction.js'; // Added missing import for Transaction
 import NotificationHelper from '../utils/notificationHelper.js';
+import { deleteConversationBetweenUsers } from '../services/messagingCleanup.js';
 
 const toUser = (u) => (
   u && u._id ? {
@@ -410,6 +411,11 @@ export const completeAppointment = async (req, res) => {
     appt.completedAt = new Date();
     appt.callDuration = callDuration;
     const updated = await appt.save();
+
+    // Cleanup messages between fan and star after completion
+    try {
+      await deleteConversationBetweenUsers(appt.fanId, appt.starId);
+    } catch (_e) {}
 
     return res.json({ success: true, data: sanitize(updated) });
   } catch (err) {

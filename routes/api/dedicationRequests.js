@@ -7,7 +7,8 @@ import {
   getDedicationRequest, 
   approveDedicationRequest, 
   rejectDedicationRequest, 
-  uploadDedicationVideo, 
+  uploadDedicationVideo,
+  completeDedicationByFan,
   cancelDedicationRequest,
   getDedicationRequestByTrackingId
 } from '../../controllers/dedicationRequest.js';
@@ -28,6 +29,10 @@ router.get('/:id', requireRole('fan', 'star', 'admin'), idParamValidator, getDed
 router.put('/:id/cancel', requireRole('fan', 'admin'), idParamValidator, cancelDedicationRequest);
 router.put('/:id/approve', requireRole('star', 'admin'), idParamValidator, approveDedicationRequest);
 router.put('/:id/reject', requireRole('star', 'admin'), idParamValidator, rejectDedicationRequest);
+// Star uploads the dedication video
 router.put('/:id/upload-video', requireRole('star', 'admin'), idParamValidator, uploadVideoOnly.single('video'), uploadDedicationVideo);
+
+// Fan confirms completion after viewing the video
+router.put('/:id/complete', requireRole('fan', 'admin'), idParamValidator, completeDedicationByFan);
 
 export default router;

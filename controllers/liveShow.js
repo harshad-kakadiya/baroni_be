@@ -9,6 +9,7 @@ import { createTransaction, createHybridTransaction, completeTransaction, cancel
 import { TRANSACTION_TYPES, TRANSACTION_DESCRIPTIONS } from '../utils/transactionConstants.js';
 import Transaction from '../models/Transaction.js';
 import NotificationHelper from '../utils/notificationHelper.js';
+import { deleteConversationBetweenUsers } from '../services/messagingCleanup.js';
 
 const sanitizeLiveShow = (show) => ({
   id: show._id,
@@ -39,17 +40,20 @@ const sanitizeLiveShow = (show) => ({
       id: show.starId.profession._id,
       name: show.starId.profession.name,
       image: show.starId.profession.image
-    } : null
-  } : null,
+    } : undefined
+  } : show.starId,
+  attendees: Array.isArray(show.attendees) ? show.attendees.map((a) => a && a._id ? {
+    id: a._id,
+    name: a.name,
+    pseudo: a.pseudo,
+    profilePic: a.profilePic,
+    baroniId: a.baroniId,
+    role: a.role
+  } : a) : show.attendees,
+  likes: show.likes,
   status: show.status,
-  currentAttendees: show.currentAttendees,
-  description: show.description,
-  thumbnail: show.thumbnail,
-  likeCount: Array.isArray(show.likes) ? show.likes.length : 0,
-  isAtCapacity: show.isAtCapacity,
-  isUpcoming: show.isUpcoming,
   createdAt: show.createdAt,
-  updatedAt: show.updatedAt
+  updatedAt: show.updatedAt,
 });
 
 const setPerUserFlags = (sanitized, show, req) => {
@@ -573,6 +577,15 @@ export const completeLiveShowAttendance = async (req, res) => {
 
     // Mark show as completed
     await LiveShow.findByIdAndUpdate(id, { status: 'completed' });
+
+    // Cleanup messages between star and each attendee
+    try {
+      const completedAttendances = await LiveShowAttendance.find({ liveShowId: show._id, status: 'completed' }).select('fanId starId');
+      for (const a of completedAttendances) {
+        await deleteConversationBetweenUsers(a.fanId, a.starId);
+      }
+    } catch (_e) {}
+
     return res.json({ success: true, message: 'Live show attendance completed and coins transferred' });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
