@@ -69,7 +69,7 @@ class OrangeMoneyService {
       if (marchand) {
         params.append('marchand', marchand);
       }
-      console.log("Response : ",`${ORANGE_MONEY_BASE_URL}/initierPaiementBaroniV2?${params.toString()}`)
+
       const response = await axios.post(
         `${ORANGE_MONEY_BASE_URL}/initierPaiementBaroniV2?${params.toString()}`,
         {},
@@ -111,8 +111,8 @@ class OrangeMoneyService {
   mapTransactionTypeToMotif(transactionType) {
     const motifMap = {
       'appointment_payment': 'VideoCall',
-      'dedication_request_payment': 'Dedication',
-      'dedication_payment': 'Dedication',
+      'dedication_request_payment': 'Dedicace',
+      'dedication_payment': 'Dedicace',
       'live_show_attendance_payment': 'LiveshowJoin',
       'live_show_hosting_payment': 'LiveshowHost',
       'become_star_payment': 'BeStar',
