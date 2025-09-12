@@ -21,7 +21,7 @@ export function GenerateRtcAgoraToken(userId, channelName) {
         channelName,
         Number(userId),
         agora.RtcRole.PUBLISHER,
-        Math.floor(Date.now() / 1000) + AGORA_TOKEN_EXPIRATION
+        0
     );
 }
 

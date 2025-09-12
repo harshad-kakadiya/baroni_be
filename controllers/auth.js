@@ -445,17 +445,19 @@ export const me = async (req, res) => {
     let extra = {};
 
     if (user.role === 'star' || user.role === 'admin') {
-      const [dedications, services, dedicationSamples] = await Promise.all([
+      const [dedicationsRes, servicesRes, dedicationSamples] = await Promise.all([
         Dedication.find({ userId: user._id }).sort({ createdAt: -1 }),
         Service.find({ userId: user._id }).sort({ createdAt: -1 }),
         DedicationSample.find({ userId: user._id }).sort({ createdAt: -1 }),
       ]);
       const allservices = [
-        ...dedications.map(d => ({ id: d._id, type: d.type, price: d.price, userId: d.userId, createdAt: d.createdAt, updatedAt: d.updatedAt, itemType: 'dedication' })),
-        ...services.map(s => ({ id: s._id, type: s.type, price: s.price, userId: s.userId, createdAt: s.createdAt, updatedAt: s.updatedAt, itemType: 'service' }))
+        ...dedicationsRes.map(d => ({ id: d._id, type: d.type, price: d.price, userId: d.userId, createdAt: d.createdAt, updatedAt: d.updatedAt, itemType: 'dedication' })),
+        ...servicesRes.map(s => ({ id: s._id, type: s.type, price: s.price, userId: s.userId, createdAt: s.createdAt, updatedAt: s.updatedAt, itemType: 'service' }))
       ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       extra = {
         allservices,
+        dedications: dedicationsRes.map((d) => ({ id: d._id, type: d.type, price: d.price, userId: d.userId, createdAt: d.createdAt, updatedAt: d.updatedAt })),
+        services: servicesRes.map((s) => ({ id: s._id, type: s.type, price: s.price, userId: s.userId, createdAt: s.createdAt, updatedAt: s.updatedAt })),
         dedicationSamples: dedicationSamples.map((x) => ({ id: x._id, type: x.type, video: x.video, description: x.description, userId: x.userId, createdAt: x.createdAt, updatedAt: x.updatedAt })),
       };
     }
