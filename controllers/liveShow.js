@@ -303,9 +303,9 @@ export const joinLiveShow = async (req, res) => {
     // Process attendance fee payment
     const amount = Number(show.attendanceFee || 0);
     const { starName } = req.body || {};
-    
+
+    let attendanceTxnResult;
     if (amount > 0) {
-      let attendanceTxnResult;
       try {
         attendanceTxnResult = await createHybridTransaction({
           type: TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT,
@@ -364,7 +364,7 @@ export const joinLiveShow = async (req, res) => {
     ).populate('starId', 'name pseudo profilePic availableForBookings');
 
     const data = setPerUserFlags(sanitizeLiveShow(updated), updated, req);
-    
+
     // Send notification to star about new attendee
     try {
       await NotificationHelper.sendCustomNotification(
@@ -380,7 +380,7 @@ export const joinLiveShow = async (req, res) => {
     } catch (notificationError) {
       console.error('Error sending attendee notification:', notificationError);
     }
-    
+
     const joinResp = { success: true, message: 'Joined live show successfully', data };
     if (attendanceTxnResult && attendanceTxnResult.paymentMode === 'hybrid' || attendanceTxnResult?.externalAmount > 0) {
       if (attendanceTxnResult.externalPaymentMessage) joinResp.externalPaymentMessage = attendanceTxnResult.externalPaymentMessage;
@@ -416,9 +416,9 @@ export const cancelLiveShow = async (req, res) => {
     if (show.starId.toString() !== req.user._id.toString() && req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Only the star can cancel this show' });
 
     // Cancel all pending attendance transactions and refund coins
-    const attendances = await LiveShowAttendance.find({ 
-      liveShowId: show._id, 
-      status: 'pending' 
+    const attendances = await LiveShowAttendance.find({
+      liveShowId: show._id,
+      status: 'pending'
     });
 
     for (const attendance of attendances) {
@@ -559,9 +559,9 @@ export const completeLiveShowAttendance = async (req, res) => {
     if (show.starId.toString() !== req.user._id.toString() && req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Only the star can complete this show' });
 
     // Complete all pending attendance transactions and transfer coins to star
-    const attendances = await LiveShowAttendance.find({ 
-      liveShowId: show._id, 
-      status: 'pending' 
+    const attendances = await LiveShowAttendance.find({
+      liveShowId: show._id,
+      status: 'pending'
     });
 
     for (const attendance of attendances) {
@@ -641,9 +641,9 @@ export const getMyShows = async (req, res) => {
     }
 
     const showsData = shows.map(show => setPerUserFlags(sanitizeLiveShow(show), show, req));
-    
-    return res.json({ 
-      success: true, 
+
+    return res.json({
+      success: true,
       data: showsData,
       role: req.user.role,
       count: showsData.length
