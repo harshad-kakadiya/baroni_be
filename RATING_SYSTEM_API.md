@@ -262,3 +262,4 @@ Star profiles now display:
 - Display review type (appointment/dedication/live show)
 
 
+
