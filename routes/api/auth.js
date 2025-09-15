@@ -53,8 +53,11 @@ router.get(
   '/google/callback',
   passport.authenticate('google', { session: false, failureRedirect: '/auth/google/failure' }),
   (req, res) => {
-    const at = createAccessToken({ userId: req.user._id });
-    const rt = createRefreshToken({ userId: req.user._id });
+    // Social login: bump sessionVersion so previous tokens become invalid
+    req.user.sessionVersion = (typeof req.user.sessionVersion === 'number' ? req.user.sessionVersion : 0) + 1;
+    req.user.save().catch(() => {});
+    const at = createAccessToken({ userId: req.user._id, sessionVersion: req.user.sessionVersion });
+    const rt = createRefreshToken({ userId: req.user._id, sessionVersion: req.user.sessionVersion });
     res.json({ success: true, data: { id: req.user._id, email: req.user.email, name: req.user.name, pseudo: req.user.pseudo, profilePic: req.user.profilePic }, tokens: { accessToken: at, refreshToken: rt } });
   }
 );
@@ -64,8 +67,10 @@ router.post(
   '/apple/callback',
   passport.authenticate('apple', { session: false, failureRedirect: '/auth/apple/failure' }),
   (req, res) => {
-    const at = createAccessToken({ userId: req.user._id });
-    const rt = createRefreshToken({ userId: req.user._id });
+    req.user.sessionVersion = (typeof req.user.sessionVersion === 'number' ? req.user.sessionVersion : 0) + 1;
+    req.user.save().catch(() => {});
+    const at = createAccessToken({ userId: req.user._id, sessionVersion: req.user.sessionVersion });
+    const rt = createRefreshToken({ userId: req.user._id, sessionVersion: req.user.sessionVersion });
     res.json({ success: true, data: { id: req.user._id, email: req.user.email, name: req.user.name, pseudo: req.user.pseudo, profilePic: req.user.profilePic }, tokens: { accessToken: at, refreshToken: rt } });
   }
 );

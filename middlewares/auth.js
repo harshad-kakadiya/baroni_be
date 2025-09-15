@@ -13,6 +13,12 @@ export const requireAuth = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({ success: false, message: 'User not found' });
     }
+    // Enforce single active session: token must include sessionVersion matching current user
+    if (typeof decoded.sessionVersion === 'number' && typeof user.sessionVersion === 'number') {
+      if (decoded.sessionVersion !== user.sessionVersion) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+    }
     req.user = user;
     req.auth = decoded;
     return next();

@@ -100,8 +100,12 @@ export const register = async (req, res) => {
     await initializeUserCoins(user._id);
 
     // Auto-login
-    const accessToken = createAccessToken({ userId: user._id });
-    const refreshToken = createRefreshToken({ userId: user._id });
+    // Start a new session version
+    user.sessionVersion = (typeof user.sessionVersion === 'number' ? user.sessionVersion : 0) + 1;
+    await user.save();
+
+    const accessToken = createAccessToken({ userId: user._id, sessionVersion: user.sessionVersion });
+    const refreshToken = createRefreshToken({ userId: user._id, sessionVersion: user.sessionVersion });
 
     return res.status(201).json({
       success: true,
@@ -165,8 +169,12 @@ export const login = async (req, res) => {
       }
     }
 
-    const accessToken = createAccessToken({ userId: user._id });
-    const refreshToken = createRefreshToken({ userId: user._id });
+    // Increment sessionVersion to invalidate tokens from other devices
+    user.sessionVersion = (typeof user.sessionVersion === 'number' ? user.sessionVersion : 0) + 1;
+    await user.save();
+
+    const accessToken = createAccessToken({ userId: user._id, sessionVersion: user.sessionVersion });
+    const refreshToken = createRefreshToken({ userId: user._id, sessionVersion: user.sessionVersion });
     return res.json({ success: true, data: sanitizeUser(user), tokens: { accessToken, refreshToken } });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -361,7 +369,14 @@ export const refresh = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Refresh token is required' });
     }
     const decoded = verifyRefreshToken(refreshToken);
-    const accessToken = createAccessToken({ userId: decoded.userId });
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
+    }
+    if (typeof decoded.sessionVersion !== 'number' || decoded.sessionVersion !== user.sessionVersion) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    const accessToken = createAccessToken({ userId: decoded.userId, sessionVersion: user.sessionVersion });
     return res.json({ success: true, tokens: { accessToken } });
   } catch (err) {
     return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
