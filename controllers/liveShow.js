@@ -344,14 +344,31 @@ export const joinLiveShow = async (req, res) => {
       });
     }
 
-    // Create attendance record
-    await LiveShowAttendance.create({
+    // Check if attendance record already exists (from previous failed attempt)
+    let attendance = await LiveShowAttendance.findOne({
       liveShowId: show._id,
-      fanId: req.user._id,
-      starId: show.starId,
-      transactionId: transaction._id,
-      attendanceFee: amount
+      fanId: req.user._id
     });
+
+    if (attendance) {
+      // Update existing attendance record with new transaction
+      attendance.transactionId = transaction._id;
+      attendance.attendanceFee = amount;
+      attendance.status = 'pending';
+      attendance.joinedAt = new Date();
+      attendance.cancelledAt = undefined;
+      attendance.refundedAt = undefined;
+      await attendance.save();
+    } else {
+      // Create new attendance record
+      attendance = await LiveShowAttendance.create({
+        liveShowId: show._id,
+        fanId: req.user._id,
+        starId: show.starId,
+        transactionId: transaction._id,
+        attendanceFee: amount
+      });
+    }
 
     // Mark as joined
     const updated = await LiveShow.findByIdAndUpdate(

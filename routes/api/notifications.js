@@ -7,6 +7,7 @@ import {
   getNotificationStats,
   sendNotificationToUser,
   sendNotificationToMultipleUsers,
+  sendNotificationToLiveShowAttendees,
   sendTestNotification
 } from '../../controllers/notification.js';
 
@@ -34,5 +35,8 @@ router.post('/send/user', sendNotificationToUser);
 
 // Send notification to multiple users
 router.post('/send/bulk', sendNotificationToMultipleUsers);
+
+// Send notification to all attendees of a specific live show
+router.post('/send/live-show-attendees', sendNotificationToLiveShowAttendees);
 
 export default router;

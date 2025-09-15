@@ -1,4 +1,6 @@
 import Notification from '../models/Notification.js';
+import LiveShowAttendance from '../models/LiveShowAttendance.js';
+import LiveShow from '../models/LiveShow.js';
 import notificationService from '../services/notificationService.js';
 
 /**
@@ -254,6 +256,150 @@ export const sendNotificationToMultipleUsers = async (req, res) => {
   } catch (error) {
     console.error('Error sending notifications to multiple users:', error);
     return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Send notification to all users who have joined a specific live show
+ */
+export const sendNotificationToLiveShowAttendees = async (req, res) => {
+  try {
+    const { liveShowId, type = 'live_show', data = {}, customPayload, expiresAt } = req.body;
+
+    if (!liveShowId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'liveShowId is required' 
+      });
+    }
+
+    // First, verify that the live show exists and get its details
+    const liveShow = await LiveShow.findById(liveShowId)
+      .populate('starId', 'name pseudo profilePic')
+      .lean();
+
+    if (!liveShow) {
+      return res.status(404).json({
+        success: false,
+        message: 'Live show not found'
+      });
+    }
+
+    // Get all users who have joined this live show (pending attendance before completion)
+    const attendances = await LiveShowAttendance.find({
+      liveShowId: liveShowId,
+      status: 'pending'
+    }).select('fanId').lean();
+
+    if (attendances.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No attendees found for this live show',
+        data: { successCount: 0, failureCount: 0, totalAttendees: 0 }
+      });
+    }
+
+    // Extract user IDs
+    const userIds = attendances.map(attendance => attendance.fanId);
+
+    // Auto-generate title and body based on live show status and time
+    const now = new Date();
+    const showDate = new Date(liveShow.date);
+    const timeDiff = showDate.getTime() - now.getTime();
+    const hoursUntilShow = Math.floor(timeDiff / (1000 * 60 * 60));
+    const minutesUntilShow = Math.floor(timeDiff / (1000 * 60));
+
+    let title, body;
+    
+    if (liveShow.status === 'cancelled') {
+      title = 'Live Show Cancelled';
+      body = `"${liveShow.sessionTitle}" by ${liveShow.starId.name} has been cancelled.`;
+    } else if (liveShow.status === 'completed') {
+      title = 'Live Show Completed';
+      body = `"${liveShow.sessionTitle}" by ${liveShow.starId.name} has ended. Thank you for joining!`;
+    } else if (hoursUntilShow <= 0 && minutesUntilShow <= 0) {
+      title = 'Live Show Starting Now!';
+      body = `"${liveShow.sessionTitle}" by ${liveShow.starId.name} is starting right now! Join now!`;
+    } else if (hoursUntilShow < 1) {
+      title = 'Live Show Starting Soon!';
+      body = `"${liveShow.sessionTitle}" by ${liveShow.starId.name} starts in ${minutesUntilShow} minutes!`;
+    } else if (hoursUntilShow < 24) {
+      title = 'Live Show Reminder';
+      body = `"${liveShow.sessionTitle}" by ${liveShow.starId.name} starts in ${hoursUntilShow} hours!`;
+    } else {
+      title = 'Live Show Update';
+      body = `Update about "${liveShow.sessionTitle}" by ${liveShow.starId.name}`;
+    }
+
+    // Prepare live show data for frontend
+    const liveShowData = {
+      ...liveShow,
+      _id: liveShow._id,
+      sessionTitle: liveShow.sessionTitle,
+      date: liveShow.date,
+      time: liveShow.time,
+      attendanceFee: liveShow.attendanceFee,
+      maxCapacity: liveShow.maxCapacity,
+      currentAttendees: liveShow.currentAttendees,
+      showCode: liveShow.showCode,
+      inviteLink: liveShow.inviteLink,
+      // Force status to pending for attendee notifications; overall show completes later
+      status: 'pending',
+      description: liveShow.description,
+      thumbnail: liveShow.thumbnail,
+      starId: liveShow.starId,
+      createdAt: liveShow.createdAt,
+      updatedAt: liveShow.updatedAt
+    };
+
+    // Merge live show data with any additional data provided
+    const notificationData = {
+      ...data,
+      liveShow: liveShowData
+    };
+
+    // Send notifications to all attendees
+    const result = await notificationService.sendToMultipleUsers(
+      userIds,
+      { title, body, type },
+      notificationData,
+      { 
+        customPayload, 
+        expiresAt, 
+        relatedEntity: {
+          type: 'live_show',
+          id: liveShowId
+        }
+      }
+    );
+
+    if (result.success) {
+      return res.json({
+        success: true,
+        message: `Notifications sent to live show attendees`,
+        data: {
+          successCount: result.successCount,
+          failureCount: result.failureCount,
+          totalAttendees: userIds.length,
+          liveShow: {
+            _id: liveShow._id,
+            sessionTitle: liveShow.sessionTitle,
+            showCode: liveShow.showCode
+          }
+        }
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      message: result.message || result.error || 'Failed to send notifications to live show attendees'
+    });
+  } catch (error) {
+    console.error('Error sending notifications to live show attendees:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error while sending notifications' 
+    });
   }
 };
 

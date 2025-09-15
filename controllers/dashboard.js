@@ -7,6 +7,7 @@ import Appointment from '../models/Appointment.js';
 import Availability from '../models/Availability.js';
 import LiveShow from '../models/LiveShow.js';
 import Transaction from "../models/Transaction.js";
+import Review from '../models/Review.js';
 
 const sanitizeUser = (user) => ({
   id: user._id,
@@ -115,7 +116,7 @@ export const getDashboard = async (req, res) => {
 
     if (role === 'star') {
       // Star dashboard: upcoming bookings, earnings, engaged fans, and live shows
-      const [upcomingBookings, earnings, engagedFans, upcomingLiveShows, liveShowEarnings, escrowCoins] = await Promise.all([
+      const [upcomingBookings, earnings, engagedFans, upcomingLiveShows, liveShowEarnings, escrowCoins, ratingAgg] = await Promise.all([
         // Upcoming approved appointments
         Appointment.find({
           starId: user._id,
@@ -156,6 +157,12 @@ export const getDashboard = async (req, res) => {
         Transaction.aggregate([
           { $match: { receiverId: user._id, status: 'pending' } },
           { $group: { _id: null, escrow: { $sum: '$amount' } } }
+        ]),
+
+        // Star rating: average rating across all reviews for this star
+        Review.aggregate([
+          { $match: { starId: user._id } },
+          { $group: { _id: '$starId', avg: { $avg: '$rating' }, count: { $sum: 1 } } }
         ])
       ]);
 
@@ -170,6 +177,10 @@ export const getDashboard = async (req, res) => {
       const liveShowEarningsTotal = liveShowEarnings.length > 0 ? liveShowEarnings[0].totalEarnings : 0;
       const totalEarnings = appointmentEarnings + liveShowEarningsTotal;
       const pendingEscrow = escrowCoins.length > 0 ? escrowCoins[0].escrow : 0;
+
+      const starRating = ratingAgg && ratingAgg.length > 0
+        ? { average: Number((ratingAgg[0].avg || 0).toFixed(2)), count: ratingAgg[0].count || 0 }
+        : { average: 0, count: 0 };
 
       return res.json({
         success: true,
@@ -214,6 +225,7 @@ export const getDashboard = async (req, res) => {
             pseudo: fan.pseudo,
             profilePic: fan.profilePic
           })),
+          rating: starRating,
           stats: {
             totalBookings: upcomingBookings.length,
             totalLiveShows: upcomingLiveShows.length,
