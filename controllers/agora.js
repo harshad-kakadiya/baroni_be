@@ -2,7 +2,7 @@ import {GenerateRtcAgoraToken, GenerateRtmAgoraToken} from "../config/agora.js";
 
 
 export const AgoraRtmToken = (req,res) => {
-    const uid = req.user && req.user._id ? String(req.user._id) : null;
+    const uid = req.user && req.user.baroniId ? String(req.user.baroniId) : null;
     if (!uid) return res.status(401).json({ error: "Unauthorized" });
 
     const token = GenerateRtmAgoraToken(uid);
