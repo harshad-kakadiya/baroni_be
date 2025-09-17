@@ -11,6 +11,7 @@ router.use(requireAuth, requireRole('star', 'admin'));
 const availabilityCreateValidator = [
   body('date').isString().trim().notEmpty(), // YYYY-MM-DD
   body('timeSlots').isArray({ min: 1 }),
+  body('isWeekly').optional().isBoolean(),
   body('timeSlots.*').custom((val) => {
     if (typeof val === 'string') return val.trim().length > 0;
     if (val && typeof val === 'object') {
