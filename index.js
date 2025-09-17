@@ -9,6 +9,7 @@ import apiRoutes from './routes/index.js';
 import { notFoundHandler, globalErrorHandler } from './middlewares/errorHandler.js';
 import notificationScheduler from './services/notificationScheduler.js';
 import { startRefundScheduler } from './services/refundScheduler.js';
+import { startWeeklyAvailabilityScheduler } from './services/weeklyAvailabilityScheduler.js';
 
 dotenv.config();
 
@@ -41,6 +42,9 @@ app.listen(PORT, () => {
   
   // Start refund scheduler
   startRefundScheduler();
+  
+  // Start weekly availability scheduler
+  startWeeklyAvailabilityScheduler();
 });
 
 
