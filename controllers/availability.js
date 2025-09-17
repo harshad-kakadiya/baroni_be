@@ -6,6 +6,7 @@ const sanitize = (doc) => ({
   id: doc._id,
   userId: doc.userId,
   date: doc.date,
+  isWeekly: !!doc.isWeekly,
   timeSlots: Array.isArray(doc.timeSlots)
     ? doc.timeSlots.map((t) => ({ id: t._id, slot: t.slot, status: t.status }))
     : [],
@@ -50,16 +51,36 @@ const normalizeTimeSlotString = (slot) => {
   return `${start} - ${end}`;
 };
 
+// Parse a YYYY-MM-DD string into a local Date at midnight (avoids UTC shift)
+const parseLocalYMD = (ymd) => {
+  const s = String(ymd || '').trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) throw new Error('Invalid date format; expected YYYY-MM-DD');
+  const year = parseInt(m[1], 10);
+  const monthIndex = parseInt(m[2], 10) - 1;
+  const day = parseInt(m[3], 10);
+  return new Date(year, monthIndex, day);
+};
+
+// Format a Date into YYYY-MM-DD using local time
+const formatLocalYMD = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
 export const createAvailability = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
-    const { date, timeSlots, status } = req.body;
+    const { date, timeSlots } = req.body;
+    const isWeekly = Boolean(req.body.isWeekly);
 
     // Validate that the date is not in the past
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Set to start of today
-    const inputDate = new Date(date);
+    const inputDate = parseLocalYMD(date);
     
     if (inputDate < today) {
       return res.status(400).json({ 
@@ -117,51 +138,68 @@ export const createAvailability = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid timeSlots: provide strings or { slot, status } with valid formats' });
     }
 
-    // Check if availability already exists for this date and user
-    const existingAvailability = await Availability.findOne({ 
-      userId: req.user._id, 
-      date: String(date).trim() 
-    });
-
-    let result;
-    if (existingAvailability) {
-      // Merge new time slots with existing ones instead of replacing
-      const existingSlots = existingAvailability.timeSlots || [];
-      const newSlots = normalized;
-      
-      // Create a map of existing slots by slot string for easy lookup
-      const existingSlotsMap = new Map();
-      existingSlots.forEach(slot => {
-        existingSlotsMap.set(slot.slot, slot);
-      });
-      
-      // Merge new slots with existing ones
-      // If a new slot has the same time, update it; otherwise add it
-      newSlots.forEach(newSlot => {
-        if (existingSlotsMap.has(newSlot.slot)) {
-          // Update existing slot status if different
-          const existingSlot = existingSlotsMap.get(newSlot.slot);
-          if (existingSlot.status !== newSlot.status) {
-            existingSlot.status = newSlot.status;
-          }
-        } else {
-          // Add new slot
-          existingSlots.push(newSlot);
-        }
-      });
-      
-      existingAvailability.timeSlots = existingSlots;
-      result = await existingAvailability.save();
-      return res.json({ success: true, data: sanitize(result), message: 'Availability updated successfully' });
-    } else {
-      // Create new availability
-      result = await Availability.create({
+    const upsertOne = async (isoDateStr) => {
+      const existingAvailability = await Availability.findOne({
         userId: req.user._id,
-        date: String(date).trim(),
+        date: String(isoDateStr).trim(),
+      });
+
+      if (existingAvailability) {
+        const existingSlots = existingAvailability.timeSlots || [];
+        const newSlots = normalized;
+        const existingSlotsMap = new Map();
+        existingSlots.forEach((slot) => {
+          existingSlotsMap.set(slot.slot, slot);
+        });
+        newSlots.forEach((newSlot) => {
+          if (existingSlotsMap.has(newSlot.slot)) {
+            const existingSlot = existingSlotsMap.get(newSlot.slot);
+            if (existingSlot.status !== newSlot.status) {
+              existingSlot.status = newSlot.status;
+            }
+          } else {
+            existingSlots.push(newSlot);
+          }
+        });
+        existingAvailability.timeSlots = existingSlots;
+        if (isWeekly) existingAvailability.isWeekly = true;
+        const saved = await existingAvailability.save();
+        return { action: 'updated', doc: saved };
+      }
+
+      const created = await Availability.create({
+        userId: req.user._id,
+        date: String(isoDateStr).trim(),
+        isWeekly,
         timeSlots: normalized,
       });
-      return res.status(201).json({ success: true, data: sanitize(result), message: 'Availability created successfully' });
+      return { action: 'created', doc: created };
+    };
+
+    if (!isWeekly) {
+      const { action, doc } = await upsertOne(String(date).trim());
+      const statusCode = action === 'created' ? 201 : 200;
+      const message = action === 'created' ? 'Availability created successfully' : 'Availability updated successfully';
+      return res.status(statusCode).json({ success: true, data: sanitize(doc), message });
     }
+
+    // isWeekly: create for the given date and next 5 same weekdays (6 total)
+    const dates = [];
+    const start = parseLocalYMD(date);
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i * 7);
+      const iso = formatLocalYMD(d);
+      dates.push(iso);
+    }
+
+    const results = [];
+    for (const d of dates) {
+      // All generated dates are >= start, which we've already validated is not in the past
+      const r = await upsertOne(d);
+      results.push(sanitize(r.doc));
+    }
+    return res.status(201).json({ success: true, data: results, message: 'Weekly availabilities created/updated successfully' });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
