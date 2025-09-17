@@ -1,6 +1,7 @@
 import { validationResult } from 'express-validator';
 import Availability from '../models/Availability.js';
 import Appointment from '../models/Appointment.js'; // Added import for Appointment
+import { cleanupWeeklyAvailabilities } from '../services/weeklyAvailabilityService.js';
 
 const sanitize = (doc) => ({
   id: doc._id,
@@ -76,6 +77,16 @@ export const createAvailability = async (req, res) => {
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
     const { date, timeSlots } = req.body;
     const isWeekly = Boolean(req.body.isWeekly);
+    
+    // If isWeekly is false, cleanup existing weekly availabilities for this user
+    if (!isWeekly) {
+      try {
+        await cleanupWeeklyAvailabilities(req.user._id);
+      } catch (error) {
+        console.error('Error during weekly cleanup:', error);
+        // Continue with normal flow even if cleanup fails
+      }
+    }
 
     // Validate that the date is not in the past
     const today = new Date();
