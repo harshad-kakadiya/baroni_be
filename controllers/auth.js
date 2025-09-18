@@ -17,6 +17,7 @@ import ContactSupport from '../models/ContactSupport.js';
 import Transaction from '../models/Transaction.js';
 import LiveShowAttendance from '../models/LiveShowAttendance.js';
 import mongoose from 'mongoose';
+import { normalizeContact } from '../utils/normalizeContact.js';
 
 const sanitizeUser = (user) => ({
   id: user._id,
@@ -47,6 +48,7 @@ export const register = async (req, res) => {
     }
 
   const { contact, email, password, role, fcmToken } = req.body;
+  const normalizedContact = typeof contact === 'string' ? normalizeContact(contact) : contact;
 
     // Check if we have either contact or email
     if (!contact && !email) {
@@ -57,7 +59,7 @@ export const register = async (req, res) => {
     }
 
     // If email is provided, password is required
-    if (contact && !password) {
+    if (normalizedContact && !password) {
       return res.status(400).json({
         success: false,
         message: 'Password is required when registering with contact'
@@ -67,7 +69,7 @@ export const register = async (req, res) => {
     const normalizedEmail = email ? email.toLowerCase() : undefined;
     const orQueries = [];
     if (normalizedEmail) orQueries.push({ email: normalizedEmail });
-    if (contact) orQueries.push({ contact });
+    if (normalizedContact) orQueries.push({ contact: normalizedContact });
 
     const existing = orQueries.length ? await User.findOne({ $or: orQueries }) : null;
     if (existing) {
@@ -87,7 +89,7 @@ export const register = async (req, res) => {
     }
 
   const user = await User.create({
-      contact,
+      contact: normalizedContact,
       email: normalizedEmail,
       password: hashedPassword,
       role,
@@ -124,17 +126,18 @@ export const login = async (req, res) => {
     }
 
     const { contact, email, isMobile } = req.body;
+    const normalizedContact = typeof contact === 'string' ? normalizeContact(contact) : contact;
     let user;
 
     if (isMobile) {
-      if (!contact) return res.status(400).json({ success: false, message: 'Contact is required for mobile login' });
-      if (contact && !req.body.password) {
+      if (!normalizedContact) return res.status(400).json({ success: false, message: 'Contact is required for mobile login' });
+      if (normalizedContact && !req.body.password) {
         return res.status(400).json({
           success: false,
           message: 'Password is required when login with contact'
         });
       }
-      user = await User.findOne({ contact });
+      user = await User.findOne({ contact: normalizedContact });
     } else {
       // Email login - allow login with just email when isMobile is false
       if (!email) return res.status(400).json({ success: false, message: 'Email is required for email login' });
@@ -386,7 +389,7 @@ export const checkUser = async (req, res) => {
     const emailRaw = typeof req.body.email === 'string' ? req.body.email : '';
     const contactRaw = typeof req.body.contact === 'string' ? req.body.contact : '';
     const email = emailRaw.trim();
-    const contact = contactRaw.trim();
+    const contact = normalizeContact(contactRaw.trim());
 
     if (!email && !contact) {
       return res.status(400).json({ success: false, message: 'Either email or contact is required' });
@@ -403,10 +406,11 @@ export const checkUser = async (req, res) => {
 export const forgotPassword = async (req, res) => {
   try {
     const { contact, newPassword } = req.body;
-    if (!contact || !newPassword) {
+    const normalizedContact = typeof contact === 'string' ? normalizeContact(contact) : contact;
+    if (!normalizedContact || !newPassword) {
       return res.status(400).json({ success: false, message: 'Contact and newPassword are required' });
     }
-    const user = await User.findOne({ contact });
+    const user = await User.findOne({ contact: normalizedContact });
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
