@@ -12,6 +12,7 @@ export const storeMessage = async (req, res) => {
     }
 
     let actualConversationId = conversationId;
+    let effectiveReceiverId = receiverId;
 
     // If no conversationId provided, create or find conversation between sender and receiver
     if (!conversationId && authSenderId && receiverId) {
@@ -36,27 +37,11 @@ export const storeMessage = async (req, res) => {
             });
         }
 
-        // Check if both users are fans (not allowed)
-        if (sender.role === 'fan' && receiver.role === 'fan') {
+        // Enforce messaging: only fan can initiate to star; block others
+        if (!(sender.role === 'fan' && receiver.role === 'star')) {
             return res.status(400).json({
                 success: false,
-                message: 'Fans cannot start conversations with other fans'
-            });
-        }
-
-        // Check if both users are stars (not allowed)
-        if (sender.role === 'star' && receiver.role === 'star') {
-            return res.status(400).json({
-                success: false,
-                message: 'Stars cannot start conversations with other stars'
-            });
-        }
-
-        // Check if both users are admins (not allowed)
-        if (sender.role === 'admin' && receiver.role === 'admin') {
-            return res.status(400).json({
-                success: false,
-                message: 'Admins cannot start conversations with other admins'
+                message: 'Only fans can initiate conversations with stars'
             });
         }
 
@@ -74,6 +59,7 @@ export const storeMessage = async (req, res) => {
         }
 
         actualConversationId = conversation._id.toString();
+        effectiveReceiverId = receiverId;
     }
 
     if (!actualConversationId) {
@@ -83,10 +69,36 @@ export const storeMessage = async (req, res) => {
         });
     }
 
+    // If conversationId is provided (or determined), enforce role rules and resolve receiver
+    if (actualConversationId && !effectiveReceiverId) {
+        // Load conversation and determine other participant
+        const conversation = await ConversationModel.findById(actualConversationId).lean();
+        if (!conversation) {
+            return res.status(404).json({ success: false, message: 'Conversation not found' });
+        }
+        const participants = (conversation.participants || []).map(String);
+        if (!participants.includes(String(authSenderId)) || participants.length !== 2) {
+            return res.status(403).json({ success: false, message: 'Not allowed in this conversation' });
+        }
+        const otherParticipantId = participants.find(p => p !== String(authSenderId));
+        const [sender, receiver] = await Promise.all([
+            User.findById(authSenderId).select('role'),
+            User.findById(otherParticipantId).select('role')
+        ]);
+        if (!sender || !receiver) {
+            return res.status(400).json({ success: false, message: 'Invalid participants' });
+        }
+        // Only fan -> star messages are allowed
+        if (!(sender.role === 'fan' && receiver.role === 'star')) {
+            return res.status(400).json({ success: false, message: 'Only fans can message stars' });
+        }
+        effectiveReceiverId = otherParticipantId;
+    }
+
     const msg = await MessageModel.create({
         conversationId: actualConversationId,
         senderId: authSenderId,
-        receiverId,
+        receiverId: effectiveReceiverId,
         message,
         type
     });

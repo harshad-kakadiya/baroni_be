@@ -154,18 +154,17 @@ export const becomeStar = async (req, res) => {
         // Complete the transaction (credit admin wallet for coin mode, mark completed for external)
         await completeTransaction(transaction._id);
 
-        // Handle baroniId assignment based on plan and provided baroniId
+        // Handle baroniId assignment on becoming a star
         let updates = { role: 'star' };
-        
-        if (baroniId) {
-            // Use the provided baroniId
-            updates.baroniId = String(baroniId);
-        } else if (String(plan) === 'gold') {
-            // Generate a new GOLD-formatted unique baroniId if no baroniId provided
+
+        // Always assign a baroniId when promoting to star
+        if (String(plan) === 'gold') {
             const newGoldId = await generateUniqueGoldBaroniId();
             updates.baroniId = newGoldId;
+        } else {
+            const newId = await generateUniqueBaroniId();
+            updates.baroniId = newId;
         }
-        // For standard plan without baroniId, keep existing baroniId (no update needed)
 
         const updatedUser = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true });
 

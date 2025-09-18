@@ -46,7 +46,7 @@ export const register = async (req, res) => {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { contact, email, password, role, fcmToken } = req.body;
+  const { contact, email, password, role, fcmToken } = req.body;
 
     // Check if we have either contact or email
     if (!contact && !email) {
@@ -77,8 +77,7 @@ export const register = async (req, res) => {
       });
     }
 
-    // Generate unique baroni ID
-    const baroniId = await generateUniqueBaroniId();
+  // Do not generate baroni ID at registration; Baroni ID is for stars only
 
     // Hash password only if provided, otherwise set to nul
     let hashedPassword = null;
@@ -87,8 +86,7 @@ export const register = async (req, res) => {
       hashedPassword = await bcrypt.hash(password, salt);
     }
 
-    const user = await User.create({
-      baroniId,
+  const user = await User.create({
       contact,
       email: normalizedEmail,
       password: hashedPassword,

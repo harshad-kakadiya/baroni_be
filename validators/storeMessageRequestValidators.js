@@ -59,27 +59,11 @@ export const storeMessageValidator = [
                     });
                 }
 
-                // Check if both users are fans (not allowed)
-                if (sender.role === 'fan' && receiver.role === 'fan') {
+                // Enforce messaging: only fan can initiate to star; block others
+                if (!(sender.role === 'fan' && receiver.role === 'star')) {
                     return res.status(400).json({
                         success: false,
-                        message: 'Fans cannot start conversations with other fans'
-                    });
-                }
-
-                // Check if both users are stars (not allowed)
-                if (sender.role === 'star' && receiver.role === 'star') {
-                    return res.status(400).json({
-                        success: false,
-                        message: 'Stars cannot start conversations with other stars'
-                    });
-                }
-
-                // Check if both users are admins (not allowed)
-                if (sender.role === 'admin' && receiver.role === 'admin') {
-                    return res.status(400).json({
-                        success: false,
-                        message: 'Admins cannot start conversations with other admins'
+                        message: 'Only fans can initiate conversations with stars'
                     });
                 }
             }

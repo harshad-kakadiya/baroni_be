@@ -254,6 +254,7 @@ class NotificationHelper {
       // Find users who have this star as favorite
       const followers = await User.find({
         favorites: { $in: [starId] },
+        role: 'fan',
         fcmToken: { $exists: true, $ne: null }
       });
 
@@ -280,10 +281,10 @@ class NotificationHelper {
       const attendees = await LiveShowAttendance.find({
         liveShowId: liveShowId,
         status: 'joined'
-      }).populate('userId', 'fcmToken');
+      }).populate('userId', 'fcmToken role');
 
       const attendeeIds = attendees
-        .filter(attendance => attendance.userId?.fcmToken)
+        .filter(attendance => attendance.userId?.fcmToken && attendance.userId?.role === 'fan')
         .map(attendance => attendance.userId._id);
 
       if (attendeeIds.length > 0) {

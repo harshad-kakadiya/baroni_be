@@ -23,8 +23,8 @@ async function migrateBaroniIds() {
     await mongoose.connect(MONGODB_URI);
     console.log('Connected to MongoDB successfully');
 
-    // Find users without baroniId
-    const usersWithoutBaroniId = await User.find({ baroniId: { $exists: false } });
+    // Find STAR users without baroniId
+    const usersWithoutBaroniId = await User.find({ role: 'star', $or: [ { baroniId: { $exists: false } }, { baroniId: null } ] });
     console.log(`Found ${usersWithoutBaroniId.length} users without baroniId`);
 
     if (usersWithoutBaroniId.length === 0) {
@@ -32,7 +32,7 @@ async function migrateBaroniIds() {
       return;
     }
 
-    // Generate and assign baroniIds
+    // Generate and assign baroniIds to stars only
     for (const user of usersWithoutBaroniId) {
       try {
         const baroniId = await generateUniqueBaroniId();
@@ -41,6 +41,18 @@ async function migrateBaroniIds() {
         console.log(`✓ Assigned baroniId ${baroniId} to user ${user._id} (${user.name || user.pseudo || 'Unknown'})`);
       } catch (error) {
         console.error(`✗ Failed to assign baroniId to user ${user._id}:`, error.message);
+      }
+    }
+
+    // Optional cleanup: ensure fans/admins do not have baroniId
+    const nonStarsWithBaroni = await User.find({ role: { $in: ['fan', 'admin'] }, baroniId: { $exists: true, $ne: null } });
+    for (const user of nonStarsWithBaroni) {
+      try {
+        user.baroniId = undefined;
+        await user.save();
+        console.log(`✓ Removed baroniId from non-star user ${user._id}`);
+      } catch (error) {
+        console.error(`✗ Failed to remove baroniId from non-star user ${user._id}:`, error.message);
       }
     }
 
