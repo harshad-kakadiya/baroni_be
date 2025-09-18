@@ -22,6 +22,7 @@ const sanitizeLiveShow = (show) => ({
   hostingPaymentMode: show.hostingPaymentMode,
   hostingPaymentDescription: show.hostingPaymentDescription,
   maxCapacity: show.maxCapacity,
+  thumbnail: show.thumbnail,
   showCode: show.showCode,
   inviteLink: show.inviteLink,
   starId: show.starId ? {
