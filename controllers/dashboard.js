@@ -17,6 +17,7 @@ const sanitizeUser = (user) => ({
   about: user.about,
   profession: user.profession,
   role: user.role,
+  availableForBookings: user.availableForBookings,
 });
 
 export const getDashboard = async (req, res) => {
@@ -49,7 +50,7 @@ export const getDashboard = async (req, res) => {
 
       const starsQuery = User.find(starCriteria)
         .populate('profession')
-        .select('name pseudo profilePic about profession')
+        .select('name pseudo profilePic about profession availableForBookings')
         .sort({ createdAt: -1 })
         .limit(20);
 
@@ -70,7 +71,7 @@ export const getDashboard = async (req, res) => {
       }
 
       const liveShowsQuery = LiveShow.find(liveShowFilter)
-        .populate('starId', 'name pseudo profilePic')
+        .populate('starId', 'name pseudo profilePic availableForBookings')
         .sort({ date: 1 })
         .limit(10);
 
@@ -107,7 +108,8 @@ export const getDashboard = async (req, res) => {
               id: show.starId._id,
               name: show.starId.name,
               pseudo: show.starId.pseudo,
-              profilePic: show.starId.profilePic
+              profilePic: show.starId.profilePic,
+              availableForBookings: show.starId.availableForBookings
             } : null
           }))
         },
