@@ -414,13 +414,26 @@ export const getStarById = async (req, res) => {
             return showData;
         });
 
+        // Filter out unavailable (booked) time slots from availability
+        const filteredAvailability = Array.isArray(availability)
+            ? availability
+                .map((doc) => {
+                    const item = typeof doc.toObject === 'function' ? doc.toObject() : doc;
+                    const timeSlots = Array.isArray(item.timeSlots)
+                        ? item.timeSlots.filter((s) => s && s.status === 'available')
+                        : [];
+                    return { ...item, timeSlots };
+                })
+                .filter((item) => Array.isArray(item.timeSlots) && item.timeSlots.length > 0)
+            : [];
+
         res.status(200).json({
             success: true,
             data: {
                 star: starData,
                 allservices,
                 dedicationSamples,
-                availability,
+                availability: filteredAvailability,
                 upcomingShows: upcomingShowsWithLikeStatus,
                 latestReviews: latestReviews.map(r => ({
                     id: r._id,
