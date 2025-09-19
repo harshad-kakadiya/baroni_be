@@ -97,13 +97,19 @@ export const createLiveShow = async (req, res) => {
     // Create hybrid hosting transaction before creating show
     let hostingTxnResult;
     try {
+      const { contact: payloadContact } = req.body || {};
+      const { normalizeContact } = await import('../utils/normalizeContact.js');
+      const normalizedPhone = normalizeContact(payloadContact || '');
+      if (!normalizedPhone) {
+        return res.status(400).json({ success: false, message: 'User phone number is required' });
+      }
       hostingTxnResult = await createHybridTransaction({
         type: TRANSACTION_TYPES.LIVE_SHOW_HOSTING_PAYMENT,
         payerId: req.user._id,
         receiverId: adminUser._id,
         amount: Number(hostingPrice || 0),
         description: TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.LIVE_SHOW_HOSTING_PAYMENT],
-        userPhone: req.user?.contact,
+        userPhone: normalizedPhone,
         starName,
         metadata: {
           showType: 'live_show_hosting',
@@ -308,13 +314,19 @@ export const joinLiveShow = async (req, res) => {
     let attendanceTxnResult;
     if (amount > 0) {
       try {
+        const { contact: payloadContact } = req.body || {};
+        const { normalizeContact } = await import('../utils/normalizeContact.js');
+        const normalizedPhone = normalizeContact(payloadContact || '');
+        if (!normalizedPhone) {
+          return res.status(400).json({ success: false, message: 'User phone number is required' });
+        }
         attendanceTxnResult = await createHybridTransaction({
           type: TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT,
           payerId: req.user._id,
           receiverId: show.starId,
           amount,
           description: TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT],
-          userPhone: req.user?.contact,
+          userPhone: normalizedPhone,
           starName,
           metadata: {
             showId: show._id,

@@ -100,13 +100,19 @@ export const createAppointment = async (req, res) => {
     // Create hybrid transaction before creating appointment
     let transactionResult;
     try {
+      const { contact: payloadContact } = req.body || {};
+      const { normalizeContact } = await import('../utils/normalizeContact.js');
+      const normalizedPhone = normalizeContact(payloadContact || '');
+      if (!normalizedPhone) {
+        return res.status(400).json({ success: false, message: 'User phone number is required' });
+      }
       transactionResult = await createHybridTransaction({
         type: TRANSACTION_TYPES.APPOINTMENT_PAYMENT,
         payerId: req.user._id,
         receiverId: starId,
         amount: price,
         description: TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.APPOINTMENT_PAYMENT],
-        userPhone: req.user?.contact,
+        userPhone: normalizedPhone,
         starName,
         metadata: {
           appointmentType: 'booking',

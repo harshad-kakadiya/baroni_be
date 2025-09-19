@@ -41,13 +41,19 @@ export const createDedicationRequest = async (req, res) => {
     // Create hybrid transaction before creating dedication request
     let txnResult;
     try {
+      const { contact: payloadContact } = req.body || {};
+      const { normalizeContact } = await import('../utils/normalizeContact.js');
+      const normalizedPhone = normalizeContact(payloadContact || '');
+      if (!normalizedPhone) {
+        return res.status(400).json({ success: false, message: 'User phone number is required' });
+      }
       txnResult = await createHybridTransaction({
         type: TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT,
         payerId: req.user._id,
         receiverId: starId,
         amount: price,
         description: TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT],
-        userPhone: req.user?.contact,
+        userPhone: normalizedPhone,
         starName,
         metadata: {
           occasion,

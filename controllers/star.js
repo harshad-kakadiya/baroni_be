@@ -9,7 +9,7 @@ import LiveShowAttendance from "../models/LiveShowAttendance.js";
 import Appointment from "../models/Appointment.js";
 import DedicationRequest from "../models/DedicationRequest.js";
 import Transaction from "../models/Transaction.js";
-import { createTransaction, completeTransaction } from "../services/transactionService.js";
+import { createTransaction, completeTransaction, createHybridTransaction } from "../services/transactionService.js";
 import { TRANSACTION_DESCRIPTIONS, TRANSACTION_TYPES } from "../utils/transactionConstants.js";
 import { generateUniqueGoldBaroniId, generateUniqueBaroniId } from "../utils/baroniIdGenerator.js";
 import Review from "../models/Review.js";
@@ -124,35 +124,57 @@ export const becomeStar = async (req, res) => {
             return res.status(500).json({ success: false, message: 'Admin account not configured' });
         }
 
-        // Create a pending transaction from fan to admin
+        // Create transaction from fan to admin
         try {
-            await createTransaction({
-                type: TRANSACTION_TYPES.BECOME_STAR_PAYMENT,
-                payerId: req.user._id,
-                receiverId: adminUser._id,
-                amount: numericAmount,
-                description: paymentMode === 'external' && paymentDescription ? String(paymentDescription) : TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.BECOME_STAR_PAYMENT],
-                paymentMode,
-                metadata: { plan }
-            });
+            if (paymentMode === 'external') {
+                // For external payments, use hybrid flow and require contact from payload
+                const { contact } = req.body || {};
+                const { normalizeContact } = await import('../utils/normalizeContact.js');
+                const normalizedPhone = normalizeContact(contact || '');
+                if (!normalizedPhone) {
+                    return res.status(400).json({ success: false, message: 'User phone number is required' });
+                }
+                await createHybridTransaction({
+                    type: TRANSACTION_TYPES.BECOME_STAR_PAYMENT,
+                    payerId: req.user._id,
+                    receiverId: adminUser._id,
+                    amount: numericAmount,
+                    description: TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.BECOME_STAR_PAYMENT],
+                    userPhone: normalizedPhone,
+                    starName: undefined,
+                    metadata: { plan }
+                });
+            } else {
+                await createTransaction({
+                    type: TRANSACTION_TYPES.BECOME_STAR_PAYMENT,
+                    payerId: req.user._id,
+                    receiverId: adminUser._id,
+                    amount: numericAmount,
+                    description: paymentMode === 'external' && paymentDescription ? String(paymentDescription) : TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.BECOME_STAR_PAYMENT],
+                    paymentMode,
+                    metadata: { plan }
+                });
+            }
         } catch (transactionError) {
             return res.status(400).json({ success: false, message: 'Transaction failed: ' + transactionError.message });
         }
 
-        // Retrieve the transaction to complete it immediately (since this endpoint models successful payment)
+        // Retrieve the transaction
         const transaction = await Transaction.findOne({
             payerId: req.user._id,
             receiverId: adminUser._id,
             type: TRANSACTION_TYPES.BECOME_STAR_PAYMENT,
-            status: 'pending'
+            status: { $in: ['pending', 'initiated'] }
         }).sort({ createdAt: -1 });
 
         if (!transaction) {
             return res.status(500).json({ success: false, message: 'Failed to retrieve transaction' });
         }
 
-        // Complete the transaction (credit admin wallet for coin mode, mark completed for external)
-        await completeTransaction(transaction._id);
+        // Complete the transaction immediately only for coin mode
+        if (paymentMode !== 'external') {
+            await completeTransaction(transaction._id);
+        }
 
         // Handle baroniId assignment on becoming a star
         let updates = { role: 'star' };
@@ -168,7 +190,7 @@ export const becomeStar = async (req, res) => {
 
         const updatedUser = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true });
 
-        return res.status(200).json({
+        const responseBody = {
             success: true,
             message: 'You are now a Baroni Star',
             data: {
@@ -180,7 +202,8 @@ export const becomeStar = async (req, res) => {
                 transactionId: transaction._id,
                 plan
             }
-        });
+        };
+        return res.status(200).json(responseBody);
     } catch (err) {
         return res.status(500).json({ success: false, message: err.message });
     }

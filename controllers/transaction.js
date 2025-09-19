@@ -15,7 +15,7 @@ export const createNewHybridTransaction = async (req, res) => {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { type, receiverId, amount, description, metadata, userPhone, starName } = req.body;
+    const { type, receiverId, amount, description, metadata, contact, starName } = req.body;
     const payerId = req.user.id;
 
     // Validate receiver is not the same as payer
@@ -26,12 +26,11 @@ export const createNewHybridTransaction = async (req, res) => {
       });
     }
 
-    // Validate required fields for hybrid transaction
-    if (!userPhone) {
-      return res.status(400).json({
-        success: false,
-        message: 'User phone number is required for hybrid transactions'
-      });
+    // Normalize and validate required fields for hybrid transaction
+    const { normalizeContact } = await import('../utils/normalizeContact.js');
+    const normalizedPhone = normalizeContact(contact || '');
+    if (!normalizedPhone) {
+      return res.status(400).json({ success: false, message: 'User phone number is required for hybrid transactions' });
     }
 
     const transactionData = {
@@ -41,7 +40,7 @@ export const createNewHybridTransaction = async (req, res) => {
       amount,
       description,
       metadata,
-      userPhone,
+      userPhone: normalizedPhone,
       starName
     };
 
