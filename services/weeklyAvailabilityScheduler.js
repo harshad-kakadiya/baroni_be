@@ -28,3 +28,4 @@ export const stopWeeklyAvailabilityScheduler = () => {
   // This would need to be implemented with job references if needed
   console.log('Weekly availability scheduler stop requested');
 };
+
