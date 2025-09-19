@@ -1,13 +1,13 @@
 import express from 'express';
 import { body } from 'express-validator';
-import { 
-  handlePaymentCallback, 
-  handlePaymentTimeout 
+import {
+  handlePaymentCallback,
+  handlePaymentTimeout
 } from '../../controllers/paymentCallback.js';
 
 const router = express.Router();
 
-// Validation middleware for payment callback
+// Validation middleware for payment callbac
 const validatePaymentCallback = [
   body('transactionId')
     .notEmpty()
