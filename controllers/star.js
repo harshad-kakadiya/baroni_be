@@ -31,11 +31,11 @@ export const getBaroniIdPatterns = async (req, res) => {
             data: {
                 standard: {
                     pattern: standardId,
-                    description: "Standard 5-digit baroni ID"
+                    description: "Standard 6-digit baroni ID"
                 },
                 gold: {
                     pattern: goldId,
-                    description: "Gold baroni ID with special pattern (AAAAA or ABABA)"
+                    description: "Gold baroni ID with special pattern (AAAAAA or ABABAB)"
                 }
             }
         });
@@ -212,8 +212,8 @@ export const getAllStars = async (req, res) => {
             const regex = new RegExp(q.trim(), "i");
             const searchQuery = [{ name: regex }, { pseudo: regex }];
             
-            // Check if the search query looks like a baroniId (5 digits)
-            if (/^\d{5}$/.test(q.trim())) {
+            // Check if the search query looks like a baroniId (6 digits)
+            if (/^\d{6}$/.test(q.trim())) {
                 // For baroniId search, also include hidden stars
                 const baroniIdFilter = {
                     role: "star",
