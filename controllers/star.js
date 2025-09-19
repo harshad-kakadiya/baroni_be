@@ -342,7 +342,7 @@ export const getStarById = async (req, res) => {
 
         if (req.user) {
             // Check if the star is in user's favorites
-            starData.isLiked = req.user.favorites.includes(id);
+            starData.isLiked = Array.isArray(req.user.favorites) && req.user.favorites.map(String).includes(String(id));
 
             // Additional fan-specific checks
             if (req.user.role === 'fan') {
@@ -426,12 +426,12 @@ export const getStarById = async (req, res) => {
                     id: r._id,
                     rating: r.rating,
                     comment: r.comment,
-                    reviewer: {
+                    reviewer: r.reviewerId ? {
                         id: r.reviewerId._id,
                         name: r.reviewerId.name,
                         pseudo: r.reviewerId.pseudo,
                         profilePic: r.reviewerId.profilePic,
-                    },
+                    } : null,
                     reviewType: r.reviewType,
                     createdAt: r.createdAt,
                 }))
