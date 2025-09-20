@@ -1,7 +1,7 @@
 import { validationResult } from 'express-validator';
 import Availability from '../models/Availability.js';
 import Appointment from '../models/Appointment.js'; // Added import for Appointment
-import { cleanupWeeklyAvailabilities } from '../services/weeklyAvailabilityService.js';
+import { cleanupWeeklyAvailabilities, deleteTimeSlotFromWeeklyAvailabilities, deleteTimeSlotByIdFromWeeklyAvailabilities } from '../services/weeklyAvailabilityService.js';
 
 const sanitize = (doc) => ({
   id: doc._id,
@@ -78,8 +78,8 @@ export const createAvailability = async (req, res) => {
     const { date, timeSlots } = req.body;
     const isWeekly = Boolean(req.body.isWeekly);
     
-    // If isWeekly is false, cleanup existing weekly availabilities for this user
-    if (!isWeekly) {
+    // Only cleanup weekly availabilities if isWeekly is explicitly set to false in payload
+    if (req.body.hasOwnProperty('isWeekly') && !isWeekly) {
       try {
         await cleanupWeeklyAvailabilities(req.user._id);
       } catch (error) {
@@ -241,9 +241,26 @@ export const updateAvailability = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
-    const { date, timeSlots, status } = req.body;
+    const { date, timeSlots, status, isWeekly } = req.body;
     const item = await Availability.findOne({ _id: req.params.id, userId: req.user._id });
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
+    
+    // Handle isWeekly field if provided in payload
+    if (req.body.hasOwnProperty('isWeekly')) {
+      const newIsWeekly = Boolean(isWeekly);
+      
+      // Only cleanup weekly availabilities if isWeekly is explicitly set to false
+      if (!newIsWeekly) {
+        try {
+          await cleanupWeeklyAvailabilities(req.user._id);
+        } catch (error) {
+          console.error('Error during weekly cleanup:', error);
+          // Continue with normal flow even if cleanup fails
+        }
+      }
+      
+      item.isWeekly = newIsWeekly;
+    }
     
     // Validate date if provided
     if (date) {
@@ -375,6 +392,22 @@ export const deleteTimeSlotByDate = async (req, res) => {
       }
     }
 
+    // If this is a weekly availability, delete the time slot from all weekly availabilities
+    if (availability.isWeekly) {
+      try {
+        const weeklyResult = await deleteTimeSlotFromWeeklyAvailabilities(req.user._id, slotToDelete);
+        return res.json({ 
+          success: true, 
+          message: `Time slot deleted from ${weeklyResult.processed} weekly availabilities (${weeklyResult.updated} updated, ${weeklyResult.removed} removed)`,
+          data: { weeklyResult }
+        });
+      } catch (error) {
+        console.error('Error deleting from weekly availabilities:', error);
+        return res.status(500).json({ success: false, message: 'Error deleting from weekly availabilities' });
+      }
+    }
+
+    // Handle non-weekly availability
     const beforeCount = availability.timeSlots.length;
     const remaining = (availability.timeSlots || []).filter((t) => t.slot !== slotToDelete);
 
@@ -435,6 +468,22 @@ export const deleteTimeSlotById = async (req, res) => {
       }
     }
 
+    // If this is a weekly availability, delete the time slot from all weekly availabilities
+    if (availability.isWeekly) {
+      try {
+        const weeklyResult = await deleteTimeSlotByIdFromWeeklyAvailabilities(req.user._id, slotId);
+        return res.json({ 
+          success: true, 
+          message: `Time slot deleted from ${weeklyResult.processed} weekly availabilities (${weeklyResult.updated} updated, ${weeklyResult.removed} removed)`,
+          data: { weeklyResult }
+        });
+      } catch (error) {
+        console.error('Error deleting from weekly availabilities:', error);
+        return res.status(500).json({ success: false, message: 'Error deleting from weekly availabilities' });
+      }
+    }
+
+    // Handle non-weekly availability
     const beforeCount = availability.timeSlots.length;
     availability.timeSlots = (availability.timeSlots || []).filter((t) => String(t._id) !== String(slotId));
 

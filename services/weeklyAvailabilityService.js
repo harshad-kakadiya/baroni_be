@@ -193,6 +193,138 @@ export const createNextWeeklyAvailabilities = async () => {
   }
 };
 
+// Delete a specific time slot from all weekly availabilities for a user by slot string
+export const deleteTimeSlotFromWeeklyAvailabilities = async (userId, timeSlotString) => {
+  try {
+    console.log(`[WeeklyAvailability] Starting time slot deletion for user ${userId}, slot: ${timeSlotString}`);
+    
+    // Find all isWeekly=true availabilities for this user
+    const weeklyAvailabilities = await Availability.find({
+      userId: userId,
+      isWeekly: true
+    });
+
+    if (weeklyAvailabilities.length === 0) {
+      console.log(`[WeeklyAvailability] No weekly availabilities found for user ${userId}`);
+      return { processed: 0, updated: 0, removed: 0 };
+    }
+
+    let processedCount = 0;
+    let updatedCount = 0;
+    let removedCount = 0;
+
+    for (const availability of weeklyAvailabilities) {
+      processedCount++;
+      
+      // Find the time slot to delete
+      const timeSlotIndex = availability.timeSlots.findIndex(slot => slot.slot === timeSlotString);
+      
+      if (timeSlotIndex === -1) {
+        console.log(`[WeeklyAvailability] Time slot ${timeSlotString} not found in availability ${availability._id}`);
+        continue;
+      }
+
+      const timeSlot = availability.timeSlots[timeSlotIndex];
+      
+      // Check if the time slot is booked (has active appointments)
+      const isBooked = await isTimeSlotBooked(userId, availability._id, timeSlot._id);
+      
+      if (isBooked) {
+        console.log(`[WeeklyAvailability] Time slot ${timeSlotString} is booked in availability ${availability._id}, skipping deletion`);
+        continue;
+      }
+
+      // Remove the time slot
+      availability.timeSlots.splice(timeSlotIndex, 1);
+      
+      if (availability.timeSlots.length === 0) {
+        // No remaining slots, delete the entire availability
+        await availability.deleteOne();
+        removedCount++;
+        console.log(`[WeeklyAvailability] Removed availability ${availability._id} - no remaining slots`);
+      } else {
+        // Save the updated availability
+        await availability.save();
+        updatedCount++;
+        console.log(`[WeeklyAvailability] Updated availability ${availability._id} - removed time slot ${timeSlotString}`);
+      }
+    }
+
+    console.log(`[WeeklyAvailability] Time slot deletion completed for user ${userId} - processed: ${processedCount}, updated: ${updatedCount}, removed: ${removedCount}`);
+    return { processed: processedCount, updated: updatedCount, removed: removedCount };
+    
+  } catch (error) {
+    console.error(`[WeeklyAvailability] Error during time slot deletion for user ${userId}:`, error);
+    throw error;
+  }
+};
+
+// Delete a specific time slot from all weekly availabilities for a user by slot ID
+export const deleteTimeSlotByIdFromWeeklyAvailabilities = async (userId, timeSlotId) => {
+  try {
+    console.log(`[WeeklyAvailability] Starting time slot deletion by ID for user ${userId}, slotId: ${timeSlotId}`);
+    
+    // Find all isWeekly=true availabilities for this user
+    const weeklyAvailabilities = await Availability.find({
+      userId: userId,
+      isWeekly: true
+    });
+
+    if (weeklyAvailabilities.length === 0) {
+      console.log(`[WeeklyAvailability] No weekly availabilities found for user ${userId}`);
+      return { processed: 0, updated: 0, removed: 0 };
+    }
+
+    let processedCount = 0;
+    let updatedCount = 0;
+    let removedCount = 0;
+
+    for (const availability of weeklyAvailabilities) {
+      processedCount++;
+      
+      // Find the time slot to delete by ID
+      const timeSlotIndex = availability.timeSlots.findIndex(slot => String(slot._id) === String(timeSlotId));
+      
+      if (timeSlotIndex === -1) {
+        console.log(`[WeeklyAvailability] Time slot with ID ${timeSlotId} not found in availability ${availability._id}`);
+        continue;
+      }
+
+      const timeSlot = availability.timeSlots[timeSlotIndex];
+      
+      // Check if the time slot is booked (has active appointments)
+      const isBooked = await isTimeSlotBooked(userId, availability._id, timeSlot._id);
+      
+      if (isBooked) {
+        console.log(`[WeeklyAvailability] Time slot with ID ${timeSlotId} is booked in availability ${availability._id}, skipping deletion`);
+        continue;
+      }
+
+      // Remove the time slot
+      availability.timeSlots.splice(timeSlotIndex, 1);
+      
+      if (availability.timeSlots.length === 0) {
+        // No remaining slots, delete the entire availability
+        await availability.deleteOne();
+        removedCount++;
+        console.log(`[WeeklyAvailability] Removed availability ${availability._id} - no remaining slots`);
+      } else {
+        // Save the updated availability
+        await availability.save();
+        updatedCount++;
+        console.log(`[WeeklyAvailability] Updated availability ${availability._id} - removed time slot with ID ${timeSlotId}`);
+      }
+    }
+
+    console.log(`[WeeklyAvailability] Time slot deletion by ID completed for user ${userId} - processed: ${processedCount}, updated: ${updatedCount}, removed: ${removedCount}`);
+    return { processed: processedCount, updated: updatedCount, removed: removedCount };
+    
+  } catch (error) {
+    console.error(`[WeeklyAvailability] Error during time slot deletion by ID for user ${userId}:`, error);
+    throw error;
+  }
+};
+
 // Main function to run the daily automation
 export const runDailyWeeklyAvailabilityAutomation = async () => {
   try {
