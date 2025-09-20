@@ -76,16 +76,41 @@ export const getDashboard = async (req, res) => {
         .sort({ date: 1 })
         .limit(10);
 
-      const [stars, categories, upcomingShows] = await Promise.all([
+      // Query for top 5 popular stars (based on profile impressions) with random sorting
+      const popularStarsQuery = User.find({
+        role: 'star',
+        profileImpressions: { $gt: 0 }, // Only stars with some profile views
+        $and: [
+          { name: { $exists: true, $ne: null } },
+          { name: { $ne: '' } },
+          { pseudo: { $exists: true, $ne: null } },
+          { pseudo: { $ne: '' } },
+          { about: { $exists: true, $ne: null } },
+          { about: { $ne: '' } },
+          { profession: { $exists: true, $ne: null } }
+        ]
+      })
+        .populate('profession')
+        .select('name pseudo profilePic about profession availableForBookings baroniId profileImpressions')
+        .sort({ profileImpressions: -1 })
+        .limit(20); // Get more than 5 to allow for random selection
+
+      const [stars, categories, upcomingShows, popularStars] = await Promise.all([
         starsQuery,
         categoriesQuery,
-        liveShowsQuery
+        liveShowsQuery,
+        popularStarsQuery
       ]);
+
+      // Randomly select top 5 popular stars from the fetched results
+      const shuffledPopularStars = [...popularStars].sort(() => Math.random() - 0.5);
+      const top5PopularStars = shuffledPopularStars.slice(0, 5).map(sanitizeUser);
 
       return res.json({
         success: true,
         data: {
           stars: stars.map(sanitizeUser),
+          popularStars: top5PopularStars,
           categories: categories.map(cat => ({
             id: cat._id,
             name: cat.name,

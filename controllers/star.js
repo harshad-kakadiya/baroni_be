@@ -213,7 +213,7 @@ export const becomeStar = async (req, res) => {
 
 export const getAllStars = async (req, res) => {
     try {
-        const { q, country } = req.query;
+        const { q, country, category } = req.query;
         const filter = {
             role: "star",
             hidden: { $ne: true }, // Exclude hidden stars from general search
@@ -230,39 +230,76 @@ export const getAllStars = async (req, res) => {
                 { profession: { $exists: true, $ne: null } }
             ]
         };
-        if (country) {
-            filter.country = country;
+        
+        // Apply country filter with case-insensitive matching
+        if (country && country.trim()) {
+            filter.country = { $regex: new RegExp(`^${country.trim()}$`, 'i') };
+        }
+        
+        // Apply category filter
+        if (category && category.trim()) {
+            filter.profession = category.trim();
         }
         if (q && q.trim()) {
             const regex = new RegExp(q.trim(), "i");
             const searchQuery = [{ name: regex }, { pseudo: regex }];
             
-            // Check if the search query looks like a baroniId (6 digits)
-            if (/^\d{6}$/.test(q.trim())) {
-                // For baroniId search, also include hidden stars
+            // Debug logging
+            console.log('Search query:', { q: q.trim(), isNumeric: /^\d+$/.test(q.trim()) });
+            
+            // Check if the search query looks like a baroniId (numeric)
+            if (/^\d+$/.test(q.trim())) {
+                // Debug: Show all baroniIds in database
+                const allBaroniIds = await User.find({ role: "star" }).select('baroniId');
+                console.log('All baroniIds in database:', allBaroniIds.map(u => u.baroniId).filter(id => id));
+                
+                // For baroniId search, also include hidden stars and don't require complete profile
                 const baroniIdFilter = {
                     role: "star",
-                    baroniId: q.trim(),
-                    // Only include stars that have filled up their details
-                    $and: [
-                        { name: { $exists: true, $ne: null } },
-                        { name: { $ne: '' } },
-                        { pseudo: { $exists: true, $ne: null } },
-                        { pseudo: { $ne: '' } },
-                        { about: { $exists: true, $ne: null } },
-                        { about: { $ne: '' } },
-                        { location: { $exists: true, $ne: null } },
-                        { location: { $ne: '' } },
-                        { profession: { $exists: true, $ne: null } }
-                    ]
+                    baroniId: q.trim()
                 };
-                if (country) {
-                    baroniIdFilter.country = country;
+                
+                // Apply country filter with case-insensitive matching
+                if (country && country.trim()) {
+                    baroniIdFilter.country = { $regex: new RegExp(`^${country.trim()}$`, 'i') };
                 }
                 
-                const stars = await User.find(baroniIdFilter).select(
-                    "-password -passwordResetToken -passwordResetExpires"
-                );
+                // Apply category filter
+                if (category && category.trim()) {
+                    baroniIdFilter.profession = category.trim();
+                }
+                
+                // Debug logging for baroniId filter
+                console.log('BaroniId filter:', JSON.stringify(baroniIdFilter, null, 2));
+                
+                let stars = await User.find(baroniIdFilter)
+                    .populate('profession', 'name image')
+                    .select("-password -passwordResetToken -passwordResetExpires");
+                
+                // Debug logging for results
+                console.log('BaroniId search results:', { count: stars.length, baroniIds: stars.map(s => s.baroniId) });
+                
+                // If no results found, try a more flexible search
+                if (stars.length === 0) {
+                    console.log('No results with exact baroniId match, trying flexible search...');
+                    const flexibleFilter = {
+                        role: "star",
+                        $or: [
+                            { baroniId: q.trim() },
+                            { baroniId: { $regex: new RegExp(q.trim(), 'i') } }
+                        ]
+                    };
+                    
+                    const flexibleStars = await User.find(flexibleFilter)
+                        .populate('profession', 'name image')
+                        .select("-password -passwordResetToken -passwordResetExpires");
+                    
+                    console.log('Flexible search results:', { count: flexibleStars.length, baroniIds: flexibleStars.map(s => s.baroniId) });
+                    
+                    if (flexibleStars.length > 0) {
+                        stars = flexibleStars;
+                    }
+                }
                 
                 // Check if user is authenticated to add favorite/liked status
                 let starsData = stars.map(star => star.toObject());
@@ -290,9 +327,9 @@ export const getAllStars = async (req, res) => {
             filter.$or = searchQuery;
         }
 
-        const stars = await User.find(filter).select(
-            "-password -passwordResetToken -passwordResetExpires"
-        );
+        const stars = await User.find(filter)
+            .populate('profession', 'name image')
+            .select("-password -passwordResetToken -passwordResetExpires");
 
         // if no stars found
         if (!stars || stars.length === 0) {
@@ -348,7 +385,7 @@ export const getStarById = async (req, res) => {
         // fetch star basic info with details check
         const star = await User.findOne({
             _id: id,
-            role: "star"}).select(
+            role: "star"}).populate('profession', 'name image').select(
             "-password -passwordResetToken -passwordResetExpires"
         );
 
@@ -439,18 +476,49 @@ export const getStarById = async (req, res) => {
             return showData;
         });
 
-        // Filter out unavailable (booked) time slots from availability
+        // Filter out unavailable (booked) time slots from availability and sort by nearest
         const filteredAvailability = Array.isArray(availability)
             ? availability
                 .map((doc) => {
                     const item = typeof doc.toObject === 'function' ? doc.toObject() : doc;
                     const timeSlots = Array.isArray(item.timeSlots)
-                        ? item.timeSlots.filter((s) => s && s.status === 'available')
+                        ? item.timeSlots
+                            .filter((s) => s && s.status === 'available')
+                            .sort((a, b) => {
+                                // Sort time slots by time within each day
+                                const timeA = parseTimeSlot(a.slot);
+                                const timeB = parseTimeSlot(b.slot);
+                                return timeA - timeB;
+                            })
                         : [];
                     return { ...item, timeSlots };
                 })
                 .filter((item) => Array.isArray(item.timeSlots) && item.timeSlots.length > 0)
+                .sort((a, b) => {
+                    // Sort by date (nearest first)
+                    return new Date(a.date) - new Date(b.date);
+                })
             : [];
+
+        // Helper function to parse time slot and convert to minutes for sorting
+        function parseTimeSlot(slot) {
+            if (!slot || typeof slot !== 'string') return 0;
+            
+            // Extract start time from slot (format: "HH:MM AM/PM - HH:MM AM/PM")
+            const timeMatch = slot.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+            if (timeMatch) {
+                let hour = parseInt(timeMatch[1], 10);
+                const minute = parseInt(timeMatch[2], 10);
+                const ampm = timeMatch[3].toUpperCase();
+                
+                // Convert to 24-hour format
+                if (ampm === 'PM' && hour !== 12) hour += 12;
+                if (ampm === 'AM' && hour === 12) hour = 0;
+                
+                return hour * 60 + minute; // Convert to minutes for easy comparison
+            }
+            return 0;
+        }
 
         res.status(200).json({
             success: true,

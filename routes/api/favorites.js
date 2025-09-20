@@ -10,8 +10,7 @@ import {
   removeFromFavoritesValidator,
   toggleFavoriteValidator
 } from '../../validators/favoritesValidators.js';
-import { requireAuth } from '../../middlewares/auth.js';
-import { requireFanRole } from '../../middlewares/roleAuth.js';
+import { requireAuth, requireRole } from '../../middlewares/auth.js';
 
 const router = express.Router();
 
@@ -19,7 +18,7 @@ const router = express.Router();
 router.use(requireAuth);
 
 // Apply fan-only restriction to all favorite routes
-router.use(requireFanRole);
+router.use(requireRole('fan'));
 
 router.post('/add', addToFavoritesValidator, addToFavorites);
 router.post('/remove', removeFromFavoritesValidator, removeFromFavorites);
