@@ -6,6 +6,7 @@ import { createTransaction, createHybridTransaction, completeTransaction, cancel
 import { TRANSACTION_TYPES, TRANSACTION_DESCRIPTIONS } from '../utils/transactionConstants.js';
 import Transaction from '../models/Transaction.js';
 import NotificationHelper from '../utils/notificationHelper.js';
+const { normalizeContact } = await import('../utils/normalizeContact.js');
 import { deleteConversationBetweenUsers } from '../services/messagingCleanup.js';
 
 const sanitize = (doc) => ({
@@ -42,7 +43,6 @@ export const createDedicationRequest = async (req, res) => {
     let txnResult;
     try {
       const { contact: payloadContact } = req.body || {};
-      const { normalizeContact } = await import('../utils/normalizeContact.js');
       const normalizedPhone = normalizeContact(payloadContact || '');
       if (!normalizedPhone) {
         return res.status(400).json({ success: false, message: 'User phone number is required' });
@@ -53,7 +53,7 @@ export const createDedicationRequest = async (req, res) => {
         receiverId: starId,
         amount: price,
         description: TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT],
-        userPhone: normalizedPhone,
+        userPhone: payloadContact,
         starName,
         metadata: {
           occasion,
@@ -197,14 +197,14 @@ export const approveDedicationRequest = async (req, res) => {
     item.approvedAt = new Date();
 
     const updated = await item.save();
-    
+
     // Send notification to fan about dedication request approval
     try {
       await NotificationHelper.sendDedicationNotification('DEDICATION_ACCEPTED', updated);
     } catch (notificationError) {
       console.error('Error sending dedication approval notification:', notificationError);
     }
-    
+
     return res.json({ success: true, data: sanitize(updated) });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -242,14 +242,14 @@ export const rejectDedicationRequest = async (req, res) => {
     }
 
     const updated = await item.save();
-    
+
     // Send notification to fan about dedication request rejection
     try {
       await NotificationHelper.sendDedicationNotification('DEDICATION_REJECTED', updated);
     } catch (notificationError) {
       console.error('Error sending dedication rejection notification:', notificationError);
     }
-    
+
     return res.json({ success: true, data: sanitize(updated) });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
