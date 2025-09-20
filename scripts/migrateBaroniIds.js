@@ -32,13 +32,14 @@ async function migrateBaroniIds() {
       return;
     }
 
-    // Generate and assign baroniIds to stars only
+    // Generate and assign baroniIds to stars only (5-digit system)
     for (const user of usersWithoutBaroniId) {
       try {
+        // Assign standard 5-digit Baroni ID for existing stars
         const baroniId = await generateUniqueBaroniId();
         user.baroniId = baroniId;
         await user.save();
-        console.log(`✓ Assigned baroniId ${baroniId} to user ${user._id} (${user.name || user.pseudo || 'Unknown'})`);
+        console.log(`✓ Assigned 5-digit baroniId ${baroniId} to user ${user._id} (${user.name || user.pseudo || 'Unknown'})`);
       } catch (error) {
         console.error(`✗ Failed to assign baroniId to user ${user._id}:`, error.message);
       }

@@ -21,6 +21,16 @@ const videoOnlyFilter = (_req, file, cb) => {
 export const upload = multer({ storage, fileFilter: imageOnlyFilter, limits: { fileSize: 5 * 1024 * 1024 } });
 export const uploadVideoOnly = multer({ storage, fileFilter: videoOnlyFilter, limits: { fileSize: 100 * 1024 * 1024 } });
 
+// Simple image upload for chat messages
+export const uploadChatMessage = multer({ 
+  storage, 
+  fileFilter: imageOnlyFilter, 
+  limits: { 
+    fileSize: 5 * 1024 * 1024, // 5MB limit for chat images
+    files: 1 // Only one image per message
+  } 
+});
+
 // Accept image for profilePic and video for dedicationSampleVideos in the same requests
 const mixedFileFilter = (_req, file, cb) => {
   if (file.fieldname === 'profilePic' || file.fieldname === 'image') {

@@ -13,8 +13,9 @@ const messageSchema = new mongoose.Schema({
         required: true
     },
     message: String,
-    type: {type: String, default: "text"}
+    type: {type: String, default: "text"},
+    imageUrl: String
 }, {timestamps: true});
 
-const MessageModel=  mongoose.model('Message', messageSchema);
+const MessageModel = mongoose.model('Message', messageSchema);
 export default MessageModel;

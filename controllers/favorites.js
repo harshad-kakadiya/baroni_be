@@ -22,10 +22,7 @@ export const addToFavorites = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid star ID' });
     }
 
-    // Check if user is a fan
-    if (req.user.role !== 'fan') {
-      return res.status(403).json({ success: false, message: 'Only fans can add favorites' });
-    }
+    // Role check is handled by middleware
 
     // Check if star exists and is actually a star
     const star = await User.findOne({ _id: starId, role: 'star' });
@@ -75,10 +72,7 @@ export const removeFromFavorites = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid star ID' });
     }
 
-    // Check if user is a fan
-    if (req.user.role !== 'fan') {
-      return res.status(403).json({ success: false, message: 'Only fans can remove favorites' });
-    }
+    // Role check is handled by middleware
 
     // Remove from favorites
     const fan = await User.findById(fanId);
@@ -123,10 +117,7 @@ export const toggleFavorite = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid star ID' });
     }
 
-    // Check if user is a fan
-    if (req.user.role !== 'fan') {
-      return res.status(403).json({ success: false, message: 'Only fans can manage favorites' });
-    }
+    // Role check is handled by middleware
 
     // Check if star exists and is actually a star
     const star = await User.findOne({ _id: starId, role: 'star' });
@@ -176,10 +167,7 @@ export const getFavorites = async (req, res) => {
 
     const fanId = req.user._id;
 
-    // Check if user is a fan
-    if (req.user.role !== 'fan') {
-      return res.status(403).json({ success: false, message: 'Only fans can view favorites' });
-    }
+    // Role check is handled by middleware
 
     // Get user with populated favorites
     const fan = await User.findById(fanId).populate({

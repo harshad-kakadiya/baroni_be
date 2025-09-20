@@ -2,10 +2,12 @@ import MessageModel from '../models/Message.js';
 import ConversationModel from '../models/Conversation.js';
 import User from '../models/User.js';
 import NotificationHelper from '../utils/notificationHelper.js';
+import { uploadFile } from '../utils/uploadFile.js';
 
 export const storeMessage = async (req, res) => {
     const { conversationId, receiverId, message, type } = req.body;
     const authSenderId = req.user && req.user._id ? req.user._id : null;
+    const file = req.file; // For image uploads
 
     if (!authSenderId) {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -95,16 +97,38 @@ export const storeMessage = async (req, res) => {
         effectiveReceiverId = otherParticipantId;
     }
 
-    const msg = await MessageModel.create({
+    // Create message data object
+    const messageData = {
         conversationId: actualConversationId,
         senderId: authSenderId,
         receiverId: effectiveReceiverId,
-        message,
-        type
-    });
+        message: message || '',
+        type: type || 'text'
+    };
+
+    // Handle image upload if file is provided
+    if (file && file.mimetype.startsWith('image/')) {
+        try {
+            const imageUrl = await uploadFile(file.buffer);
+            messageData.imageUrl = imageUrl;
+            messageData.type = 'image';
+            // If no message text provided, set a default message for image
+            if (!messageData.message) {
+                messageData.message = '';
+            }
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            return res.status(500).json({ 
+                success: false, 
+                message: 'Error uploading image' 
+            });
+        }
+    }
+
+    const msg = await MessageModel.create(messageData);
 
     await ConversationModel.findByIdAndUpdate(actualConversationId, {
-        lastMessage: message,
+        lastMessage: message || (messageData.type === 'image' ? 'Sent an image' : ''),
         lastMessageAt: new Date()
     });
 

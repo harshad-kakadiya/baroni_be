@@ -10,8 +10,22 @@ import Transaction from '../models/Transaction.js';
 export const getStarAnalytics = async (req, res) => {
   try {
     const starId = req.user._id;
+    const { startDate, endDate } = req.query;
     
-    // Get all analytics data in parallel
+    // Build date filter object
+    let dateFilter = {};
+    if (startDate || endDate) {
+      dateFilter.createdAt = {};
+      if (startDate) {
+        dateFilter.createdAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        dateFilter.createdAt.$lte = new Date(endDate);
+      }
+    }
+    
+    // Combine starId filter with date filter
+    const baseFilter = { starId, ...dateFilter };
     const [
       videoCallsData,
       dedicationsData,
@@ -25,64 +39,64 @@ export const getStarAnalytics = async (req, res) => {
     ] = await Promise.all([
       // Video Calls Analytics
       Promise.all([
-        Appointment.countDocuments({ starId, status: 'completed' }),
-        Appointment.countDocuments({ starId, status: 'pending' }),
-        Appointment.countDocuments({ starId, status: 'cancelled' })
+        Appointment.countDocuments({ ...baseFilter, status: 'completed' }),
+        Appointment.countDocuments({ ...baseFilter, status: 'pending' }),
+        Appointment.countDocuments({ ...baseFilter, status: 'cancelled' })
       ]),
       
       // Dedications Analytics
       Promise.all([
-        DedicationRequest.countDocuments({ starId, status: 'completed' }),
-        DedicationRequest.countDocuments({ starId, status: 'pending' }),
-        DedicationRequest.countDocuments({ starId, status: 'cancelled' })
+        DedicationRequest.countDocuments({ ...baseFilter, status: 'completed' }),
+        DedicationRequest.countDocuments({ ...baseFilter, status: 'pending' }),
+        DedicationRequest.countDocuments({ ...baseFilter, status: 'cancelled' })
       ]),
       
       // Live Shows Analytics
       Promise.all([
-        LiveShow.countDocuments({ starId, status: 'completed' }),
+        LiveShow.countDocuments({ ...baseFilter, status: 'completed' }),
         LiveShowAttendance.aggregate([
-          { $match: { starId: new mongoose.Types.ObjectId(starId), status: 'completed' } },
+          { $match: { starId: new mongoose.Types.ObjectId(starId), status: 'completed', ...dateFilter } },
           { $group: { _id: null, totalAudience: { $sum: 1 } } }
         ])
       ]),
       
       // Video Minutes Analytics
       Appointment.aggregate([
-        { $match: { starId: new mongoose.Types.ObjectId(starId), status: 'completed', callDuration: { $exists: true, $ne: null } } },
+        { $match: { starId: new mongoose.Types.ObjectId(starId), status: 'completed', callDuration: { $exists: true, $ne: null }, ...dateFilter } },
         { $group: { _id: null, totalMinutes: { $sum: '$callDuration' }, avgDuration: { $avg: '$callDuration' } } }
       ]),
       
       // Unique Fans Reached
-      Appointment.distinct('fanId', { starId, status: { $in: ['completed', 'approved', 'pending'] } }),
+      Appointment.distinct('fanId', { ...baseFilter, status: { $in: ['completed', 'approved', 'pending'] } }),
       
       // Profile Impressions - get from User model
       User.findById(starId).select('profileImpressions').then(user => user?.profileImpressions || 0),
       
       // Video Impressions (simulated - you might want to track this separately)
-      Appointment.countDocuments({ starId, status: 'completed' }).then(count => count * 2), // Placeholder calculation
+      Appointment.countDocuments({ ...baseFilter, status: 'completed' }).then(count => count * 2), // Placeholder calculation
       
       // Revenue Analytics
       Promise.all([
         // Video Calls Revenue
         Appointment.aggregate([
-          { $match: { starId: new mongoose.Types.ObjectId(starId), status: 'completed' } },
+          { $match: { starId: new mongoose.Types.ObjectId(starId), status: 'completed', ...dateFilter } },
           { $group: { _id: null, totalRevenue: { $sum: '$price' } } }
         ]),
         // Dedications Revenue
         DedicationRequest.aggregate([
-          { $match: { starId: new mongoose.Types.ObjectId(starId), status: 'completed' } },
+          { $match: { starId: new mongoose.Types.ObjectId(starId), status: 'completed', ...dateFilter } },
           { $group: { _id: null, totalRevenue: { $sum: '$price' } } }
         ]),
         // Live Shows Revenue
         LiveShowAttendance.aggregate([
-          { $match: { starId: new mongoose.Types.ObjectId(starId), status: 'completed' } },
+          { $match: { starId: new mongoose.Types.ObjectId(starId), status: 'completed', ...dateFilter } },
           { $group: { _id: null, totalRevenue: { $sum: '$attendanceFee' } } }
         ])
       ]),
       
       // Most Committed Countries
       Appointment.aggregate([
-        { $match: { starId: new mongoose.Types.ObjectId(starId), status: { $in: ['completed', 'approved', 'pending'] } } },
+        { $match: { starId: new mongoose.Types.ObjectId(starId), status: { $in: ['completed', 'approved', 'pending'] }, ...dateFilter } },
         { $lookup: { from: 'users', localField: 'fanId', foreignField: '_id', as: 'fan' } },
         { $unwind: '$fan' },
         { $group: { _id: '$fan.country', fanCount: { $sum: 1 } } },
@@ -132,6 +146,11 @@ export const getStarAnalytics = async (req, res) => {
     };
 
     const analytics = {
+      dateRange: {
+        startDate: startDate || null,
+        endDate: endDate || null,
+        applied: !!(startDate || endDate)
+      },
       keyMetrics: {
         videoCalls: {
           total: totalVideoCalls,

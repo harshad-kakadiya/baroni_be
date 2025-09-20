@@ -18,6 +18,7 @@ const sanitizeUser = (user) => ({
   profession: user.profession,
   role: user.role,
   availableForBookings: user.availableForBookings,
+  baroniId: user.baroniId,
 });
 
 export const getDashboard = async (req, res) => {
@@ -50,7 +51,7 @@ export const getDashboard = async (req, res) => {
 
       const starsQuery = User.find(starCriteria)
         .populate('profession')
-        .select('name pseudo profilePic about profession availableForBookings')
+        .select('name pseudo profilePic about profession availableForBookings baroniId')
         .sort({ createdAt: -1 })
         .limit(20);
 
@@ -71,7 +72,7 @@ export const getDashboard = async (req, res) => {
       }
 
       const liveShowsQuery = LiveShow.find(liveShowFilter)
-        .populate('starId', 'name pseudo profilePic availableForBookings')
+        .populate('starId', 'name pseudo profilePic availableForBookings baroniId')
         .sort({ date: 1 })
         .limit(10);
 
@@ -109,7 +110,8 @@ export const getDashboard = async (req, res) => {
               name: show.starId.name,
               pseudo: show.starId.pseudo,
               profilePic: show.starId.profilePic,
-              availableForBookings: show.starId.availableForBookings
+              availableForBookings: show.starId.availableForBookings,
+              baroniId: show.starId.baroniId
             } : null
           }))
         },
@@ -253,7 +255,7 @@ export const getDashboard = async (req, res) => {
         .limit(10);
 
       const recentAppointments = await Appointment.find()
-        .populate('starId', 'name pseudo')
+        .populate('starId', 'name pseudo baroniId')
         .populate('fanId', 'name pseudo')
         .sort({ createdAt: -1 })
         .limit(10);
@@ -277,7 +279,7 @@ export const getDashboard = async (req, res) => {
           })),
           recentAppointments: recentAppointments.map(apt => ({
             id: apt._id,
-            star: apt.starId ? { id: apt.starId._id, name: apt.starId.name, pseudo: apt.starId.pseudo } : null,
+            star: apt.starId ? { id: apt.starId._id, name: apt.starId.name, pseudo: apt.starId.pseudo, baroniId: apt.starId.baroniId } : null,
             fan: apt.fanId ? { id: apt.fanId._id, name: apt.fanId.name, pseudo: apt.fanId.pseudo } : null,
             date: apt.date,
             time: apt.time,

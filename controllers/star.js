@@ -20,10 +20,10 @@ import Review from "../models/Review.js";
  */
 export const getBaroniIdPatterns = async (req, res) => {
     try {
-        // Generate a standard baroni ID pattern
+        // Generate a standard baroni ID pattern (5-digit random)
         const standardId = await generateUniqueBaroniId();
         
-        // Generate a gold baroni ID pattern
+        // Generate a gold baroni ID pattern (5-digit from predefined list)
         const goldId = await generateUniqueGoldBaroniId();
         
         return res.status(200).json({
@@ -31,11 +31,11 @@ export const getBaroniIdPatterns = async (req, res) => {
             data: {
                 standard: {
                     pattern: standardId,
-                    description: "Standard 6-digit baroni ID"
+                    description: "Standard 5-digit baroni ID"
                 },
                 gold: {
                     pattern: goldId,
-                    description: "Gold baroni ID with special pattern (AAAAAA or ABABAB)"
+                    description: "Gold baroni ID from special collection"
                 }
             }
         });
@@ -181,9 +181,11 @@ export const becomeStar = async (req, res) => {
 
         // Always assign a baroniId when promoting to star
         if (String(plan) === 'gold') {
+            // Assign gold Baroni ID from predefined list
             const newGoldId = await generateUniqueGoldBaroniId();
             updates.baroniId = newGoldId;
         } else {
+            // Assign standard 5-digit random Baroni ID
             const newId = await generateUniqueBaroniId();
             updates.baroniId = newId;
         }

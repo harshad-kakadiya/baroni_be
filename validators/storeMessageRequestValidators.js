@@ -13,8 +13,7 @@ export const storeMessageValidator = [
         .withMessage("receiverId must be a string when creating new conversation"),
 
     body("message")
-        .notEmpty()
-        .withMessage("Message content is required")
+        .optional()
         .isString()
         .withMessage("Message must be a string"),
 
@@ -26,13 +25,22 @@ export const storeMessageValidator = [
     // Custom validation middleware to check conversation rules
     async (req, res, next) => {
         try {
-            const { receiverId } = req.body;
+            const { receiverId, message } = req.body;
             const senderId = req.user && req.user._id ? req.user._id : null;
+            const file = req.file;
 
             if (!senderId) {
                 return res.status(401).json({ 
                     success: false, 
                     message: 'Unauthorized' 
+                });
+            }
+
+            // Check if either message or image is provided
+            if (!message && !file) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Either message content or image is required'
                 });
             }
 
