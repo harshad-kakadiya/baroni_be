@@ -8,7 +8,7 @@ export function GenerateRtmAgoraToken(userId) {
     return agora.RtmTokenBuilder.buildToken(
         AGORA_APP_ID,
         AGORA_APP_CERTIFICATE,
-        Number(userId),
+        userId,
         agora.RtmRole.Rtm_User,
         0
     );
@@ -19,7 +19,7 @@ export function GenerateRtcAgoraToken(userId, channelName) {
         AGORA_APP_ID,
         AGORA_APP_CERTIFICATE,
         channelName,
-        Number(userId),
+        userId,
         agora.RtcRole.PUBLISHER,
         0
     );
