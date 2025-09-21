@@ -88,7 +88,7 @@ export const submitAppointmentReview = async (req, res) => {
     await updateStarRating(appointment.starId);
 
     // Populate reviewer info for response
-    await review.populate('reviewerId', 'name pseudo profilePic');
+    await review.populate('reviewerId', 'name pseudo profilePic agoraKey');
 
     return res.status(201).json({
       success: true,
@@ -166,7 +166,7 @@ export const submitDedicationReview = async (req, res) => {
     await updateStarRating(dedicationRequest.starId);
 
     // Populate reviewer info for response
-    await review.populate('reviewerId', 'name pseudo profilePic');
+    await review.populate('reviewerId', 'name pseudo profilePic agoraKey');
 
     return res.status(201).json({
       success: true,
@@ -240,7 +240,7 @@ export const submitLiveShowReview = async (req, res) => {
     await updateStarRating(liveShow.starId);
 
     // Populate reviewer info for response
-    await review.populate('reviewerId', 'name pseudo profilePic');
+    await review.populate('reviewerId', 'name pseudo profilePic agoraKey');
 
     return res.status(201).json({
       success: true,
@@ -278,7 +278,7 @@ export const getStarReviews = async (req, res) => {
     const reviews = await Review.find({ 
       starId
     })
-    .populate('reviewerId', 'name pseudo profilePic')
+    .populate('reviewerId', 'name pseudo profilePic agoraKey')
     .sort({ createdAt: -1 });
 
     const star = await User.findById(starId).select('averageRating totalReviews');
@@ -319,7 +319,7 @@ export const getMyReviews = async (req, res) => {
     const filter = isStar ? { starId: req.user._id } : { reviewerId: req.user._id };
 
     const reviews = await Review.find(filter)
-      .populate(isStar ? 'reviewerId' : 'starId', 'name pseudo profilePic')
+      .populate(isStar ? 'reviewerId' : 'starId', 'name pseudo profilePic agoraKey')
       .sort({ createdAt: -1 });
 
     return res.json({

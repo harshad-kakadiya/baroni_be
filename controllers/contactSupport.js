@@ -37,7 +37,7 @@ export const createSupportTicket = async (req, res) => {
     });
 
     // Populate user details
-    await supportTicket.populate('userId', 'name email baroniId');
+    await supportTicket.populate('userId', 'name email baroniId agoraKey');
 
     return res.status(201).json({
       success: true,
@@ -60,7 +60,7 @@ export const getUserSupportTickets = async (req, res) => {
     const userId = req.user.id;
 
     const tickets = await ContactSupport.find({ userId })
-      .populate('userId', 'name email baroniId')
+      .populate('userId', 'name email baroniId agoraKey')
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
@@ -84,7 +84,7 @@ export const getSupportTicketById = async (req, res) => {
     const userId = req.user.id;
 
     const ticket = await ContactSupport.findById(id)
-      .populate('userId', 'name email baroniId');
+      .populate('userId', 'name email baroniId agoraKey');
 
     if (!ticket) {
       return res.status(404).json({
@@ -232,7 +232,7 @@ export const getAllSupportTickets = async (req, res) => {
     if (issueType) filter.issueType = issueType;
 
     const tickets = await ContactSupport.find(filter)
-      .populate('userId', 'name email baroniId')
+      .populate('userId', 'name email baroniId agoraKey')
       .sort({ createdAt: -1 });
 
     return res.status(200).json({

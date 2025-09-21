@@ -23,7 +23,7 @@ export const getUserNotifications = async (req, res) => {
     // Get all notifications sorted by sentAt (latest first)
     const notifications = await Notification.find(query)
       .sort({ sentAt: -1 })
-      .populate('user', 'name pseudo profilePic')
+      .populate('user', 'name pseudo profilePic agoraKey')
       .lean();
 
     // Add timeAgo to each notification
@@ -275,7 +275,7 @@ export const sendNotificationToLiveShowAttendees = async (req, res) => {
 
     // First, verify that the live show exists and get its details
     const liveShow = await LiveShow.findById(liveShowId)
-      .populate('starId', 'name pseudo profilePic')
+      .populate('starId', 'name pseudo profilePic agoraKey')
       .lean();
 
     if (!liveShow) {

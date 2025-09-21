@@ -140,8 +140,8 @@ export const listDedicationRequests = async (req, res) => {
     }
 
     const items = await DedicationRequest.find(filter)
-      .populate('fanId')
-      .populate('starId')
+      .populate('fanId', 'name pseudo profilePic agoraKey')
+      .populate('starId', 'name pseudo profilePic agoraKey')
       .sort({ createdAt: -1 });
 
     return res.json({ success: true, data: items.map(sanitize) });
@@ -157,8 +157,8 @@ export const getDedicationRequest = async (req, res) => {
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
 
     const item = await DedicationRequest.findById(req.params.id)
-      .populate('fanId')
-      .populate('starId');
+      .populate('fanId', 'name pseudo profilePic agoraKey')
+      .populate('starId', 'name pseudo profilePic agoraKey');
 
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
 
@@ -386,8 +386,8 @@ export const getDedicationRequestByTrackingId = async (req, res) => {
     const { trackingId } = req.params;
 
     const item = await DedicationRequest.findOne({ trackingId })
-      .populate('fanId')
-      .populate('starId');
+      .populate('fanId', 'name pseudo profilePic agoraKey')
+      .populate('starId', 'name pseudo profilePic agoraKey');
 
     if (!item) return res.status(404).json({ success: false, message: 'Request not found' });
 

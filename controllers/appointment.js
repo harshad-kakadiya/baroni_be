@@ -17,6 +17,7 @@ const toUser = (u) => (
     contact: u.contact,
     baroniId: u.baroniId,
     role: u.role,
+    agoraKey: u.agoraKey,
   } : u
 );
 
@@ -180,8 +181,8 @@ export const listAppointments = async (req, res) => {
     const isStar = req.user.role === 'star' || req.user.role === 'admin';
     const filter = isStar ? { starId: req.user._id } : { fanId: req.user._id };
     const items = await Appointment.find(filter)
-      .populate('starId', 'name pseudo profilePic baroniId email contact role')
-      .populate('fanId', 'name pseudo profilePic baroniId email contact role')
+      .populate('starId', 'name pseudo profilePic baroniId email contact role agoraKey')
+      .populate('fanId', 'name pseudo profilePic baroniId email contact role agoraKey')
       .populate('availabilityId')
       .sort({ createdAt: -1 });
 

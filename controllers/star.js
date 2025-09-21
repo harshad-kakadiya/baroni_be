@@ -452,7 +452,7 @@ export const getStarById = async (req, res) => {
 
         // fetch latest 5 reviews for this star
         const latestReviews = await Review.find({ starId: id })
-            .populate('reviewerId', 'name pseudo profilePic')
+            .populate('reviewerId', 'name pseudo profilePic agoraKey')
             .sort({ createdAt: -1 })
             .limit(5);
 

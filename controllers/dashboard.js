@@ -19,6 +19,7 @@ const sanitizeUser = (user) => ({
   role: user.role,
   availableForBookings: user.availableForBookings,
   baroniId: user.baroniId,
+  agoraKey: user.agoraKey,
 });
 
 export const getDashboard = async (req, res) => {
@@ -72,7 +73,7 @@ export const getDashboard = async (req, res) => {
       }
 
       const liveShowsQuery = LiveShow.find(liveShowFilter)
-        .populate('starId', 'name pseudo profilePic availableForBookings baroniId')
+        .populate('starId', 'name pseudo profilePic availableForBookings baroniId agoraKey')
         .sort({ date: 1 })
         .limit(10);
 
@@ -152,7 +153,7 @@ export const getDashboard = async (req, res) => {
           status: 'approved',
           date: { $gte: new Date().toISOString().split('T')[0] } // Today and future dates
         })
-        .populate('fanId', 'name pseudo profilePic')
+        .populate('fanId', 'name pseudo profilePic agoraKey')
         .sort({ date: 1, time: 1 })
         .limit(10),
 
@@ -280,8 +281,8 @@ export const getDashboard = async (req, res) => {
         .limit(10);
 
       const recentAppointments = await Appointment.find()
-        .populate('starId', 'name pseudo baroniId')
-        .populate('fanId', 'name pseudo')
+        .populate('starId', 'name pseudo baroniId agoraKey')
+        .populate('fanId', 'name pseudo agoraKey')
         .sort({ createdAt: -1 })
         .limit(10);
 

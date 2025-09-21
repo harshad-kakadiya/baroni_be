@@ -151,8 +151,8 @@ export const listMessages = async (req, res) => {
 
         const messages = await MessageModel.find({ conversationId })
             .sort({ createdAt: 1 })
-            .populate('senderId', 'name pseudo profilePic baroniId role')
-            .populate('receiverId', 'name pseudo profilePic baroniId role')
+            .populate('senderId', 'name pseudo profilePic baroniId role agoraKey')
+            .populate('receiverId', 'name pseudo profilePic baroniId role agoraKey')
             .lean();
 
         const authUserId = String(req.user && req.user._id ? req.user._id : '');

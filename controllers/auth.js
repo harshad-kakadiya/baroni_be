@@ -488,7 +488,7 @@ export const me = async (req, res) => {
     if (user.role === 'fan') {
       // Get fan's transactions only
       const transactions = await Transaction.find({ payerId: user._id })
-        .populate('receiverId', 'name pseudo profilePic role')
+        .populate('receiverId', 'name pseudo profilePic role agoraKey')
         .sort({ createdAt: -1 })
         .limit(20);
 

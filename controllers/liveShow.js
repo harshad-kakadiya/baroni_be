@@ -161,7 +161,7 @@ export const createLiveShow = async (req, res) => {
       transactionId: hostingTxn._id
     });
 
-    await liveShow.populate('starId', 'name pseudo profilePic');
+    await liveShow.populate('starId', 'name pseudo profilePic agoraKey');
 
     // Send notification to star's followers
     try {
@@ -194,7 +194,7 @@ export const getAllLiveShows = async (req, res) => {
       filter.status = 'pending';
     }
 
-    const shows = await LiveShow.find(filter).populate('starId', 'name pseudo profilePic availableForBookings').sort({ date: 1 });
+    const shows = await LiveShow.find(filter).populate('starId', 'name pseudo profilePic availableForBookings agoraKey').sort({ date: 1 });
 
     const showsData = shows.map(show => setPerUserFlags(sanitizeLiveShow(show), show, req));
 
@@ -209,7 +209,7 @@ export const getLiveShowById = async (req, res) => {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ success: false, message: 'Invalid live show ID' });
 
-    const show = await LiveShow.findById(id).populate('starId', 'name pseudo profilePic availableForBookings');
+    const show = await LiveShow.findById(id).populate('starId', 'name pseudo profilePic availableForBookings agoraKey');
     if (!show) return res.status(404).json({ success: false, message: 'Live show not found' });
 
     const showData = setPerUserFlags(sanitizeLiveShow(show), show, req);
@@ -223,7 +223,7 @@ export const getLiveShowById = async (req, res) => {
 export const getLiveShowByCode = async (req, res) => {
   try {
     const { showCode } = req.params;
-    const show = await LiveShow.findOne({ showCode: showCode.toUpperCase() }).populate('starId', 'name pseudo profilePic availableForBookings');
+    const show = await LiveShow.findOne({ showCode: showCode.toUpperCase() }).populate('starId', 'name pseudo profilePic availableForBookings agoraKey');
     if (!show) return res.status(404).json({ success: false, message: 'Live show not found' });
 
     const showData = setPerUserFlags(sanitizeLiveShow(show), show, req);
@@ -255,7 +255,7 @@ export const updateLiveShow = async (req, res) => {
     if (req.file && req.file.buffer) updateData.thumbnail = await uploadFile(req.file.buffer);
 
     const updatedShow = await LiveShow.findByIdAndUpdate(id, updateData, { new: true, runValidators: true })
-      .populate('starId', 'name pseudo profilePic availableForBookings');
+      .populate('starId', 'name pseudo profilePic availableForBookings agoraKey');
 
     return res.json({ success: true, message: 'Live show updated successfully', data: sanitizeLiveShow(updatedShow) });
   } catch (err) {
@@ -464,7 +464,7 @@ export const cancelLiveShow = async (req, res) => {
     }
 
     const updated = await LiveShow.findByIdAndUpdate(id, { status: 'cancelled' }, { new: true })
-      .populate('starId', 'name pseudo profilePic availableForBookings');
+      .populate('starId', 'name pseudo profilePic availableForBookings agoraKey');
 
     // Send notification to attendees about cancellation
     try {
@@ -498,7 +498,7 @@ export const rescheduleLiveShow = async (req, res) => {
     if (time) payload.time = String(time);
 
     const updated = await LiveShow.findByIdAndUpdate(id, payload, { new: true, runValidators: true })
-      .populate('starId', 'name pseudo profilePic availableForBookings');
+      .populate('starId', 'name pseudo profilePic availableForBookings agoraKey');
 
     // Send notification to attendees about rescheduling
     try {
