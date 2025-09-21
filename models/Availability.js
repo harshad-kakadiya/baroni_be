@@ -9,7 +9,7 @@ const availabilitySchema = new mongoose.Schema(
       type: [
         new mongoose.Schema(
           {
-            slot: { type: String, required: true, trim: true }, // "HH:MM AM/PM - HH:MM AM/PM"
+            slot: { type: String, required: true, trim: true }, // "HH:MM - HH:MM" (24-hour format)
             status: { type: String, enum: ['available', 'unavailable'], default: 'available' },
           }
         ),

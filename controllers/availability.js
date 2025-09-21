@@ -15,10 +15,21 @@ const sanitize = (doc) => ({
   updatedAt: doc.updatedAt,
 });
 
-const toAmPm = (time) => {
+const to24Hour = (time) => {
   if (typeof time !== 'string') throw new Error('Invalid time');
   const raw = time.trim();
-  // Already AM/PM format
+  
+  // Already 24-hour format
+  const h24Match = raw.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if (h24Match) {
+    const hh = parseInt(h24Match[1], 10);
+    const mm = h24Match[2];
+    if (parseInt(mm, 10) > 59) throw new Error('Minute must be 00-59');
+    const hhStr = String(hh).padStart(2, '0');
+    return `${hhStr}:${mm}`;
+  }
+  
+  // AM/PM format (for backward compatibility)
   const ampmMatch = raw.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
   if (ampmMatch) {
     let hh = parseInt(ampmMatch[1], 10);
@@ -26,29 +37,24 @@ const toAmPm = (time) => {
     const suffix = ampmMatch[3].toUpperCase();
     if (hh < 1 || hh > 12) throw new Error('Hour must be 1-12');
     if (parseInt(mm, 10) > 59) throw new Error('Minute must be 00-59');
+    
+    // Convert to 24-hour format
+    if (suffix === 'PM' && hh !== 12) hh += 12;
+    if (suffix === 'AM' && hh === 12) hh = 0;
+    
     const hhStr = String(hh).padStart(2, '0');
-    return `${hhStr}:${mm} ${suffix}`;
+    return `${hhStr}:${mm}`;
   }
-  // 24-hour format
-  const h24 = raw.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
-  if (h24) {
-    let hh24 = parseInt(h24[1], 10);
-    const mm = h24[2];
-    const suffix = hh24 >= 12 ? 'PM' : 'AM';
-    let hh12 = hh24 % 12;
-    if (hh12 === 0) hh12 = 12;
-    const hhStr = String(hh12).padStart(2, '0');
-    return `${hhStr}:${mm} ${suffix}`;
-  }
-  throw new Error('Invalid time format');
+  
+  throw new Error('Invalid time format. Expected HH:MM (24-hour) or HH:MM AM/PM');
 };
 
 const normalizeTimeSlotString = (slot) => {
   if (typeof slot !== 'string') throw new Error('Invalid time slot');
   const parts = slot.split('-');
   if (parts.length !== 2) throw new Error('Time slot must be in start-end format');
-  const start = toAmPm(parts[0]);
-  const end = toAmPm(parts[1]);
+  const start = to24Hour(parts[0]);
+  const end = to24Hour(parts[1]);
   return `${start} - ${end}`;
 };
 
@@ -109,22 +115,28 @@ export const createAvailability = async (req, res) => {
       // Validate time slots are not in the past
       for (const timeSlot of timeSlots) {
         const slotString = typeof timeSlot === 'string' ? timeSlot : timeSlot.slot;
-        const timeMatch = slotString.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-        if (timeMatch) {
-          let hour = parseInt(timeMatch[1], 10);
-          const minute = parseInt(timeMatch[2], 10);
-          const ampm = timeMatch[3].toUpperCase();
+        const parts = slotString.split(' - ');
+        if (parts.length === 2) {
+          const startTime = parts[0].trim();
+          const endTime = parts[1].trim();
           
-          // Convert to 24-hour format
-          if (ampm === 'PM' && hour !== 12) hour += 12;
-          if (ampm === 'AM' && hour === 12) hour = 0;
-          
-          const slotTime = hour * 60 + minute;
-          if (slotTime <= currentTime) {
-            return res.status(400).json({ 
-              success: false, 
-              message: `Cannot create availability for past time slots. Time slot "${slotString}" is in the past.` 
-            });
+          // Check both start and end times
+          for (const timeStr of [startTime, endTime]) {
+            const timeMatch = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+            if (timeMatch) {
+              const hour = parseInt(timeMatch[1], 10);
+              const minute = parseInt(timeMatch[2], 10);
+              
+              if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+                const slotTime = hour * 60 + minute;
+                if (slotTime <= currentTime) {
+                  return res.status(400).json({ 
+                    success: false, 
+                    message: `Cannot create availability for past time slots. Time slot "${slotString}" is in the past.` 
+                  });
+                }
+              }
+            }
           }
         }
       }
@@ -290,21 +302,28 @@ export const updateAvailability = async (req, res) => {
           
           for (const timeSlot of timeSlots) {
             const slotString = typeof timeSlot === 'string' ? timeSlot : timeSlot.slot;
-            const timeMatch = slotString.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-            if (timeMatch) {
-              let hour = parseInt(timeMatch[1], 10);
-              const minute = parseInt(timeMatch[2], 10);
-              const ampm = timeMatch[3].toUpperCase();
+            const parts = slotString.split(' - ');
+            if (parts.length === 2) {
+              const startTime = parts[0].trim();
+              const endTime = parts[1].trim();
               
-              if (ampm === 'PM' && hour !== 12) hour += 12;
-              if (ampm === 'AM' && hour === 12) hour = 0;
-              
-              const slotTime = hour * 60 + minute;
-              if (slotTime <= currentTime) {
-                return res.status(400).json({ 
-                  success: false, 
-                  message: `Cannot update availability with past time slots. Time slot "${slotString}" is in the past.` 
-                });
+              // Check both start and end times
+              for (const timeStr of [startTime, endTime]) {
+                const timeMatch = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+                if (timeMatch) {
+                  const hour = parseInt(timeMatch[1], 10);
+                  const minute = parseInt(timeMatch[2], 10);
+                  
+                  if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+                    const slotTime = hour * 60 + minute;
+                    if (slotTime <= currentTime) {
+                      return res.status(400).json({ 
+                        success: false, 
+                        message: `Cannot update availability with past time slots. Time slot "${slotString}" is in the past.` 
+                      });
+                    }
+                  }
+                }
               }
             }
           }
