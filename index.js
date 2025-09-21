@@ -10,6 +10,7 @@ import { notFoundHandler, globalErrorHandler } from './middlewares/errorHandler.
 import notificationScheduler from './services/notificationScheduler.js';
 import { startRefundScheduler } from './services/refundScheduler.js';
 import { startWeeklyAvailabilityScheduler } from './services/weeklyAvailabilityScheduler.js';
+import { ensureAllUsersHaveAgoraKeys } from './scripts/ensureAllUsersHaveAgoraKeys.js';
 
 dotenv.config();
 
@@ -33,9 +34,20 @@ app.use(notFoundHandler);
 app.use(globalErrorHandler);
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   // eslint-disable-next-line no-console
   console.log(`Baroni API listening on port ${PORT}`);
+  
+  // Ensure all users have agoraKey (run once on startup)
+  try {
+    console.log('Checking for users without agoraKey...');
+    const result = await ensureAllUsersHaveAgoraKeys();
+    if (result.processed > 0) {
+      console.log(`✓ AgoraKey migration completed: ${result.updated} users updated`);
+    }
+  } catch (error) {
+    console.error('Error during agoraKey migration:', error);
+  }
   
   // Initialize notification scheduler
   notificationScheduler.init();

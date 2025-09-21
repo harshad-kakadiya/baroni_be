@@ -18,6 +18,7 @@ import Transaction from '../models/Transaction.js';
 import LiveShowAttendance from '../models/LiveShowAttendance.js';
 import mongoose from 'mongoose';
 import { normalizeContact } from '../utils/normalizeContact.js';
+import { generateUniqueAgoraKey } from '../utils/agoraKeyGenerator.js';
 
 const sanitizeUser = (user) => ({
   id: user._id,
@@ -38,6 +39,7 @@ const sanitizeUser = (user) => ({
   appNotification: user.appNotification,
   hidden: user.hidden,
   coinBalance: user.coinBalance,
+  agoraKey: user.agoraKey,
 });
 
 export const register = async (req, res) => {
@@ -95,6 +97,10 @@ export const register = async (req, res) => {
       role,
       fcmToken
     });
+
+    // Generate unique Agora key for the user
+    const agoraKey = await generateUniqueAgoraKey();
+    user.agoraKey = agoraKey;
 
     // Initialize user with 1000 coins
     await initializeUserCoins(user._id);

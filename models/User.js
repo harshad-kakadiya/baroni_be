@@ -37,6 +37,8 @@ const userSchema = new mongoose.Schema(
     profileImpressions: { type: Number, default: 0, min: 0 },
     // Incremented on every successful login to invalidate old tokens
     sessionVersion: { type: Number, default: 0 },
+    // Unique 7-digit numeric key for RTC/RTM token generation
+    agoraKey: { type: String, unique: true, sparse: true, index: true },
   },
   { timestamps: true }
 );
