@@ -49,7 +49,7 @@ export const register = async (req, res) => {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-  const { contact, email, password, role, fcmToken } = req.body;
+  const { contact, email, password, role, fcmToken, apnsToken } = req.body;
   const normalizedContact = typeof contact === 'string' ? normalizeContact(contact) : contact;
 
     // Check if we have either contact or email
@@ -95,7 +95,8 @@ export const register = async (req, res) => {
       email: normalizedEmail,
       password: hashedPassword,
       role,
-      fcmToken
+      ...(fcmToken ? { fcmToken } : {}),
+      ...(apnsToken ? { apnsToken } : {})
     });
 
     // Generate unique Agora key for the user
