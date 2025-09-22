@@ -74,6 +74,14 @@ const setPerUserFlags = (sanitized, show, req) => {
   data.isLiked = Array.isArray(show.likes) && req.user
     ? show.likes.some(u => u.toString() === req.user._id.toString())
     : false;
+  // Derived flag: upcoming if scheduled in the future and still pending
+  try {
+    const now = new Date();
+    const showDate = show && show.date ? new Date(show.date) : null;
+    data.isUpcoming = !!(showDate && showDate.getTime() > now.getTime() && show.status === 'pending');
+  } catch (_e) {
+    data.isUpcoming = false;
+  }
   return data;
 };
 
