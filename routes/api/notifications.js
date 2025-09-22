@@ -1,6 +1,6 @@
 import express from 'express';
 import { requireAuth } from '../../middlewares/auth.js';
-import { updateFcmToken } from '../../controllers/auth.js';
+import { updateFcmToken, updateApnsToken } from '../../controllers/auth.js';
 import {
   getUserNotifications,
   deleteNotification,
@@ -17,6 +17,9 @@ router.use(requireAuth);
 
 // Update FCM token
 router.patch('/fcm-token', updateFcmToken);
+
+// Update APNs token
+router.patch('/apns-token', updateApnsToken);
 
 // Test notification (for development)
 router.post('/test', sendTestNotification);

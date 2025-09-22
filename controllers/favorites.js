@@ -15,8 +15,15 @@ export const addToFavorites = async (req, res) => {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { starId } = req.body;
+    let { starId, baroniId, starBaroniId } = req.body;
     const fanId = req.user._id;
+
+    // Resolve by Baroni ID if provided
+    if (!starId && (baroniId || starBaroniId)) {
+      const star = await User.findOne({ baroniId: baroniId || starBaroniId, role: 'star' }).select('_id');
+      if (!star) return res.status(404).json({ success: false, message: 'Star not found' });
+      starId = star._id;
+    }
 
     if (!mongoose.Types.ObjectId.isValid(starId)) {
       return res.status(400).json({ success: false, message: 'Invalid star ID' });
@@ -64,8 +71,15 @@ export const removeFromFavorites = async (req, res) => {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { starId } = req.body;
+    let { starId, baroniId, starBaroniId } = req.body;
     const fanId = req.user._id;
+
+    // Resolve by Baroni ID if provided
+    if (!starId && (baroniId || starBaroniId)) {
+      const star = await User.findOne({ baroniId: baroniId || starBaroniId, role: 'star' }).select('_id');
+      if (!star) return res.status(404).json({ success: false, message: 'Star not found' });
+      starId = star._id;
+    }
 
     // Validate starId
     if (!mongoose.Types.ObjectId.isValid(starId)) {
@@ -109,8 +123,15 @@ export const toggleFavorite = async (req, res) => {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { starId } = req.body;
+    let { starId, baroniId, starBaroniId } = req.body;
     const fanId = req.user._id;
+
+    // Resolve by Baroni ID if provided
+    if (!starId && (baroniId || starBaroniId)) {
+      const star = await User.findOne({ baroniId: baroniId || starBaroniId, role: 'star' }).select('_id');
+      if (!star) return res.status(404).json({ success: false, message: 'Star not found' });
+      starId = star._id;
+    }
 
     // Validate starId
     if (!mongoose.Types.ObjectId.isValid(starId)) {

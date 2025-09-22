@@ -17,6 +17,7 @@
   "license": "ISC",
   "dependencies": {
     "agora-access-token": "^2.0.4",
+    "apn": "^2.2.0",
     "axios": "^1.11.0",
     "bcryptjs": "^2.4.3",
     "cloudinary": "^2.7.0",

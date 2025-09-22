@@ -37,7 +37,14 @@ export const createDedicationRequest = async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
 
-    const { starId, occasion, eventName, eventDate, description, price, starName } = req.body;
+    let { starId, starBaroniId, baroniId, occasion, eventName, eventDate, description, price, starName } = req.body;
+
+    // Allow passing star by Baroni ID
+    if (!starId && (starBaroniId || baroniId)) {
+      const starByBaroni = await (await import('../models/User.js')).default.findOne({ baroniId: starBaroniId || baroniId, role: 'star' }).select('_id');
+      if (!starByBaroni) return res.status(404).json({ success: false, message: 'Star not found' });
+      starId = starByBaroni._id;
+    }
 
     // Create hybrid transaction before creating dedication request
     let txnResult;

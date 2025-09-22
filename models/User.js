@@ -21,6 +21,7 @@ const userSchema = new mongoose.Schema(
     appNotification: { type: Boolean, default: true },
     hidden: { type: Boolean, default: false },
     fcmToken: { type: String, sparse: true, index: true },
+    apnsToken: { type: String, sparse: true, index: true },
     favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     isDeleted: { type: Boolean, default: false, index: true },
     deletedAt: { type: Date },

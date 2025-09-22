@@ -348,6 +348,7 @@ export const sendNotificationToLiveShowAttendees = async (req, res) => {
       description: liveShow.description,
       thumbnail: liveShow.thumbnail,
       starId: liveShow.starId,
+      starBaroniId: liveShow.starId && liveShow.starId.baroniId ? liveShow.starId.baroniId : undefined,
       createdAt: liveShow.createdAt,
       updatedAt: liveShow.updatedAt
     };

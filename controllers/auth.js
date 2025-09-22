@@ -796,4 +796,41 @@ export const updateFcmToken = async (req, res) => {
   }
 };
 
+// Update APNs token for iOS push notifications
+export const updateApnsToken = async (req, res) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const userId = req.user._id;
+    const { apnsToken } = req.body;
+
+    if (!apnsToken || typeof apnsToken !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'APNs token is required and must be a string'
+      });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { apnsToken },
+      { new: true }
+    ).select('-password -passwordResetToken -passwordResetExpires');
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    return res.json({
+      success: true,
+      message: 'APNs token updated successfully',
+      data: sanitizeUser(updatedUser)
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 

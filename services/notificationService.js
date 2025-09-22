@@ -1,10 +1,12 @@
 import admin from 'firebase-admin';
+import apn from 'apn';
 import User  from '../models/User.js';
 import Notification from '../models/Notification.js';
 
 // Initialize Firebase Admin SDK
 let firebaseApp;
 let isFirebaseInitialized = false;
+let apnsProvider = null;
 
 try {
   firebaseApp = admin.app();
@@ -34,6 +36,28 @@ try {
 class NotificationService {
   constructor() {
     this.messaging = isFirebaseInitialized ? admin.messaging() : null;
+    // Initialize APNs provider if credentials are present
+    if (
+      process.env.APNS_KEY_ID &&
+      process.env.APNS_TEAM_ID &&
+      process.env.APNS_BUNDLE_ID &&
+      process.env.APNS_PRIVATE_KEY
+    ) {
+      try {
+        apnsProvider = new apn.Provider({
+          token: {
+            key: Buffer.from(process.env.APNS_PRIVATE_KEY.replace(/\\n/g, '\n')),
+            keyId: process.env.APNS_KEY_ID,
+            teamId: process.env.APNS_TEAM_ID
+          },
+          production: process.env.NODE_ENV === 'production'
+        });
+      } catch (e) {
+        console.warn('Failed to initialize APNs provider:', e.message);
+      }
+    } else {
+      console.warn('APNs credentials not provided. iOS APNs notifications will be disabled.');
+    }
   }
 
   /**
@@ -80,63 +104,108 @@ class NotificationService {
 
     try {
       const user = await User.findById(userId);
-      if (!user || !user.fcmToken) {
-        console.log(`No FCM token found for user ${userId}`);
+      if (!user || (!user.fcmToken && !user.apnsToken)) {
+        console.log(`No push token found for user ${userId}`);
         // Update notification status to failed
         try {
           await Notification.findByIdAndUpdate(notificationRecord._id, {
             deliveryStatus: 'failed',
-            failureReason: 'No FCM token found'
+            failureReason: 'No push token found'
           });
         } catch (updateError) {
           console.error('Error updating notification status:', updateError);
         }
-        return { success: false, message: 'No FCM token found' };
+        return { success: false, message: 'No push token found' };
+      }
+      // Prefer APNs if iOS token present, otherwise use FCM
+      let deliverySucceeded = false;
+      let fcmResponse = null;
+      let apnsResponse = null;
+
+      if (user.apnsToken && apnsProvider) {
+        const note = new apn.Notification();
+        note.topic = process.env.APNS_BUNDLE_ID;
+        note.alert = {
+          title: notificationData.title,
+          body: notificationData.body
+        };
+        note.sound = 'default';
+        note.badge = 1;
+        note.payload = { ...data, ...(options.customPayload ? { customPayload: options.customPayload } : {}) };
+
+        apnsResponse = await apnsProvider.send(note, user.apnsToken);
+        deliverySucceeded = apnsResponse && apnsResponse.sent && apnsResponse.sent.length > 0;
+        if (!deliverySucceeded) {
+          console.warn('APNs delivery failed, falling back to FCM if available', apnsResponse && apnsResponse.failed);
+        }
       }
 
-      const message = {
-        token: user.fcmToken,
-        notification: {
-          title: notificationData.title,
-          body: notificationData.body,
-        },
-        data: {
-          ...data,
-          ...(options.customPayload ? { customPayload: options.customPayload } : {}),
-          clickAction: 'FLUTTER_NOTIFICATION_CLICK',
-          sound: 'default',
-        },
-        android: {
+      if (!deliverySucceeded && user.fcmToken && this.messaging) {
+        const message = {
+          token: user.fcmToken,
           notification: {
-            sound: 'default',
-            channelId: 'default',
-            priority: 'high',
+            title: notificationData.title,
+            body: notificationData.body,
           },
-        },
-        apns: {
-          payload: {
-            aps: {
+          data: {
+            ...data,
+            ...(options.customPayload ? { customPayload: options.customPayload } : {}),
+            clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+            sound: 'default',
+          },
+          android: {
+            notification: {
               sound: 'default',
-              badge: 1,
+              channelId: 'default',
+              priority: 'high',
             },
           },
-        },
-      };
+          apns: {
+            payload: {
+              aps: {
+                sound: 'default',
+                badge: 1,
+              },
+            },
+          },
+        };
+        fcmResponse = await this.messaging.send(message);
+        deliverySucceeded = !!fcmResponse;
+      }
 
-      const response = await this.messaging.send(message);
-      console.log(`Notification sent to user ${userId}:`, response);
+      // If we still haven't delivered and the only available token was APNs but APNs is not configured
+      if (
+        !deliverySucceeded &&
+        user.apnsToken &&
+        !apnsProvider &&
+        (!user.fcmToken || !this.messaging)
+      ) {
+        // Update notification status to failed with explicit reason
+        try {
+          await Notification.findByIdAndUpdate(notificationRecord._id, {
+            deliveryStatus: 'failed',
+            failureReason: 'APNs not configured and no FCM fallback'
+          });
+        } catch (_e) {}
+        return { success: false, message: 'APNs not configured and no FCM fallback', notificationId: notificationRecord._id };
+      }
+
+      if (!deliverySucceeded) {
+        throw new Error('All push delivery attempts failed');
+      }
+
+      console.log(`Notification sent to user ${userId}`);
       
       // Update notification status to sent
       try {
-        await Notification.findByIdAndUpdate(notificationRecord._id, {
-          deliveryStatus: 'sent',
-          fcmMessageId: response
-        });
+        const update = { deliveryStatus: 'sent' };
+        if (fcmResponse) update.fcmMessageId = fcmResponse;
+        await Notification.findByIdAndUpdate(notificationRecord._id, update);
       } catch (updateError) {
         console.error('Error updating notification status:', updateError);
       }
       
-      return { success: true, messageId: response, notificationId: notificationRecord._id };
+      return { success: true, messageId: fcmResponse || (apnsResponse && apnsResponse.sent && apnsResponse.sent[0] && apnsResponse.sent[0].response) || null, notificationId: notificationRecord._id };
     } catch (error) {
       console.error(`Error sending notification to user ${userId}:`, error);
 
@@ -169,16 +238,23 @@ class NotificationService {
    * @param {Object} options - Additional options for notification storage
    */
   async sendToMultipleUsers(userIds, notificationData, data = {}, options = {}) {
-    // Fetch users who have valid FCM tokens and build token list
+    // Fetch users who have any valid push tokens
     let usersWithTokens = [];
     try {
-      usersWithTokens = await User.find({ _id: { $in: userIds }, fcmToken: { $exists: true, $ne: null } });
+      usersWithTokens = await User.find({
+        _id: { $in: userIds },
+        $or: [
+          { fcmToken: { $exists: true, $ne: null } },
+          { apnsToken: { $exists: true, $ne: null } }
+        ]
+      });
     } catch (_e) {
       usersWithTokens = [];
     }
 
     const validUserIds = usersWithTokens.map(user => user._id);
-    const tokens = usersWithTokens.map(user => user.fcmToken);
+    const fcmTokens = usersWithTokens.filter(u => !!u.fcmToken).map(u => u.fcmToken);
+    const apnsTokens = usersWithTokens.filter(u => !!u.apnsToken).map(u => u.apnsToken);
 
     // Create notification records ONLY for users who have tokens
     let notificationRecords = [];
@@ -203,8 +279,8 @@ class NotificationService {
       }
     }
 
-    if (!isFirebaseInitialized || !this.messaging) {
-      console.log('Firebase not initialized. Multicast notification not sent.');
+    if ((!isFirebaseInitialized || !this.messaging) && (!apnsProvider || apnsTokens.length === 0)) {
+      console.log('No push providers initialized. Multicast notification not sent.');
       // Update created notification statuses to failed
       try {
         if (notificationRecords.length > 0) {
@@ -213,18 +289,18 @@ class NotificationService {
             { _id: { $in: notificationIds } },
             {
               deliveryStatus: 'failed',
-              failureReason: 'Firebase not initialized'
+              failureReason: (!apnsProvider ? 'APNs not configured' : 'Firebase not initialized')
             }
           );
         }
       } catch (updateError) {
         console.error('Error updating notification statuses:', updateError);
       }
-      return { success: false, message: 'Firebase not initialized' };
+      return { success: false, message: (!apnsProvider ? 'APNs not configured' : 'Firebase not initialized') };
     }
 
     try {
-      if (tokens.length === 0) {
+      if (fcmTokens.length === 0 && apnsTokens.length === 0) {
         // No valid tokens. If any notifications were created, mark them failed
         try {
           if (notificationRecords.length > 0) {
@@ -233,65 +309,94 @@ class NotificationService {
               { _id: { $in: notificationIds } },
               {
                 deliveryStatus: 'failed',
-                failureReason: 'No valid FCM tokens found'
+                failureReason: 'No valid push tokens found'
               }
             );
           }
         } catch (updateError) {
           console.error('Error updating notification statuses:', updateError);
         }
-        return { success: false, message: 'No valid FCM tokens found' };
+        return { success: false, message: 'No valid push tokens found' };
       }
 
-      const message = {
-        notification: {
-          title: notificationData.title,
-          body: notificationData.body,
-        },
-        data: {
-          ...data,
-          ...(options.customPayload ? { customPayload: options.customPayload } : {}),
-          clickAction: 'FLUTTER_NOTIFICATION_CLICK',
-          sound: 'default',
-        },
-        android: {
+      let fcmResponse = { successCount: 0, failureCount: 0, responses: [] };
+      if (isFirebaseInitialized && this.messaging && fcmTokens.length > 0) {
+        const fcmMessage = {
           notification: {
-            sound: 'default',
-            channelId: 'default',
-            priority: 'high',
+            title: notificationData.title,
+            body: notificationData.body,
           },
-        },
-        apns: {
-          payload: {
-            aps: {
+          data: {
+            ...data,
+            ...(options.customPayload ? { customPayload: options.customPayload } : {}),
+            clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+            sound: 'default',
+          },
+          android: {
+            notification: {
               sound: 'default',
-              badge: 1,
+              channelId: 'default',
+              priority: 'high',
             },
           },
-        },
-        tokens: tokens,
-      };
+          apns: {
+            payload: {
+              aps: {
+                sound: 'default',
+                badge: 1,
+              },
+            },
+          },
+          tokens: fcmTokens,
+        };
+        fcmResponse = await this.messaging.sendMulticast(fcmMessage);
+      }
 
-      const response = await this.messaging.sendMulticast(message);
-      console.log(`Multicast notification sent:`, response);
+      let apnsSuccessCount = 0;
+      let apnsFailureCount = 0;
+      const apnsFailedTokens = [];
+      if (apnsProvider && apnsTokens.length > 0) {
+        const note = new apn.Notification();
+        note.topic = process.env.APNS_BUNDLE_ID;
+        note.alert = {
+          title: notificationData.title,
+          body: notificationData.body
+        };
+        note.sound = 'default';
+        note.badge = 1;
+        note.payload = { ...data, ...(options.customPayload ? { customPayload: options.customPayload } : {}) };
+
+        const chunks = [];
+        const chunkSize = 100; // reasonable APNs batch size
+        for (let i = 0; i < apnsTokens.length; i += chunkSize) {
+          chunks.push(apnsTokens.slice(i, i + chunkSize));
+        }
+        for (const chunk of chunks) {
+          const resp = await apnsProvider.send(note, chunk);
+          apnsSuccessCount += resp.sent.length;
+          apnsFailureCount += resp.failed.length;
+          apnsFailedTokens.push(...resp.failed.map(f => f.device));
+        }
+      } else if (!apnsProvider && apnsTokens.length > 0) {
+        // Mark APNs paths failed if tokens exist but APNs isn't configured
+        apnsFailureCount = apnsTokens.length;
+        apnsFailedTokens.push(...apnsTokens);
+      }
+      const response = { successCount: fcmResponse.successCount + apnsSuccessCount, failureCount: fcmResponse.failureCount + apnsFailureCount, responses: fcmResponse.responses };
 
       // Update notification statuses based on delivery results
       try {
-        const successfulTokens = [];
-        const failedTokens = [];
-        
-        response.responses.forEach((resp, idx) => {
-          if (resp.success) {
-            successfulTokens.push(tokens[idx]);
-          } else {
-            failedTokens.push(tokens[idx]);
-          }
+        const successfulFcmTokens = [];
+        const failedFcmTokens = [];
+        (fcmResponse.responses || []).forEach((resp, idx) => {
+          if (resp.success) successfulFcmTokens.push(fcmTokens[idx]);
+          else failedFcmTokens.push(fcmTokens[idx]);
         });
 
         // Update successful notifications
-        if (successfulTokens.length > 0) {
+        if (successfulFcmTokens.length > 0) {
           const successfulUserIds = usersWithTokens
-            .filter(user => successfulTokens.includes(user.fcmToken))
+            .filter(user => successfulFcmTokens.includes(user.fcmToken))
             .map(user => user._id);
           
           await Notification.updateMany(
@@ -301,27 +406,35 @@ class NotificationService {
         }
 
         // Update failed notifications
+        const failedTokens = [...failedFcmTokens, ...apnsFailedTokens];
         if (failedTokens.length > 0) {
           const failedUserIds = usersWithTokens
-            .filter(user => failedTokens.includes(user.fcmToken))
+            .filter(user => failedTokens.includes(user.fcmToken) || failedTokens.includes(user.apnsToken))
             .map(user => user._id);
           
           await Notification.updateMany(
             { user: { $in: failedUserIds }, deliveryStatus: 'pending' },
             { 
               deliveryStatus: 'failed',
-              failureReason: 'FCM delivery failed'
+              failureReason: 'Push delivery failed'
             }
           );
         }
 
         // Remove invalid tokens
-        if (failedTokens.length > 0) {
+        if (failedFcmTokens.length > 0) {
           await User.updateMany(
-            { fcmToken: { $in: failedTokens } },
+            { fcmToken: { $in: failedFcmTokens } },
             { $unset: { fcmToken: 1 } }
           );
-          console.log(`Removed ${failedTokens.length} invalid FCM tokens`);
+          console.log(`Removed ${failedFcmTokens.length} invalid FCM tokens`);
+        }
+        if (apnsFailedTokens.length > 0) {
+          await User.updateMany(
+            { apnsToken: { $in: apnsFailedTokens } },
+            { $unset: { apnsToken: 1 } }
+          );
+          console.log(`Removed ${apnsFailedTokens.length} invalid APNs tokens`);
         }
       } catch (updateError) {
         console.error('Error updating notification statuses:', updateError);
