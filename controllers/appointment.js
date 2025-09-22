@@ -180,6 +180,16 @@ export const listAppointments = async (req, res) => {
   try {
     const isStar = req.user.role === 'star' || req.user.role === 'admin';
     const filter = isStar ? { starId: req.user._id } : { fanId: req.user._id };
+    // Optional date filtering: exact date or range via startDate/endDate (expects YYYY-MM-DD strings)
+    const { date, startDate, endDate } = req.query || {};
+    if (date && typeof date === 'string' && date.trim()) {
+      filter.date = date.trim();
+    } else if ((startDate && typeof startDate === 'string') || (endDate && typeof endDate === 'string')) {
+      const range = {};
+      if (startDate && startDate.trim()) range.$gte = startDate.trim();
+      if (endDate && endDate.trim()) range.$lte = endDate.trim();
+      if (Object.keys(range).length > 0) filter.date = range;
+    }
     const items = await Appointment.find(filter)
       .populate('starId', 'name pseudo profilePic baroniId email contact role agoraKey')
       .populate('fanId', 'name pseudo profilePic baroniId email contact role agoraKey')

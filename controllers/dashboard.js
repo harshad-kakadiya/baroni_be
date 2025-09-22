@@ -53,7 +53,7 @@ export const getDashboard = async (req, res) => {
       const starsQuery = User.find(starCriteria)
         .populate('profession')
         .select('name pseudo profilePic about profession availableForBookings baroniId')
-        .sort({ createdAt: -1 })
+        .sort({ profileImpressions: -1, createdAt: -1 })
         .limit(20);
 
       const categoriesQuery = Category.find().sort({ name: 1 });
