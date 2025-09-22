@@ -41,6 +41,7 @@ const sanitize = (doc) => ({
   status: doc.status,
   transactionId: doc.transactionId,
   completedAt: doc.completedAt,
+  callDuration: typeof doc.callDuration === 'number' ? doc.callDuration : undefined,
   createdAt: doc.createdAt,
   updatedAt: doc.updatedAt,
 });
