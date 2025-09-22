@@ -14,6 +14,7 @@ const sanitize = (doc) => ({
   trackingId: doc.trackingId,
   fanId: doc.fanId,
   starId: doc.starId,
+  starBaroniId: doc.starId && doc.starId.baroniId ? doc.starId.baroniId : undefined,
   occasion: doc.occasion,
   eventName: doc.eventName,
   eventDate: doc.eventDate,
@@ -148,7 +149,7 @@ export const listDedicationRequests = async (req, res) => {
 
     const items = await DedicationRequest.find(filter)
       .populate('fanId', 'name pseudo profilePic agoraKey')
-      .populate('starId', 'name pseudo profilePic agoraKey')
+      .populate('starId', 'name pseudo profilePic agoraKey baroniId')
       .sort({ createdAt: -1 });
 
     return res.json({ success: true, data: items.map(sanitize) });
@@ -165,7 +166,7 @@ export const getDedicationRequest = async (req, res) => {
 
     const item = await DedicationRequest.findById(req.params.id)
       .populate('fanId', 'name pseudo profilePic agoraKey')
-      .populate('starId', 'name pseudo profilePic agoraKey');
+      .populate('starId', 'name pseudo profilePic agoraKey baroniId');
 
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
 
@@ -394,7 +395,7 @@ export const getDedicationRequestByTrackingId = async (req, res) => {
 
     const item = await DedicationRequest.findOne({ trackingId })
       .populate('fanId', 'name pseudo profilePic agoraKey')
-      .populate('starId', 'name pseudo profilePic agoraKey');
+      .populate('starId', 'name pseudo profilePic agoraKey baroniId');
 
     if (!item) return res.status(404).json({ success: false, message: 'Request not found' });
 
