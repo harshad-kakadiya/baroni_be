@@ -5,8 +5,6 @@ export const createSupportTicketValidator = [
   body('issueType'),
   body('description')
     .trim()
-    .isLength({ min: 10, max: 1000 })
-    .withMessage('Description must be between 10 and 1000 characters')
 ];
 
 // Validation for updating a support ticket
@@ -19,8 +17,6 @@ export const updateSupportTicketValidator = [
   body('description')
     .optional()
     .trim()
-    .isLength({ min: 10, max: 1000 })
-    .withMessage('Description must be between 10 and 1000 characters')
 ];
 
 // Validation for getting a specific support ticket
