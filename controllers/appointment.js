@@ -204,15 +204,45 @@ export const listAppointments = async (req, res) => {
       .populate('availabilityId')
       .sort({ createdAt: -1 });
 
-    const data = items.map((doc) => {
+    const parseStartDate = (dateStr, timeStr) => {
+      const [year, month, day] = (dateStr || '').split('-').map((v) => parseInt(v, 10));
+      let hours = 0;
+      let minutes = 0;
+      if (typeof timeStr === 'string') {
+        const m = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+        if (m) {
+          hours = parseInt(m[1], 10);
+          minutes = parseInt(m[2], 10);
+          const ampm = m[3].toUpperCase();
+          if (ampm === 'PM' && hours !== 12) hours += 12;
+          if (ampm === 'AM' && hours === 12) hours = 0;
+        }
+      }
+      const d = new Date(year || 0, (month || 1) - 1, day || 1, hours, minutes, 0, 0);
+      return d;
+    };
+
+    const withComputed = items.map((doc) => {
       const base = sanitize(doc);
       let timeSlotObj = undefined;
       if (doc.availabilityId && doc.availabilityId.timeSlots) {
         const found = doc.availabilityId.timeSlots.find((s) => String(s._id) === String(doc.timeSlotId));
         if (found) timeSlotObj = { id: found._id, slot: found.slot, status: found.status };
       }
-      return { ...base, timeSlot: timeSlotObj };
+      const startAt = parseStartDate(base.date, base.time);
+      const timeToNowMs = startAt.getTime() - Date.now();
+      return { ...base, timeSlot: timeSlotObj, startAt: isNaN(startAt.getTime()) ? undefined : startAt.toISOString(), timeToNowMs };
     });
+
+    const future = [];
+    const past = [];
+    for (const it of withComputed) {
+      if (typeof it.timeToNowMs === 'number' && it.timeToNowMs >= 0) future.push(it); else past.push(it);
+    }
+    future.sort((a, b) => (a.timeToNowMs ?? Infinity) - (b.timeToNowMs ?? Infinity));
+    past.sort((a, b) => Math.abs(a.timeToNowMs ?? 0) - Math.abs(b.timeToNowMs ?? 0));
+    const data = [...future, ...past];
+
     return res.json({ success: true, data });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });

@@ -204,9 +204,24 @@ export const getAllLiveShows = async (req, res) => {
 
     const shows = await LiveShow.find(filter).populate('starId', 'name pseudo profilePic availableForBookings agoraKey').sort({ date: 1 });
 
-    const showsData = shows.map(show => setPerUserFlags(sanitizeLiveShow(show), show, req));
+    const withComputed = shows.map((show) => {
+      const sanitized = sanitizeLiveShow(show);
+      const dateObj = sanitized.date ? new Date(sanitized.date) : undefined;
+      const timeToNowMs = dateObj ? (dateObj.getTime() - Date.now()) : undefined;
+      const flagged = setPerUserFlags(sanitized, show, req);
+      return { ...flagged, showAt: dateObj ? dateObj.toISOString() : undefined, timeToNowMs };
+    });
 
-    return res.json({ success: true, data: showsData });
+    const future = [];
+    const past = [];
+    for (const it of withComputed) {
+      if (typeof it.timeToNowMs === 'number' && it.timeToNowMs >= 0) future.push(it); else past.push(it);
+    }
+    future.sort((a, b) => (a.timeToNowMs ?? Infinity) - (b.timeToNowMs ?? Infinity));
+    past.sort((a, b) => Math.abs(a.timeToNowMs ?? 0) - Math.abs(b.timeToNowMs ?? 0));
+    const data = [...future, ...past];
+
+    return res.json({ success: true, data });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

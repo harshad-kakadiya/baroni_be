@@ -152,7 +152,23 @@ export const listDedicationRequests = async (req, res) => {
       .populate('starId', 'name pseudo profilePic agoraKey baroniId')
       .sort({ createdAt: -1 });
 
-    return res.json({ success: true, data: items.map(sanitize) });
+    const withComputed = items.map((doc) => {
+      const base = sanitize(doc);
+      const eventAt = base.eventDate ? new Date(base.eventDate) : undefined;
+      const timeToNowMs = eventAt ? (eventAt.getTime() - Date.now()) : undefined;
+      return { ...base, eventAt: eventAt ? eventAt.toISOString() : undefined, timeToNowMs };
+    });
+
+    const future = [];
+    const past = [];
+    for (const it of withComputed) {
+      if (typeof it.timeToNowMs === 'number' && it.timeToNowMs >= 0) future.push(it); else past.push(it);
+    }
+    future.sort((a, b) => (a.timeToNowMs ?? Infinity) - (b.timeToNowMs ?? Infinity));
+    past.sort((a, b) => Math.abs(a.timeToNowMs ?? 0) - Math.abs(b.timeToNowMs ?? 0));
+    const data = [...future, ...past];
+
+    return res.json({ success: true, data });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
