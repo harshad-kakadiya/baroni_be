@@ -17,6 +17,7 @@ class NotificationHelper {
     const data = {
       type: baseTemplate.type,
       appointmentId: appointment._id.toString(),
+      pushType: 'voip',
       ...additionalData
     };
 
@@ -46,14 +47,16 @@ class NotificationHelper {
     // Send to fan
     if (appointment.fanId) {
       await notificationService.sendToUser(appointment.fanId, fanTemplate, data, {
-        relatedEntity: { type: 'appointment', id: appointment._id }
+        relatedEntity: { type: 'appointment', id: appointment._id },
+        apnsVoip: true
       });
     }
 
     // Send to star
     if (appointment.starId) {
       await notificationService.sendToUser(appointment.starId, starTemplate, data, {
-        relatedEntity: { type: 'appointment', id: appointment._id }
+        relatedEntity: { type: 'appointment', id: appointment._id },
+        apnsVoip: true
       });
     }
   }
@@ -69,7 +72,8 @@ class NotificationHelper {
       type: template.type,
       appointmentId: appointment._id.toString(),
       starName: appointment.starName || 'Star',
-      fanName: appointment.fanName || 'Fan'
+      fanName: appointment.fanName || 'Fan',
+      pushType: 'voip'
     };
 
     // Customize message for each user
@@ -86,14 +90,16 @@ class NotificationHelper {
     // Send to fan
     if (appointment.fanId) {
       await notificationService.sendToUser(appointment.fanId, fanTemplate, data, {
-        relatedEntity: { type: 'appointment', id: appointment._id }
+        relatedEntity: { type: 'appointment', id: appointment._id },
+        apnsVoip: true
       });
     }
 
     // Send to star
     if (appointment.starId) {
       await notificationService.sendToUser(appointment.starId, starTemplate, data, {
-        relatedEntity: { type: 'appointment', id: appointment._id }
+        relatedEntity: { type: 'appointment', id: appointment._id },
+        apnsVoip: true
       });
     }
   }
@@ -173,18 +179,19 @@ class NotificationHelper {
     const data = {
       type: template.type,
       liveShowId: liveShow._id.toString(),
+      pushType: 'voip',
       ...additionalData
     };
 
     switch (type) {
       case 'LIVE_SHOW_CREATED':
         // Send to all fans who have this star as favorite
-        await this.sendToStarFollowers(liveShow.starId, template, data);
+        await this.sendToStarFollowers(liveShow.starId, template, data, { apnsVoip: true });
         break;
 
       case 'LIVE_SHOW_STARTING':
         // Send to all fans who joined this live show
-        await this.sendToLiveShowAttendees(liveShow._id, template, data);
+        await this.sendToLiveShowAttendees(liveShow._id, template, data, { apnsVoip: true });
         break;
 
       case 'LIVE_SHOW_CANCELLED':
@@ -192,10 +199,11 @@ class NotificationHelper {
         // Send to star and all attendees
         if (liveShow.starId) {
           await notificationService.sendToUser(liveShow.starId, template, data, {
-            relatedEntity: { type: 'live_show', id: liveShow._id }
+            relatedEntity: { type: 'live_show', id: liveShow._id },
+            apnsVoip: true
           });
         }
-        await this.sendToLiveShowAttendees(liveShow._id, template, data);
+        await this.sendToLiveShowAttendees(liveShow._id, template, data, { apnsVoip: true });
         break;
     }
   }
@@ -272,7 +280,7 @@ class NotificationHelper {
   /**
    * Send notification to star's followers
    */
-  static async sendToStarFollowers(starId, template, data = {}) {
+  static async sendToStarFollowers(starId, template, data = {}, options = {}) {
     try {
       // Find users who have this star as favorite
       const followers = await User.find({
@@ -285,7 +293,8 @@ class NotificationHelper {
 
       if (followerIds.length > 0) {
         await notificationService.sendToMultipleUsers(followerIds, template, data, {
-          relatedEntity: { type: 'live_show', id: starId }
+          relatedEntity: { type: 'live_show', id: starId },
+          apnsVoip: options.apnsVoip === true
         });
       }
     } catch (error) {
@@ -296,7 +305,7 @@ class NotificationHelper {
   /**
    * Send notification to live show attendees
    */
-  static async sendToLiveShowAttendees(liveShowId, template, data = {}) {
+  static async sendToLiveShowAttendees(liveShowId, template, data = {}, options = {}) {
     try {
       // Import LiveShowAttendance model
       const { LiveShowAttendance } = await import('../models/LiveShowAttendance.js');
@@ -312,7 +321,8 @@ class NotificationHelper {
 
       if (attendeeIds.length > 0) {
         await notificationService.sendToMultipleUsers(attendeeIds, template, data, {
-          relatedEntity: { type: 'live_show', id: liveShowId }
+          relatedEntity: { type: 'live_show', id: liveShowId },
+          apnsVoip: options.apnsVoip === true
         });
       }
     } catch (error) {

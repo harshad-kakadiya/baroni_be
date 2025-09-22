@@ -124,7 +124,13 @@ class NotificationService {
 
       if (user.apnsToken && apnsProvider) {
         const note = new apn.Notification();
-        note.topic = process.env.APNS_BUNDLE_ID;
+        const isVoip = options.apnsVoip || data.pushType === 'voip' || notificationData.pushType === 'voip';
+        const voipBundle = process.env.APNS_VOIP_BUNDLE_ID || (process.env.APNS_BUNDLE_ID ? `${process.env.APNS_BUNDLE_ID}.voip` : undefined);
+        note.topic = isVoip && voipBundle ? voipBundle : process.env.APNS_BUNDLE_ID;
+        if (isVoip) {
+          note.pushType = 'voip';
+          note.expiry = Math.floor(Date.now() / 1000) + 3600;
+        }
         note.alert = {
           title: notificationData.title,
           body: notificationData.body
@@ -357,7 +363,13 @@ class NotificationService {
       const apnsFailedTokens = [];
       if (apnsProvider && apnsTokens.length > 0) {
         const note = new apn.Notification();
-        note.topic = process.env.APNS_BUNDLE_ID;
+        const isVoip = options.apnsVoip || data.pushType === 'voip' || notificationData.pushType === 'voip';
+        const voipBundle = process.env.APNS_VOIP_BUNDLE_ID || (process.env.APNS_BUNDLE_ID ? `${process.env.APNS_BUNDLE_ID}.voip` : undefined);
+        note.topic = isVoip && voipBundle ? voipBundle : process.env.APNS_BUNDLE_ID;
+        if (isVoip) {
+          note.pushType = 'voip';
+          note.expiry = Math.floor(Date.now() / 1000) + 3600;
+        }
         note.alert = {
           title: notificationData.title,
           body: notificationData.body
