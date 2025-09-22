@@ -7,29 +7,52 @@ class NotificationHelper {
    */
   static async sendAppointmentNotification(type, appointment, additionalData = {}) {
     const templates = notificationService.constructor.getNotificationTemplates();
-    const template = templates[type];
+    const baseTemplate = templates[type];
 
-    if (!template) {
+    if (!baseTemplate) {
       console.error(`Notification template not found for type: ${type}`);
       return;
     }
 
     const data = {
-      type: template.type,
+      type: baseTemplate.type,
       appointmentId: appointment._id.toString(),
       ...additionalData
     };
 
+    // Try to fetch minimal user info for personalized messages
+    let fanName = 'Fan';
+    let starName = 'Star';
+    try {
+      const users = await User.find({ _id: { $in: [appointment.fanId, appointment.starId] } }).select('name');
+      for (const u of users) {
+        if (String(u._id) === String(appointment.fanId)) fanName = u.name || fanName;
+        if (String(u._id) === String(appointment.starId)) starName = u.name || starName;
+      }
+    } catch (_e) {}
+
+    // Fan message
+    const fanTemplate = {
+      ...baseTemplate,
+      ...(type === 'APPOINTMENT_CREATED' ? { body: `Your appointment request has been sent to ${starName}.` } : {})
+    };
+
+    // Star message
+    const starTemplate = {
+      ...baseTemplate,
+      ...(type === 'APPOINTMENT_CREATED' ? { title: 'New Appointment Request', body: `You have a new appointment request from ${fanName}.` } : {})
+    };
+
     // Send to fan
     if (appointment.fanId) {
-      await notificationService.sendToUser(appointment.fanId, template, data, {
+      await notificationService.sendToUser(appointment.fanId, fanTemplate, data, {
         relatedEntity: { type: 'appointment', id: appointment._id }
       });
     }
 
     // Send to star
     if (appointment.starId) {
-      await notificationService.sendToUser(appointment.starId, template, data, {
+      await notificationService.sendToUser(appointment.starId, starTemplate, data, {
         relatedEntity: { type: 'appointment', id: appointment._id }
       });
     }
