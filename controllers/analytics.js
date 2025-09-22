@@ -10,17 +10,39 @@ import Transaction from '../models/Transaction.js';
 export const getStarAnalytics = async (req, res) => {
   try {
     const starId = req.user._id;
-    const { startDate, endDate } = req.query;
+    const { date, startDate, endDate } = req.query;
     
-    // Build date filter object
+    // Build date filter object (inclusive full-day range)
     let dateFilter = {};
-    if (startDate || endDate) {
-      dateFilter.createdAt = {};
+    if (date || startDate || endDate) {
+      const createdAtRange = {};
+      if (date) {
+        const exact = new Date(date);
+        if (!isNaN(exact.getTime())) {
+          exact.setHours(0, 0, 0, 0);
+          const endExact = new Date(exact);
+          endExact.setHours(23, 59, 59, 999);
+          createdAtRange.$gte = exact;
+          createdAtRange.$lte = endExact;
+        }
+      } else {
       if (startDate) {
-        dateFilter.createdAt.$gte = new Date(startDate);
+        const start = new Date(startDate);
+        if (!isNaN(start.getTime())) {
+          start.setHours(0, 0, 0, 0);
+          createdAtRange.$gte = start;
+        }
       }
       if (endDate) {
-        dateFilter.createdAt.$lte = new Date(endDate);
+        const end = new Date(endDate);
+        if (!isNaN(end.getTime())) {
+          end.setHours(23, 59, 59, 999);
+          createdAtRange.$lte = end;
+        }
+      }
+      }
+      if (Object.keys(createdAtRange).length > 0) {
+        dateFilter.createdAt = createdAtRange;
       }
     }
     
