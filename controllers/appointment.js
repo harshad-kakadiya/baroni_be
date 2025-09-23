@@ -1,4 +1,5 @@
 import { validationResult } from 'express-validator';
+import { getFirstValidationError } from '../utils/validationHelper.js';
 import Availability from '../models/Availability.js';
 import Appointment from '../models/Appointment.js';
 import { createTransaction, createHybridTransaction, completeTransaction, cancelTransaction } from '../services/transactionService.js';
@@ -49,7 +50,10 @@ const sanitize = (doc) => ({
 export const createAppointment = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
     let { starId, starBaroniId, baroniId, availabilityId, timeSlotId, price, starName } = req.body;
 
     // Allow passing star by Baroni ID
@@ -252,7 +256,10 @@ export const listAppointments = async (req, res) => {
 export const approveAppointment = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
     const { id } = req.params;
     const appt = await Appointment.findOne({ _id: id, starId: req.user._id });
     if (!appt) return res.status(404).json({ success: false, message: 'Appointment not found' });
@@ -286,7 +293,10 @@ export const approveAppointment = async (req, res) => {
 export const rejectAppointment = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
     const { id } = req.params;
     const appt = await Appointment.findOne({ _id: id, starId: req.user._id });
     if (!appt) return res.status(404).json({ success: false, message: 'Appointment not found' });
@@ -319,7 +329,10 @@ export const rejectAppointment = async (req, res) => {
 export const cancelAppointment = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
     const { id } = req.params;
     const filter = { _id: id };
     if (req.user.role !== 'admin') filter.fanId = req.user._id;
@@ -360,7 +373,10 @@ export const cancelAppointment = async (req, res) => {
 export const rescheduleAppointment = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
     const { id } = req.params;
     const { availabilityId, timeSlotId } = req.body;
 
@@ -443,7 +459,10 @@ export const rescheduleAppointment = async (req, res) => {
 export const completeAppointment = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
     const { id } = req.params;
     const { callDuration } = req.body;
     const appt = await Appointment.findOne({ _id: id, starId: req.user._id });
