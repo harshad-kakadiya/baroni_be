@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import {validationResult} from 'express-validator';
+import { getFirstValidationError } from '../utils/validationHelper.js';
 import User from '../models/User.js';
 import Category from '../models/Category.js';
 import Dedication from '../models/Dedication.js';
@@ -46,7 +47,8 @@ export const register = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
     }
 
   const { contact, email, password, role, fcmToken, apnsToken } = req.body;
@@ -129,7 +131,8 @@ export const login = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
     }
 
     const { contact, email, isMobile } = req.body;
