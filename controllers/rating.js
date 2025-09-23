@@ -1,4 +1,5 @@
 import { validationResult } from 'express-validator';
+import { getFirstValidationError } from '../utils/validationHelper.js';
 import Review from '../models/Review.js';
 import User from '../models/User.js';
 import Appointment from '../models/Appointment.js';
@@ -42,7 +43,8 @@ export const submitAppointmentReview = async (req, res) => {
     }
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
     }
 
     const { appointmentId, rating, comment } = req.body;
@@ -120,7 +122,8 @@ export const submitDedicationReview = async (req, res) => {
     }
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
     }
 
     const { dedicationRequestId, rating, comment } = req.body;
@@ -194,7 +197,8 @@ export const submitLiveShowReview = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
     }
 
     const { liveShowId, rating, comment } = req.body;
@@ -362,7 +366,8 @@ export const updateReview = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
     }
 
     const { reviewId } = req.params;
