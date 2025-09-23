@@ -53,6 +53,8 @@ const sanitizeLiveShow = (show) => ({
     role: a.role
   } : a) : show.attendees,
   likes: show.likes,
+  likeCount: Array.isArray(show.likes) ? show.likes.length : 0,
+  likesCount: Array.isArray(show.likes) ? show.likes.length : 0,
   status: show.status,
   createdAt: show.createdAt,
   updatedAt: show.updatedAt,
@@ -60,6 +62,9 @@ const sanitizeLiveShow = (show) => ({
 
 const setPerUserFlags = (sanitized, show, req) => {
   const data = { ...sanitized };
+  // Ensure likeCount is always present across all responses
+  data.likeCount = Array.isArray(show.likes) ? show.likes.length : 0;
+  data.likesCount = data.likeCount;
   if (req.user && req.user.role === 'fan') {
     const starId = show.starId && show.starId._id ? show.starId._id : show.starId;
     data.isFavorite = Array.isArray(req.user.favorites) && starId
@@ -211,7 +216,9 @@ export const getAllLiveShows = async (req, res) => {
       const dateObj = sanitized.date ? new Date(sanitized.date) : undefined;
       const timeToNowMs = dateObj ? (dateObj.getTime() - Date.now()) : undefined;
       const flagged = setPerUserFlags(sanitized, show, req);
-      return { ...flagged, showAt: dateObj ? dateObj.toISOString() : undefined, timeToNowMs };
+      const likescount = Array.isArray(show.likes) ? show.likes.length : 0;
+      const { likes, likeCount, likesCount, ...rest } = flagged;
+      return { ...rest, likescount, showAt: dateObj ? dateObj.toISOString() : undefined, timeToNowMs };
     });
 
     const future = [];
