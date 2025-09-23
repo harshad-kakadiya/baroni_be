@@ -16,7 +16,7 @@ dotenv.config();
 
 const app = express();
 
-// Middleware
+// Middlewares
 app.use(cors({ origin: '*', credentials: true }));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
