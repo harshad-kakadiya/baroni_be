@@ -1,4 +1,5 @@
 import { validationResult } from 'express-validator';
+import { getFirstValidationError } from '../utils/validationHelper.js';
 import { 
   createTransaction, 
   createHybridTransaction,
@@ -12,7 +13,8 @@ export const createNewHybridTransaction = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
     }
 
     const { type, receiverId, amount, description, metadata, contact, starName } = req.body;
@@ -65,7 +67,8 @@ export const createNewTransaction = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
     }
 
     const { type, receiverId, amount, description, paymentMode, metadata } = req.body;
