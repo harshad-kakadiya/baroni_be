@@ -1,4 +1,5 @@
 import { validationResult } from 'express-validator';
+import { getFirstValidationError } from '../utils/validationHelper.js';
 import Config from '../models/Config.js';
 
 const sanitizeConfig = (cfg) => ({
@@ -24,7 +25,8 @@ export const upsertConfig = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
     }
 
     const cfg = await Config.getSingleton();
