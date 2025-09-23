@@ -1,4 +1,5 @@
 import { validationResult } from 'express-validator';
+import { getFirstValidationError } from '../utils/validationHelper.js';
 import LiveShow from '../models/LiveShow.js';
 import LiveShowAttendance from '../models/LiveShowAttendance.js';
 import User from '../models/User.js';
@@ -90,7 +91,8 @@ export const createLiveShow = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
     }
 
     const { sessionTitle, date, time, attendanceFee, hostingPrice, maxCapacity, description, starName } = req.body;
@@ -260,7 +262,10 @@ export const getLiveShowByCode = async (req, res) => {
 export const updateLiveShow = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
 
     const { id } = req.params;
     const updateData = req.body;
@@ -506,7 +511,10 @@ export const cancelLiveShow = async (req, res) => {
 export const rescheduleLiveShow = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
 
     const { id } = req.params;
     const { date, time } = req.body;
