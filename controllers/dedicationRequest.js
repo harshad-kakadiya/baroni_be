@@ -1,4 +1,5 @@
 import {validationResult} from 'express-validator';
+import { getFirstValidationError } from '../utils/validationHelper.js';
 import DedicationRequest from '../models/DedicationRequest.js';
 import {generateUniqueTrackingId} from '../utils/trackingIdGenerator.js';
 import {uploadVideo} from '../utils/uploadFile.js';
@@ -36,7 +37,10 @@ const sanitize = (doc) => ({
 export const createDedicationRequest = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
 
     let { starId, starBaroniId, baroniId, occasion, eventName, eventDate, description, price, starName } = req.body;
 
@@ -178,7 +182,10 @@ export const listDedicationRequests = async (req, res) => {
 export const getDedicationRequest = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
 
     const item = await DedicationRequest.findById(req.params.id)
       .populate('fanId', 'name pseudo profilePic agoraKey')
@@ -204,7 +211,10 @@ export const getDedicationRequest = async (req, res) => {
 export const approveDedicationRequest = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
 
     let filter = { _id: req.params.id, status: 'pending' };
 
@@ -239,7 +249,10 @@ export const approveDedicationRequest = async (req, res) => {
 export const rejectDedicationRequest = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
 
     let filter = { _id: req.params.id, status: 'pending' };
 
@@ -284,7 +297,10 @@ export const rejectDedicationRequest = async (req, res) => {
 export const uploadDedicationVideo = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
 
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Video file is required' });
@@ -322,7 +338,10 @@ export const uploadDedicationVideo = async (req, res) => {
 export const completeDedicationByFan = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
 
     let filter = { _id: req.params.id, status: 'approved' };
 
@@ -369,7 +388,10 @@ export const completeDedicationByFan = async (req, res) => {
 export const cancelDedicationRequest = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
 
     let filter = { _id: req.params.id, status: 'pending' };
 
@@ -405,7 +427,10 @@ export const cancelDedicationRequest = async (req, res) => {
 export const getDedicationRequestByTrackingId = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
 
     const { trackingId } = req.params;
 
