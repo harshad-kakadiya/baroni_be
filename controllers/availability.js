@@ -1,4 +1,5 @@
 import { validationResult } from 'express-validator';
+import { getFirstValidationError } from '../utils/validationHelper.js';
 import Availability from '../models/Availability.js';
 import Appointment from '../models/Appointment.js'; // Added import for Appointment
 import { cleanupWeeklyAvailabilities, deleteTimeSlotFromWeeklyAvailabilities, deleteTimeSlotByIdFromWeeklyAvailabilities } from '../services/weeklyAvailabilityService.js';
@@ -80,7 +81,10 @@ const formatLocalYMD = (d) => {
 export const createAvailability = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
     const { date, timeSlots } = req.body;
     const isWeekly = Boolean(req.body.isWeekly);
     
@@ -240,7 +244,10 @@ export const listMyAvailabilities = async (req, res) => {
 export const getAvailability = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
     const item = await Availability.findOne({ _id: req.params.id, userId: req.user._id });
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
     return res.json({ success: true, data: sanitize(item) });
@@ -252,7 +259,10 @@ export const getAvailability = async (req, res) => {
 export const updateAvailability = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
     const { date, timeSlots, status, isWeekly } = req.body;
     const item = await Availability.findOne({ _id: req.params.id, userId: req.user._id });
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
@@ -357,7 +367,10 @@ export const updateAvailability = async (req, res) => {
 export const deleteAvailability = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
     const deleted = await Availability.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!deleted) return res.status(404).json({ success: false, message: 'Not found' });
     return res.json({ success: true, message: 'Deleted' });
@@ -369,7 +382,10 @@ export const deleteAvailability = async (req, res) => {
 export const deleteTimeSlotByDate = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
 
     const date = String(req.body.date || '').trim();
     let slotToDelete;
@@ -450,7 +466,10 @@ export const deleteTimeSlotByDate = async (req, res) => {
 export const deleteTimeSlotById = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
 
     const availabilityId = req.params.id;
     const slotId = req.params.slotId;
