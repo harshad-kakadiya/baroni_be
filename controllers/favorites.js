@@ -1,4 +1,5 @@
 import { validationResult } from 'express-validator';
+import { getFirstValidationError } from '../utils/validationHelper.js';
 import User from '../models/User.js';
 import mongoose from 'mongoose';
 
@@ -12,7 +13,8 @@ export const addToFavorites = async (req, res) => {
 
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
     }
 
     let { starId, baroniId, starBaroniId } = req.body;
@@ -68,7 +70,8 @@ export const removeFromFavorites = async (req, res) => {
 
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
     }
 
     let { starId, baroniId, starBaroniId } = req.body;
@@ -120,7 +123,8 @@ export const toggleFavorite = async (req, res) => {
 
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
     }
 
     let { starId, baroniId, starBaroniId } = req.body;
