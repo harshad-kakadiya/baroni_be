@@ -1,5 +1,6 @@
 import { body, validationResult } from "express-validator";
 import User from "../models/User.js";
+import { handleValidationErrors } from '../utils/validationHelper.js';
 
 export const storeMessageValidator = [
     body("conversationId")
@@ -88,11 +89,5 @@ export const storeMessageValidator = [
     },
 
     // Middleware to check validation results
-    (req, res, next) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({ errors: errors.array() });
-        }
-        next();
-    },
+    handleValidationErrors,
 ];
