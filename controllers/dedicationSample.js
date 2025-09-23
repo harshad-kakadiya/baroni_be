@@ -1,4 +1,5 @@
 import { validationResult } from 'express-validator';
+import { getFirstValidationError } from '../utils/validationHelper.js';
 import DedicationSample from '../models/DedicationSample.js';
 import { uploadVideo } from '../utils/uploadFile.js';
 
@@ -7,7 +8,10 @@ const sanitize = (doc) => ({ id: doc._id, type: doc.type, video: doc.video, desc
 export const createDedicationSample = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
     const { type, description } = req.body;
     let { video } = req.body;
     if (!video) {
@@ -38,7 +42,10 @@ export const listMyDedicationSamples = async (req, res) => {
 export const getDedicationSample = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
     const item = await DedicationSample.findOne({ _id: req.params.id, userId: req.user._id });
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
     return res.json({ success: true, data: sanitize(item) });
@@ -50,7 +57,10 @@ export const getDedicationSample = async (req, res) => {
 export const updateDedicationSample = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
     const { type, description } = req.body;
     let { video } = req.body;
     const item = await DedicationSample.findOne({ _id: req.params.id, userId: req.user._id });
@@ -72,7 +82,10 @@ export const updateDedicationSample = async (req, res) => {
 export const deleteDedicationSample = async (req, res) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const errorMessage = getFirstValidationError(errors);
+      return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
+    }
     const deleted = await DedicationSample.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!deleted) return res.status(404).json({ success: false, message: 'Not found' });
     return res.json({ success: true, message: 'Deleted' });
