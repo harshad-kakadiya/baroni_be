@@ -30,14 +30,14 @@ export const TRANSACTION_STATUSES = {
 
 // Default transaction descriptions
 export const TRANSACTION_DESCRIPTIONS = {
-  [TRANSACTION_TYPES.APPOINTMENT_PAYMENT]: 'Payment for appointment booking',
-  [TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT]: 'Payment for dedication request',
-  [TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT]: 'Payment for live show attendance',
-  [TRANSACTION_TYPES.LIVE_SHOW_HOSTING_PAYMENT]: 'Payment for hosting a live show',
-  [TRANSACTION_TYPES.SERVICE_PAYMENT]: 'Payment for service',
-  [TRANSACTION_TYPES.DEDICATION_PAYMENT]: 'Payment for dedication',
-  [TRANSACTION_TYPES.BECOME_STAR_PAYMENT]: 'Payment for becoming a Baroni Star',
-  [TRANSACTION_TYPES.REFUND]: 'Refund transaction',
+  [TRANSACTION_TYPES.APPOINTMENT_PAYMENT]: 'Appointment booked',
+  [TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT]: 'Dedication request submitted',
+  [TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT]: 'Live show booked',
+  [TRANSACTION_TYPES.LIVE_SHOW_HOSTING_PAYMENT]: 'Live show hosting scheduled',
+  [TRANSACTION_TYPES.SERVICE_PAYMENT]: 'Service purchased',
+  [TRANSACTION_TYPES.DEDICATION_PAYMENT]: 'Dedication purchased',
+  [TRANSACTION_TYPES.BECOME_STAR_PAYMENT]: 'Become Star application submitted',
+  [TRANSACTION_TYPES.REFUND]: 'Refund processed',
   [TRANSACTION_TYPES.ADMIN_CREDIT]: 'Admin credit adjustment',
   [TRANSACTION_TYPES.ADMIN_DEBIT]: 'Admin debit adjustment'
 };

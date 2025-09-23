@@ -109,19 +109,54 @@ class NotificationHelper {
    */
   static async sendPaymentNotification(type, transaction, additionalData = {}) {
     const templates = notificationService.constructor.getNotificationTemplates();
-    const template = templates[type];
+    const baseTemplate = templates[type];
 
-    if (!template) {
+    if (!baseTemplate) {
       console.error(`Notification template not found for type: ${type}`);
       return;
     }
 
     const data = {
-      type: template.type,
+      type: baseTemplate.type,
       transactionId: transaction._id.toString(),
       amount: transaction.amount,
       ...additionalData
     };
+
+    // Dynamic titles/bodies based on transaction context
+    const tType = transaction.type;
+    const meta = transaction.metadata || transaction.meta || {};
+    const amountStr = typeof transaction.amount === 'number' ? transaction.amount.toString() : transaction.amount;
+    const currency = meta.currency || 'coins';
+
+    let template = { ...baseTemplate };
+    if (tType === 'live_show_attendance_payment') {
+      const showTitle = meta.showTitle ? `"${meta.showTitle}"` : 'Live Show';
+      template = {
+        ...baseTemplate,
+        title: 'Live Show booked',
+        body: `You booked ${showTitle}${amountStr ? ` • ${amountStr} ${currency}` : ''}.`
+      };
+    } else if (tType === 'live_show_hosting_payment') {
+      const showTitle = meta.showTitle ? `"${meta.showTitle}"` : 'your Live Show';
+      template = {
+        ...baseTemplate,
+        title: 'Hosting fee paid',
+        body: `Your hosting fee for ${showTitle} was paid${amountStr ? ` • ${amountStr} ${currency}` : ''}.`
+      };
+    } else if (type === 'PAYMENT_SUCCESS') {
+      template = {
+        ...baseTemplate,
+        title: 'Payment successful',
+        body: `Payment completed${amountStr ? ` • ${amountStr} ${currency}` : ''}.`
+      };
+    } else if (type === 'PAYMENT_FAILED') {
+      template = {
+        ...baseTemplate,
+        title: 'Payment failed',
+        body: 'Your payment could not be processed. Please try again.'
+      };
+    }
 
     // Send to the user who made the payment
     if (transaction.userId) {
@@ -169,19 +204,56 @@ class NotificationHelper {
    */
   static async sendLiveShowNotification(type, liveShow, additionalData = {}) {
     const templates = notificationService.constructor.getNotificationTemplates();
-    const template = templates[type];
+    const baseTemplate = templates[type];
 
-    if (!template) {
+    if (!baseTemplate) {
       console.error(`Notification template not found for type: ${type}`);
       return;
     }
 
     const data = {
-      type: template.type,
+      type: baseTemplate.type,
       liveShowId: liveShow._id.toString(),
       pushType: 'voip',
       ...additionalData
     };
+
+    // Build dynamic, descriptive title/body
+    const starName = liveShow?.starId?.name || liveShow?.starName || 'Star';
+    const showTitle = liveShow?.sessionTitle ? `"${liveShow.sessionTitle}"` : 'a live show';
+    const dateStr = liveShow?.date ? new Date(liveShow.date).toLocaleString() : undefined;
+
+    let template = { ...baseTemplate };
+    switch (type) {
+      case 'LIVE_SHOW_CREATED':
+        template = {
+          ...baseTemplate,
+          title: `${starName} scheduled a Live Show`,
+          body: `${starName} created ${showTitle}${dateStr ? ` on ${dateStr}` : ''}. Tap to view.`
+        };
+        break;
+      case 'LIVE_SHOW_STARTING':
+        template = {
+          ...baseTemplate,
+          title: 'Live Show starting soon',
+          body: `${showTitle} is starting soon. Get ready to join!`
+        };
+        break;
+      case 'LIVE_SHOW_CANCELLED':
+        template = {
+          ...baseTemplate,
+          title: 'Live Show cancelled',
+          body: `${showTitle} was cancelled by ${starName}.`
+        };
+        break;
+      case 'LIVE_SHOW_RESCHEDULED':
+        template = {
+          ...baseTemplate,
+          title: 'Live Show rescheduled',
+          body: `${showTitle} was rescheduled${dateStr ? ` to ${dateStr}` : ''}.`
+        };
+        break;
+    }
 
     switch (type) {
       case 'LIVE_SHOW_CREATED':
@@ -260,13 +332,30 @@ class NotificationHelper {
    */
   static async sendMessageNotification(message, additionalData = {}) {
     const templates = notificationService.constructor.getNotificationTemplates();
-    const template = templates.NEW_MESSAGE;
+    const baseTemplate = templates.NEW_MESSAGE;
 
     const data = {
-      type: template.type,
+      type: baseTemplate.type,
       messageId: message._id.toString(),
       conversationId: message.conversationId?.toString(),
       ...additionalData
+    };
+
+    // Personalize message notification
+    let senderName = 'Someone';
+    try {
+      if (message.senderId) {
+        const sender = await User.findById(message.senderId).select('name pseudo');
+        senderName = sender?.name || sender?.pseudo || senderName;
+      }
+    } catch (_e) {}
+
+    const isImage = message.type === 'image' || !!message.imageUrl;
+    const preview = (message.message || '').trim();
+    const template = {
+      ...baseTemplate,
+      title: `New message from ${senderName}`,
+      body: isImage ? 'Sent an image' : (preview || 'Sent a message')
     };
 
     // Send to the recipient
