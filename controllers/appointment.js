@@ -47,6 +47,137 @@ const sanitize = (doc) => ({
   updatedAt: doc.updatedAt,
 });
 
+// Get single appointment details for fan
+export const getAppointmentDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const fanId = req.user._id;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Appointment ID is required'
+      });
+    }
+
+    const appointment = await Appointment.findById(id)
+      .populate('starId', 'name pseudo profilePic baroniId role country about location profession coinBalance')
+      .populate('fanId', 'name pseudo profilePic baroniId role')
+      .populate('availabilityId', 'date timeSlots')
+      .populate('transactionId', 'amount status type')
+      .lean();
+
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Appointment not found'
+      });
+    }
+
+    // Check if the requesting user is the fan for this appointment
+    if (String(appointment.fanId._id) !== String(fanId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only view your own appointments'
+      });
+    }
+
+    // Check if appointment is still live (not completed or cancelled)
+    if (appointment.status === 'completed' || appointment.status === 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'This appointment is no longer live'
+      });
+    }
+
+    // Calculate time until appointment
+    const appointmentDateTime = new Date(`${appointment.date}T${appointment.time}`);
+    const now = new Date();
+    const timeUntilAppointment = appointmentDateTime.getTime() - now.getTime();
+
+    // If appointment time has passed, it's no longer live
+    if (timeUntilAppointment <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'This appointment is no longer live'
+      });
+    }
+
+    // Format time until appointment
+    const hours = Math.floor(timeUntilAppointment / (1000 * 60 * 60));
+    const minutes = Math.floor((timeUntilAppointment % (1000 * 60 * 60)) / (1000 * 60));
+    const timeUntilLive = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} until live`;
+
+    // Get profession details if available
+    let professionDetails = null;
+    if (appointment.starId.profession) {
+      const Category = (await import('../models/Category.js')).default;
+      professionDetails = await Category.findById(appointment.starId.profession).lean();
+    }
+
+    const response = {
+      success: true,
+      data: {
+        id: appointment._id,
+        sessionTitle: `Video Call with ${appointment.starId.name}`,
+        date: appointment.date,
+        time: appointment.time,
+        timeUntilLive,
+        price: appointment.price,
+        status: appointment.status,
+        callDuration: appointment.callDuration,
+        completedAt: appointment.completedAt,
+        createdAt: appointment.createdAt,
+        updatedAt: appointment.updatedAt,
+        star: {
+          id: appointment.starId._id,
+          name: appointment.starId.name,
+          pseudo: appointment.starId.pseudo,
+          profilePic: appointment.starId.profilePic,
+          baroniId: appointment.starId.baroniId,
+          role: appointment.starId.role,
+          country: appointment.starId.country,
+          about: appointment.starId.about,
+          location: appointment.starId.location,
+          coinBalance: appointment.starId.coinBalance,
+          profession: professionDetails ? {
+            id: professionDetails._id,
+            name: professionDetails.name,
+            image: professionDetails.image
+          } : null
+        },
+        fan: {
+          id: appointment.fanId._id,
+          name: appointment.fanId.name,
+          pseudo: appointment.fanId.pseudo,
+          profilePic: appointment.fanId.profilePic,
+          baroniId: appointment.fanId.baroniId,
+          role: appointment.fanId.role
+        },
+        availability: {
+          id: appointment.availabilityId._id,
+          date: appointment.availabilityId.date,
+          timeSlots: appointment.availabilityId.timeSlots
+        },
+        transaction: appointment.transactionId ? {
+          id: appointment.transactionId._id,
+          amount: appointment.transactionId.amount,
+          status: appointment.transactionId.status,
+          type: appointment.transactionId.type
+        } : null
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Error fetching appointment details:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching appointment details'
+    });
+  }
+};
+
 export const createAppointment = async (req, res) => {
   try {
     const errors = validationResult(req);

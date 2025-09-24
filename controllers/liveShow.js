@@ -12,6 +12,136 @@ import Transaction from '../models/Transaction.js';
 import NotificationHelper from '../utils/notificationHelper.js';
 import { deleteConversationBetweenUsers } from '../services/messagingCleanup.js';
 
+// Get single live show details for fan
+export const getLiveShowDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const fanId = req.user._id;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Live show ID is required'
+      });
+    }
+
+    const liveShow = await LiveShow.findById(id)
+      .populate('starId', 'name pseudo profilePic baroniId role country about location profession coinBalance')
+      .lean();
+
+    if (!liveShow) {
+      return res.status(404).json({
+        success: false,
+        message: 'Live show not found'
+      });
+    }
+
+    // Check if live show is still live (not completed or cancelled)
+    if (liveShow.status === 'completed' || liveShow.status === 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'This live show is no longer live'
+      });
+    }
+
+    // Calculate time until live show
+    const liveShowDateTime = new Date(liveShow.date);
+    const now = new Date();
+    const timeUntilLiveShow = liveShowDateTime.getTime() - now.getTime();
+
+    // If live show time has passed, it's no longer live
+    if (timeUntilLiveShow <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'This live show is no longer live'
+      });
+    }
+
+    // Format time until live show
+    const hours = Math.floor(timeUntilLiveShow / (1000 * 60 * 60));
+    const minutes = Math.floor((timeUntilLiveShow % (1000 * 60 * 60)) / (1000 * 60));
+    const timeUntilLive = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} until live`;
+
+    // Check if user has joined this live show
+    const LiveShowAttendance = (await import('../models/LiveShowAttendance.js')).default;
+    const userAttendance = await LiveShowAttendance.findOne({
+      liveShowId: id,
+      fanId: fanId
+    }).lean();
+
+    // Get star's profession details
+    let professionDetails = null;
+    if (liveShow.starId.profession) {
+      const Category = (await import('../models/Category.js')).default;
+      professionDetails = await Category.findById(liveShow.starId.profession).lean();
+    }
+
+    // Format date for display
+    const showDate = new Date(liveShow.date);
+    const formattedDate = showDate.toLocaleDateString('en-US', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+
+    // Format time for display
+    const formattedTime = liveShow.time;
+
+    const response = {
+      success: true,
+      data: {
+        id: liveShow._id,
+        sessionTitle: liveShow.sessionTitle,
+        date: formattedDate,
+        time: formattedTime,
+        timeUntilLive,
+        attendanceFee: liveShow.attendanceFee,
+        maxCapacity: liveShow.maxCapacity,
+        currentAttendees: liveShow.currentAttendees,
+        showCode: liveShow.showCode,
+        inviteLink: liveShow.inviteLink,
+        status: liveShow.status,
+        description: liveShow.description,
+        thumbnail: liveShow.thumbnail,
+        isJoined: !!userAttendance,
+        attendanceStatus: userAttendance ? userAttendance.status : null,
+        createdAt: liveShow.createdAt,
+        updatedAt: liveShow.updatedAt,
+        star: {
+          id: liveShow.starId._id,
+          name: liveShow.starId.name,
+          pseudo: liveShow.starId.pseudo,
+          profilePic: liveShow.starId.profilePic,
+          baroniId: liveShow.starId.baroniId,
+          role: liveShow.starId.role,
+          country: liveShow.starId.country,
+          about: liveShow.starId.about,
+          location: liveShow.starId.location,
+          coinBalance: liveShow.starId.coinBalance,
+          profession: professionDetails ? {
+            id: professionDetails._id,
+            name: professionDetails.name,
+            image: professionDetails.image
+          } : null
+        },
+        attendance: {
+          current: liveShow.currentAttendees,
+          max: liveShow.maxCapacity === -1 ? 'Unlimited' : liveShow.maxCapacity,
+          percentage: liveShow.maxCapacity === -1 ? 0 : Math.round((liveShow.currentAttendees / liveShow.maxCapacity) * 100)
+        }
+      }
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Error fetching live show details:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching live show details'
+    });
+  }
+};
+
 const sanitizeLiveShow = (show) => ({
   id: show._id,
   sessionTitle: show.sessionTitle,
