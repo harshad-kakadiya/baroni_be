@@ -176,10 +176,17 @@ export const sendTestNotification = async (req, res) => {
       });
     }
 
+    // Normalize VoIP type to pushType for APNs
+    const normalizedType = typeof type === 'string' ? type.toLowerCase() : type;
+    const enrichedData = { ...data };
+    if (normalizedType === 'VoIP') {
+      enrichedData.pushType = 'VoIP';
+    }
+
     const result = await notificationService.sendToUser(
       userId,
-      { title, body, type },
-      data,
+      { title, body, type: normalizedType },
+      enrichedData,
       { customPayload }
     );
 
@@ -212,10 +219,17 @@ export const sendNotificationToUser = async (req, res) => {
       return res.status(400).json({ success: false, message: 'userId, title, and body are required' });
     }
 
+    // Normalize VoIP type to pushType for APNs
+    const normalizedType = typeof type === 'string' ? type.toLowerCase() : type;
+    const enrichedData = { ...data };
+    if (normalizedType === 'VoIP') {
+      enrichedData.pushType = 'VoIP';
+    }
+
     const result = await notificationService.sendToUser(
       userId,
-      { title, body, type },
-      data,
+      { title, body, type: normalizedType },
+      enrichedData,
       { customPayload, expiresAt, relatedEntity }
     );
 

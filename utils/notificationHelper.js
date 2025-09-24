@@ -17,7 +17,11 @@ class NotificationHelper {
     const data = {
       type: baseTemplate.type,
       appointmentId: appointment._id.toString(),
-      pushType: 'voip',
+      starId: appointment.starId?.toString?.() || String(appointment.starId || ''),
+      fanId: appointment.fanId?.toString?.() || String(appointment.fanId || ''),
+      pushType: 'VoIP',
+      navigateTo: 'appointment',
+      eventType: type,
       ...additionalData
     };
 
@@ -44,19 +48,26 @@ class NotificationHelper {
       ...(type === 'APPOINTMENT_CREATED' ? { title: 'New Appointment Request', body: `You have a new appointment request from ${fanName}.` } : {})
     };
 
-    // Send to fan
-    if (appointment.fanId) {
-      await notificationService.sendToUser(appointment.fanId, fanTemplate, data, {
+    // Send to star
+    if (appointment.starId) {
+      await notificationService.sendToUser(data.starId, starTemplate, data, {
         relatedEntity: { type: 'appointment', id: appointment._id },
         apnsVoip: true
       });
     }
 
-    // Send to star
-    if (appointment.starId) {
-      await notificationService.sendToUser(appointment.starId, starTemplate, data, {
+    // Send to fan
+    if (appointment.fanId) {
+      const result = await notificationService.sendToUser(appointment.fanId, fanTemplate, data, {
         relatedEntity: { type: 'appointment', id: appointment._id },
         apnsVoip: true
+      });
+      console.log('[AppointmentNotification] sent to fan', {
+        appointmentId: appointment._id?.toString?.() || String(appointment._id || ''),
+        userId: appointment.fanId?.toString?.() || String(appointment.fanId || ''),
+        template: { title: fanTemplate.title, body: fanTemplate.body },
+        data,
+        result
       });
     }
   }
@@ -73,7 +84,7 @@ class NotificationHelper {
       appointmentId: appointment._id.toString(),
       starName: appointment.starName || 'Star',
       fanName: appointment.fanName || 'Fan',
-      pushType: 'voip'
+      pushType: 'VoIP'
     };
 
     // Customize message for each user
@@ -97,9 +108,16 @@ class NotificationHelper {
 
     // Send to star
     if (appointment.starId) {
-      await notificationService.sendToUser(appointment.starId, starTemplate, data, {
+      const result = await notificationService.sendToUser(appointment.starId, starTemplate, data, {
         relatedEntity: { type: 'appointment', id: appointment._id },
         apnsVoip: true
+      });
+      console.log('[AppointmentNotification] sent to star', {
+        appointmentId: appointment._id?.toString?.() || String(appointment._id || ''),
+        userId: appointment.starId?.toString?.() || String(appointment.starId || ''),
+        template: { title: starTemplate.title, body: starTemplate.body },
+        data,
+        result
       });
     }
   }
@@ -214,7 +232,10 @@ class NotificationHelper {
     const data = {
       type: baseTemplate.type,
       liveShowId: liveShow._id.toString(),
-      pushType: 'voip',
+      starId: liveShow.starId?._id?.toString?.() || liveShow.starId?.toString?.() || String(liveShow.starId || ''),
+      pushType: 'VoIP',
+      navigateTo: 'live_show',
+      eventType: type,
       ...additionalData
     };
 
@@ -298,6 +319,13 @@ class NotificationHelper {
       ...additionalData
     };
 
+    console.log('[DedicationNotification] invoked', {
+      type,
+      dedicationId: dedication?._id?.toString?.() || String(dedication?._id || ''),
+      fanId: dedication?.fanId?.toString?.() || String(dedication?.fanId || ''),
+      starId: dedication?.starId?.toString?.() || String(dedication?.starId || '')
+    });
+
     // Customize message for dedication accepted
     if (type === 'DEDICATION_ACCEPTED') {
       const customTemplate = {
@@ -306,21 +334,48 @@ class NotificationHelper {
       };
 
       if (dedication.fanId) {
+        console.log('[DedicationNotification] send to fan (accepted)', {
+          userId: dedication.fanId?.toString?.() || String(dedication.fanId || ''),
+          title: customTemplate.title
+        });
         await notificationService.sendToUser(dedication.fanId, customTemplate, data, {
           relatedEntity: { type: 'dedication', id: dedication._id }
         });
       }
-    } else {
+    } else if (type === 'DEDICATION_REQUEST' || type === 'DEDICATION_REQUEST_CREATED') {
       // Send to star for new requests
-      if (type === 'DEDICATION_REQUEST' && dedication.starId) {
+      if (dedication.starId) {
+        console.log('[DedicationNotification] send to star (request)', {
+          userId: dedication.starId?.toString?.() || String(dedication.starId || ''),
+          title: template.title
+        });
         await notificationService.sendToUser(dedication.starId, template, data, {
           relatedEntity: { type: 'dedication', id: dedication._id }
         });
       }
-
+    } else if (type === 'DEDICATION_REJECTED') {
       // Send to fan for rejections
-      if (type === 'DEDICATION_REJECTED' && dedication.fanId) {
+      if (dedication.fanId) {
+        console.log('[DedicationNotification] send to fan (rejected)', {
+          userId: dedication.fanId?.toString?.() || String(dedication.fanId || ''),
+          title: template.title
+        });
         await notificationService.sendToUser(dedication.fanId, template, data, {
+          relatedEntity: { type: 'dedication', id: dedication._id }
+        });
+      }
+    } else if (type === 'DEDICATION_VIDEO_UPLOADED') {
+      // Notify fan about video upload
+      const customTemplate = {
+        ...template,
+        body: `Your dedication video was uploaded by ${dedication.starName || 'Star'}.`
+      };
+      if (dedication.fanId) {
+        console.log('[DedicationNotification] send to fan (video_uploaded)', {
+          userId: dedication.fanId?.toString?.() || String(dedication.fanId || ''),
+          title: customTemplate.title
+        });
+        await notificationService.sendToUser(dedication.fanId, customTemplate, data, {
           relatedEntity: { type: 'dedication', id: dedication._id }
         });
       }

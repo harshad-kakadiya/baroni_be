@@ -2,11 +2,97 @@ import admin from 'firebase-admin';
 import apn from 'apn';
 import User  from '../models/User.js';
 import Notification from '../models/Notification.js';
+import fs from 'fs';
+import path from 'path';
 
 // Initialize Firebase Admin SDK
 let firebaseApp;
 let isFirebaseInitialized = false;
 let apnsProvider = null;
+
+// Normalize APNs private key from env (handles file path, base64, escaped newlines, quotes)
+function normalizeApnsPrivateKey() {
+  // Priority: explicit file var → APNS_PRIVATE_KEY → APNS_PRIVATE_KEY_BASE64
+  try {
+    if (process.env.APNS_PRIVATE_KEY_FILE) {
+      const filePath = path.resolve(process.env.APNS_PRIVATE_KEY_FILE);
+      if (fs.existsSync(filePath)) {
+        let fromFile = fs.readFileSync(filePath, 'utf8');
+        fromFile = fromFile.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        if (!/\n$/.test(fromFile)) fromFile += '\n';
+        return fromFile;
+      }
+    }
+  } catch (_e) {}
+
+  let key = process.env.APNS_PRIVATE_KEY || process.env.APNS_PRIVATE_KEY_BASE64 || '';
+  if (!key) return null;
+
+  // If looks like a path, try reading it
+  try {
+    const maybePath = key.trim().replace(/^~(?=\\|\/)/, process.env.HOME || process.env.USERPROFILE || '');
+    if (!key.includes('-----BEGIN') && fs.existsSync(maybePath) && fs.statSync(maybePath).isFile()) {
+      let fromPath = fs.readFileSync(maybePath, 'utf8');
+      fromPath = fromPath.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      if (!/\n$/.test(fromPath)) fromPath += '\n';
+      return fromPath;
+    }
+  } catch (_e) {}
+
+  // If provided via BASE64 var, attempt decoding
+  if (process.env.APNS_PRIVATE_KEY_BASE64) {
+    try {
+      const decoded = Buffer.from(process.env.APNS_PRIVATE_KEY_BASE64, 'base64').toString('utf8');
+      if (decoded && decoded.includes('-----BEGIN')) key = decoded;
+    } catch (_e) {}
+  }
+
+  // Strip surrounding quotes if present
+  key = key.trim();
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith('\'') && key.endsWith('\''))) {
+    key = key.slice(1, -1);
+  }
+
+  // Replace escaped newlines and normalize real CRLF to LF
+  key = key.replace(/\\n/g, '\n').replace(/\\r/g, '\r');
+  key = key.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // Strip BOM if present
+  if (key.length > 0 && key.charCodeAt(0) === 0xFEFF) {
+    key = key.slice(1);
+  }
+
+  // If still looks like base64 without PEM headers, try decoding
+  const looksLikePem = key.includes('-----BEGIN');
+  if (!looksLikePem) {
+    try {
+      const maybe = Buffer.from(key, 'base64').toString('utf8');
+      if (maybe.includes('-----BEGIN')) key = maybe;
+    } catch (_e) {}
+  }
+
+  // Ensure trailing newline for PEM parsers
+  if (key && !/\n$/.test(key)) key += '\n';
+
+  return key || null;
+}
+
+// Resolve APNs certificate (.pem) path. Prefer APNS_CERT_FILE, else services/voip.pem.
+function resolveApnsPemPath() {
+  try {
+    if (process.env.APNS_CERT_FILE) {
+      const fromEnv = path.resolve(process.env.APNS_CERT_FILE);
+      if (fs.existsSync(fromEnv)) return fromEnv;
+    }
+  } catch (_e) {}
+
+  try {
+    const defaultPath = path.resolve(process.cwd(), 'services', 'voip.pem');
+    if (fs.existsSync(defaultPath)) return defaultPath;
+  } catch (_e) {}
+
+  return null;
+}
 
 try {
   firebaseApp = admin.app();
@@ -36,27 +122,80 @@ try {
 class NotificationService {
   constructor() {
     this.messaging = isFirebaseInitialized ? admin.messaging() : null;
-    // Initialize APNs provider if credentials are present
-    if (
+    // Prefer certificate-based (.pem) provider if available; fall back to token-based (.p8)
+    const pemPath = resolveApnsPemPath();
+    console.log("pemPath : ",pemPath);
+    const hasTokenCreds = !!(
       process.env.APNS_KEY_ID &&
       process.env.APNS_TEAM_ID &&
       process.env.APNS_BUNDLE_ID &&
-      process.env.APNS_PRIVATE_KEY
-    ) {
+      (process.env.APNS_PRIVATE_KEY || process.env.APNS_PRIVATE_KEY_BASE64 || process.env.APNS_PRIVATE_KEY_FILE)
+    );
+
+    if (pemPath) {
       try {
         apnsProvider = new apn.Provider({
+          // Many setups bundle cert+key in a single PEM. apn accepts cert/key pointing to same file.
+          cert: pemPath,
+          key: pemPath,
+          // passphrase: process.env.APNS_CERT_PASSPHRASE || undefined,
+          production: process.env.NODE_ENV === 'production'
+        });
+        console.log('APNs initialized using certificate (.pem):', pemPath);
+      } catch (e) {
+        console.warn('Failed to initialize APNs provider (pem):', e.message);
+        if (hasTokenCreds) {
+          try {
+            let normalizedKey = normalizeApnsPrivateKey();
+            if (!normalizedKey || !normalizedKey.includes('-----BEGIN') || !normalizedKey.includes('PRIVATE KEY')) {
+              throw new Error('APNS_PRIVATE_KEY is not a valid .p8 Auth Key (PEM with BEGIN/END PRIVATE KEY).');
+            }
+            if (!/\n$/.test(normalizedKey)) normalizedKey += '\n';
+            apnsProvider = new apn.Provider({
+              token: {
+                key: normalizedKey,
+                keyId: process.env.APNS_KEY_ID,
+                teamId: process.env.APNS_TEAM_ID
+              },
+              production: process.env.NODE_ENV === 'production'
+            });
+            console.log('APNs initialized using token-based auth (.p8 key) — fallback after pem failure');
+          } catch (e2) {
+            console.warn('Failed to initialize APNs provider (token fallback):', e2.message);
+          }
+        } else {
+          console.warn('No APNs token credentials available for fallback after pem failure. APNs disabled.');
+        }
+      }
+    } else if (hasTokenCreds) {
+      try {
+        let normalizedKey = normalizeApnsPrivateKey();
+        if (!normalizedKey || !normalizedKey.includes('-----BEGIN') || !normalizedKey.includes('PRIVATE KEY')) {
+          throw new Error('APNS_PRIVATE_KEY is not a valid .p8 Auth Key (PEM with BEGIN/END PRIVATE KEY).');
+        }
+        if (!/\n$/.test(normalizedKey)) normalizedKey += '\n';
+        apnsProvider = new apn.Provider({
           token: {
-            key: Buffer.from(process.env.APNS_PRIVATE_KEY.replace(/\\n/g, '\n')),
+            key: normalizedKey,
             keyId: process.env.APNS_KEY_ID,
             teamId: process.env.APNS_TEAM_ID
           },
           production: process.env.NODE_ENV === 'production'
         });
+        console.log('APNs initialized using token-based auth (.p8 key)');
       } catch (e) {
-        console.warn('Failed to initialize APNs provider:', e.message);
+        console.warn('Failed to initialize APNs provider (token):', e.message);
+        const preview = (process.env.APNS_PRIVATE_KEY || process.env.APNS_PRIVATE_KEY_BASE64 || process.env.APNS_PRIVATE_KEY_FILE || '').toString().slice(0, 40);
+        console.warn('APNs token env presence:', {
+          hasKeyId: !!process.env.APNS_KEY_ID,
+          hasTeamId: !!process.env.APNS_TEAM_ID,
+          hasBundleId: !!process.env.APNS_BUNDLE_ID,
+          hasPrivateKey: !!(process.env.APNS_PRIVATE_KEY || process.env.APNS_PRIVATE_KEY_BASE64 || process.env.APNS_PRIVATE_KEY_FILE),
+          privateKeyPreview: preview
+        });
       }
     } else {
-      console.warn('APNs credentials not provided. iOS APNs notifications will be disabled.');
+      console.warn('APNs credentials not provided (no PEM and no token). iOS APNs notifications will be disabled.');
     }
   }
 
@@ -85,7 +224,7 @@ class NotificationService {
       await notificationRecord.save();
     } catch (dbError) {
       console.error(`Error saving notification to database for user ${userId}:`, dbError);
-      // Continue with FCM sending even if DB save fails
+      // Continue with sending even if DB save fails
     }
 
     if (!isFirebaseInitialized || !this.messaging) {
@@ -104,6 +243,7 @@ class NotificationService {
 
     try {
       const user = await User.findById(userId);
+      console.log("USER: ",user)
       if (!user || (!user.fcmToken && !user.apnsToken)) {
         console.log(`No push token found for user ${userId}`);
         // Update notification status to failed
@@ -124,25 +264,64 @@ class NotificationService {
 
       if (user.apnsToken && apnsProvider) {
         const note = new apn.Notification();
-        const isVoip = options.apnsVoip || data.pushType === 'voip' || notificationData.pushType === 'voip';
+        const isVoip = (
+          options.apnsVoip ||
+          data.pushType === 'voip' ||
+          notificationData.pushType === 'voip' ||
+          (typeof notificationData.type === 'string' && notificationData.type.toLowerCase() === 'voip')
+        );
         const voipBundle = process.env.APNS_VOIP_BUNDLE_ID || (process.env.APNS_BUNDLE_ID ? `${process.env.APNS_BUNDLE_ID}.voip` : undefined);
         note.topic = isVoip && voipBundle ? voipBundle : process.env.APNS_BUNDLE_ID;
         if (isVoip) {
           note.pushType = 'voip';
+          note.contentAvailable = 1;
           note.expiry = Math.floor(Date.now() / 1000) + 3600;
+          // VoIP notifications don't support alert, sound, or badge
+        } else {
+          // Regular push notifications
+          note.alert = {
+            title: notificationData.title,
+            body: notificationData.body
+          };
+          note.sound = 'default';
+          note.badge = 1;
         }
-        note.alert = {
-          title: notificationData.title,
-          body: notificationData.body
-        };
-        note.sound = 'default';
-        note.badge = 1;
-        note.payload = { ...data, ...(options.customPayload ? { customPayload: options.customPayload } : {}) };
+        // Match Flutter's expected payload shape for VoIP pushes
+        if (isVoip) {
+          note.payload = {
+            extra: {
+              ...data,
+              ...(options.customPayload ? { customPayload: options.customPayload } : {}),
+              clickAction: 'FLUTTER_NOTIFICATION_CLICK'
+            }
+          };
+        } else {
+          note.payload = { ...data, ...(options.customPayload ? { customPayload: options.customPayload } : {}) };
+        }
 
         apnsResponse = await apnsProvider.send(note, user.apnsToken);
+        console.log('[APNs] sendToUser', {
+          userId,
+          isVoip,
+          topic: note.topic,
+          title: notificationData.title,
+          sent: (apnsResponse && apnsResponse.sent && apnsResponse.sent.length) || 0,
+          failed: (apnsResponse && apnsResponse.failed && apnsResponse.failed.length) || 0
+        });
         deliverySucceeded = apnsResponse && apnsResponse.sent && apnsResponse.sent.length > 0;
         if (!deliverySucceeded) {
-          console.warn('APNs delivery failed, falling back to FCM if available', apnsResponse && apnsResponse.failed);
+          const reasons = (apnsResponse && apnsResponse.failed || []).map(f => ({ device: f.device, status: f.status, reason: f.response && f.response.reason, error: f.error && f.error.message }));
+          console.warn('APNs delivery failed, falling back to FCM if available', reasons);
+        }
+        if (deliverySucceeded) {
+          const firstSent = apnsResponse.sent && apnsResponse.sent[0];
+          console.log('[APNs] success payload/response (sendToUser)', {
+            userId,
+            topic: note.topic,
+            alert: note.alert,
+            payload: note.payload,
+            response: firstSent && firstSent.response ? firstSent.response : null
+          });
         }
       }
 
@@ -179,14 +358,12 @@ class NotificationService {
         deliverySucceeded = !!fcmResponse;
       }
 
-      // If we still haven't delivered and the only available token was APNs but APNs is not configured
       if (
         !deliverySucceeded &&
         user.apnsToken &&
         !apnsProvider &&
         (!user.fcmToken || !this.messaging)
       ) {
-        // Update notification status to failed with explicit reason
         try {
           await Notification.findByIdAndUpdate(notificationRecord._id, {
             deliveryStatus: 'failed',
@@ -197,12 +374,18 @@ class NotificationService {
       }
 
       if (!deliverySucceeded) {
-        throw new Error('All push delivery attempts failed');
+        // Prefer a descriptive APNs reason if available
+        let reason = 'All push delivery attempts failed';
+        if (apnsResponse && Array.isArray(apnsResponse.failed) && apnsResponse.failed.length > 0) {
+          const firstFail = apnsResponse.failed[0];
+          const apnsReason = (firstFail && firstFail.response && firstFail.response.reason) || (firstFail && firstFail.error && firstFail.error.message);
+          if (apnsReason) reason = `APNs failed: ${apnsReason}`;
+        }
+        throw new Error(reason);
       }
 
       console.log(`Notification sent to user ${userId}`);
       
-      // Update notification status to sent
       try {
         const update = { deliveryStatus: 'sent' };
         if (fcmResponse) update.fcmMessageId = fcmResponse;
@@ -215,7 +398,6 @@ class NotificationService {
     } catch (error) {
       console.error(`Error sending notification to user ${userId}:`, error);
 
-      // Update notification status to failed
       try {
         await Notification.findByIdAndUpdate(notificationRecord._id, {
           deliveryStatus: 'failed',
@@ -225,7 +407,6 @@ class NotificationService {
         console.error('Error updating notification status:', updateError);
       }
 
-      // If token is invalid, remove it from user
       if (error.code === 'messaging/invalid-registration-token' ||
           error.code === 'messaging/registration-token-not-registered') {
         await User.findByIdAndUpdate(userId, { $unset: { fcmToken: 1 } });
@@ -281,13 +462,11 @@ class NotificationService {
         await Notification.insertMany(notificationRecords);
       } catch (dbError) {
         console.error('Error saving notifications to database:', dbError);
-        // Continue with FCM sending even if DB save fails
       }
     }
 
     if ((!isFirebaseInitialized || !this.messaging) && (!apnsProvider || apnsTokens.length === 0)) {
       console.log('No push providers initialized. Multicast notification not sent.');
-      // Update created notification statuses to failed
       try {
         if (notificationRecords.length > 0) {
           const notificationIds = notificationRecords.map(n => n._id);
@@ -307,7 +486,6 @@ class NotificationService {
 
     try {
       if (fcmTokens.length === 0 && apnsTokens.length === 0) {
-        // No valid tokens. If any notifications were created, mark them failed
         try {
           if (notificationRecords.length > 0) {
             const notificationIds = notificationRecords.map(n => n._id);
@@ -363,20 +541,40 @@ class NotificationService {
       const apnsFailedTokens = [];
       if (apnsProvider && apnsTokens.length > 0) {
         const note = new apn.Notification();
-        const isVoip = options.apnsVoip || data.pushType === 'voip' || notificationData.pushType === 'voip';
+        const isVoip = (
+          options.apnsVoip ||
+          data.pushType === 'voip' ||
+          notificationData.pushType === 'voip' ||
+          (typeof notificationData.type === 'string' && notificationData.type.toLowerCase() === 'voip')
+        );
         const voipBundle = process.env.APNS_VOIP_BUNDLE_ID || (process.env.APNS_BUNDLE_ID ? `${process.env.APNS_BUNDLE_ID}.voip` : undefined);
         note.topic = isVoip && voipBundle ? voipBundle : process.env.APNS_BUNDLE_ID;
         if (isVoip) {
           note.pushType = 'voip';
+          note.contentAvailable = 1;
           note.expiry = Math.floor(Date.now() / 1000) + 3600;
+          // VoIP notifications don't support alert, sound, or badge
+        } else {
+          // Regular push notifications
+          note.alert = {
+            title: notificationData.title,
+            body: notificationData.body
+          };
+          note.sound = 'default';
+          note.badge = 1;
         }
-        note.alert = {
-          title: notificationData.title,
-          body: notificationData.body
-        };
-        note.sound = 'default';
-        note.badge = 1;
-        note.payload = { ...data, ...(options.customPayload ? { customPayload: options.customPayload } : {}) };
+        // Match Flutter's expected payload shape for VoIP pushes
+        if (isVoip) {
+          note.payload = {
+            extra: {
+              ...data,
+              ...(options.customPayload ? { customPayload: options.customPayload } : {}),
+              clickAction: 'FLUTTER_NOTIFICATION_CLICK'
+            }
+          };
+        } else {
+          note.payload = { ...data, ...(options.customPayload ? { customPayload: options.customPayload } : {}) };
+        }
 
         const chunks = [];
         const chunkSize = 100; // reasonable APNs batch size
@@ -388,15 +586,30 @@ class NotificationService {
           apnsSuccessCount += resp.sent.length;
           apnsFailureCount += resp.failed.length;
           apnsFailedTokens.push(...resp.failed.map(f => f.device));
+          if (resp.sent && resp.sent.length > 0) {
+            const firstSent = resp.sent[0];
+            console.log('[APNs] success payload/response (sendToMultipleUsers chunk)', {
+              topic: note.topic,
+              alert: note.alert,
+              payload: note.payload,
+              response: firstSent && firstSent.response ? firstSent.response : null,
+              sentCount: resp.sent.length
+            });
+          }
         }
+        console.log('[APNs] sendToMultipleUsers', {
+          isVoip,
+          topic: note.topic,
+          title: notificationData.title,
+          successCount: apnsSuccessCount,
+          failureCount: apnsFailureCount
+        });
       } else if (!apnsProvider && apnsTokens.length > 0) {
-        // Mark APNs paths failed if tokens exist but APNs isn't configured
         apnsFailureCount = apnsTokens.length;
         apnsFailedTokens.push(...apnsTokens);
       }
       const response = { successCount: fcmResponse.successCount + apnsSuccessCount, failureCount: fcmResponse.failureCount + apnsFailureCount, responses: fcmResponse.responses };
 
-      // Update notification statuses based on delivery results
       try {
         const successfulFcmTokens = [];
         const failedFcmTokens = [];
@@ -405,7 +618,6 @@ class NotificationService {
           else failedFcmTokens.push(fcmTokens[idx]);
         });
 
-        // Update successful notifications
         if (successfulFcmTokens.length > 0) {
           const successfulUserIds = usersWithTokens
             .filter(user => successfulFcmTokens.includes(user.fcmToken))
@@ -417,7 +629,6 @@ class NotificationService {
           );
         }
 
-        // Update failed notifications
         const failedTokens = [...failedFcmTokens, ...apnsFailedTokens];
         if (failedTokens.length > 0) {
           const failedUserIds = usersWithTokens
@@ -433,7 +644,6 @@ class NotificationService {
           );
         }
 
-        // Remove invalid tokens
         if (failedFcmTokens.length > 0) {
           await User.updateMany(
             { fcmToken: { $in: failedFcmTokens } },
@@ -460,7 +670,6 @@ class NotificationService {
     } catch (error) {
       console.error('Error sending multicast notification:', error);
       
-      // Update all notification statuses to failed
       try {
         const notificationIds = notificationRecords.map(n => n._id);
         await Notification.updateMany(
@@ -701,6 +910,11 @@ class NotificationService {
         body: 'You have a new dedication request.',
         type: 'dedication'
       },
+      DEDICATION_REQUEST_CREATED: {
+        title: 'New Dedication Request',
+        body: 'You have a new dedication request.',
+        type: 'dedication'
+      },
       DEDICATION_ACCEPTED: {
         title: 'Dedication Request Accepted',
         body: 'Your dedication request was accepted!',
@@ -709,6 +923,11 @@ class NotificationService {
       DEDICATION_REJECTED: {
         title: 'Dedication Request Rejected',
         body: 'Your dedication request was rejected.',
+        type: 'dedication'
+      },
+      DEDICATION_VIDEO_UPLOADED: {
+        title: 'Dedication Video Uploaded',
+        body: 'Your dedication video has been uploaded.',
         type: 'dedication'
       },
 
