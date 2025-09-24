@@ -238,16 +238,13 @@ class NotificationService {
           const reasons = (apnsResponse && apnsResponse.failed || []).map(f => ({ device: f.device, status: f.status, reason: f.response && f.response.reason, error: f.error && f.error.message }));
           console.warn('APNs delivery failed, falling back to FCM if available', reasons);
           
-          // Handle specific APNs token errors
+          // Handle specific APNs token errors (but don't remove tokens)
           if (apnsResponse && apnsResponse.failed && apnsResponse.failed.length > 0) {
             const failedTokens = apnsResponse.failed.map(f => f.device);
             if (failedTokens.length > 0) {
-              // Remove invalid APNs tokens
-              await User.updateMany(
-                { apnsToken: { $in: failedTokens } },
-                { $unset: { apnsToken: 1 } }
-              );
-              console.log(`Removed ${failedTokens.length} invalid APNs tokens`);
+              console.log(`APNs delivery failed for ${failedTokens.length} tokens, but keeping them for retry`);
+              // Note: We're not removing APNs tokens on failure as they might be valid
+              // and the failure could be temporary (network, server issues, etc.)
             }
           }
         }
@@ -299,15 +296,12 @@ class NotificationService {
           }
           if (voipResponse && voipResponse.failed && voipResponse.failed.length > 0) {
             console.log('[VoIP] failed tokens:', voipResponse.failed);
-            // Handle specific VoIP token errors
+            // Handle specific VoIP token errors (but don't remove tokens)
             const failedTokens = voipResponse.failed.map(f => f.device);
             if (failedTokens.length > 0) {
-              // Remove invalid VoIP tokens
-              await User.updateMany(
-                { voipToken: { $in: failedTokens } },
-                { $unset: { voipToken: 1 } }
-              );
-              console.log(`Removed ${failedTokens.length} invalid VoIP tokens`);
+              console.log(`VoIP delivery failed for ${failedTokens.length} tokens, but keeping them for retry`);
+              // Note: We're not removing VoIP tokens on failure as they might be valid
+              // and the failure could be temporary (network, server issues, etc.)
             }
           }
         }
@@ -713,18 +707,14 @@ class NotificationService {
           console.log(`Removed ${failedFcmTokens.length} invalid FCM tokens`);
         }
         if (apnsFailedTokens.length > 0) {
-          await User.updateMany(
-            { apnsToken: { $in: apnsFailedTokens } },
-            { $unset: { apnsToken: 1 } }
-          );
-          console.log(`Removed ${apnsFailedTokens.length} invalid APNs tokens`);
+          console.log(`APNs delivery failed for ${apnsFailedTokens.length} tokens, but keeping them for retry`);
+          // Note: We're not removing APNs tokens on failure as they might be valid
+          // and the failure could be temporary (network, server issues, etc.)
         }
         if (voipFailedTokens.length > 0) {
-          await User.updateMany(
-            { voipToken: { $in: voipFailedTokens } },
-            { $unset: { voipToken: 1 } }
-          );
-          console.log(`Removed ${voipFailedTokens.length} invalid VoIP tokens`);
+          console.log(`VoIP delivery failed for ${voipFailedTokens.length} tokens, but keeping them for retry`);
+          // Note: We're not removing VoIP tokens on failure as they might be valid
+          // and the failure could be temporary (network, server issues, etc.)
         }
       } catch (updateError) {
         console.error('Error updating notification statuses:', updateError);
