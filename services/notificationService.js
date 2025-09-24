@@ -21,35 +21,12 @@ function getApnsTopic(isVoip = false) {
   }
 }
 
-// Normalize APNs private key from env (handles file path, base64, escaped newlines, quotes)
-function normalizeApnsPrivateKey() {
-  // Priority: explicit file var → APNS_PRIVATE_KEY → APNS_PRIVATE_KEY_BASE64
-  try {
-    if (process.env.APNS_PRIVATE_KEY_FILE) {
-      const filePath = path.resolve(process.env.APNS_PRIVATE_KEY_FILE);
-      if (fs.existsSync(filePath)) {
-        let fromFile = fs.readFileSync(filePath, 'utf8');
-        fromFile = fromFile.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-        if (!/\n$/.test(fromFile)) fromFile += '\n';
-        return fromFile;
-      }
-    }
-  } catch (_e) {}
 
+// Helper function to get APNs private key from environment variables
+function getApnsPrivateKey() {
+  // Priority: APNS_PRIVATE_KEY → APNS_PRIVATE_KEY_BASE64 → APNS_PRIVATE_KEY_FILE
   let key = process.env.APNS_PRIVATE_KEY || process.env.APNS_PRIVATE_KEY_BASE64 || '';
-  if (!key) return null;
-
-  // If looks like a path, try reading it
-  try {
-    const maybePath = key.trim().replace(/^~(?=\\|\/)/, process.env.HOME || process.env.USERPROFILE || '');
-    if (!key.includes('-----BEGIN') && fs.existsSync(maybePath) && fs.statSync(maybePath).isFile()) {
-      let fromPath = fs.readFileSync(maybePath, 'utf8');
-      fromPath = fromPath.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-      if (!/\n$/.test(fromPath)) fromPath += '\n';
-      return fromPath;
-    }
-  } catch (_e) {}
-
+  
   // If provided via BASE64 var, attempt decoding
   if (process.env.APNS_PRIVATE_KEY_BASE64) {
     try {
@@ -57,52 +34,26 @@ function normalizeApnsPrivateKey() {
       if (decoded && decoded.includes('-----BEGIN')) key = decoded;
     } catch (_e) {}
   }
-
-  // Strip surrounding quotes if present
-  key = key.trim();
-  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith('\'') && key.endsWith('\''))) {
-    key = key.slice(1, -1);
-  }
-
-  // Replace escaped newlines and normalize real CRLF to LF
-  key = key.replace(/\\n/g, '\n').replace(/\\r/g, '\r');
-  key = key.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-  // Strip BOM if present
-  if (key.length > 0 && key.charCodeAt(0) === 0xFEFF) {
-    key = key.slice(1);
-  }
-
-  // If still looks like base64 without PEM headers, try decoding
-  const looksLikePem = key.includes('-----BEGIN');
-  if (!looksLikePem) {
+  
+  // If provided via file path, read the file
+  if (process.env.APNS_PRIVATE_KEY_FILE) {
     try {
-      const maybe = Buffer.from(key, 'base64').toString('utf8');
-      if (maybe.includes('-----BEGIN')) key = maybe;
+      const filePath = path.resolve(process.env.APNS_PRIVATE_KEY_FILE);
+      if (fs.existsSync(filePath)) {
+        let fromFile = fs.readFileSync(filePath, 'utf8');
+        fromFile = fromFile.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        if (!/\n$/.test(fromFile)) fromFile += '\n';
+        key = fromFile;
+      }
     } catch (_e) {}
   }
-
-  // Ensure trailing newline for PEM parsers
-  if (key && !/\n$/.test(key)) key += '\n';
-
+  
+  // Strip surrounding quotes if present
+  if (key && typeof key === 'string') {
+    key = key.replace(/^["']|["']$/g, '').trim();
+  }
+  
   return key || null;
-}
-
-// Resolve APNs certificate (.pem) path. Prefer APNS_CERT_FILE, else services/voip.pem.
-function resolveApnsPemPath() {
-  try {
-    if (process.env.APNS_CERT_FILE) {
-      const fromEnv = path.resolve(process.env.APNS_CERT_FILE);
-      if (fs.existsSync(fromEnv)) return fromEnv;
-    }
-  } catch (_e) {}
-
-  try {
-    const defaultPath = path.resolve(process.cwd(), 'services', 'voip.pem');
-    if (fs.existsSync(defaultPath)) return defaultPath;
-  } catch (_e) {}
-
-  return null;
 }
 
 try {
@@ -133,9 +84,7 @@ try {
 class NotificationService {
   constructor() {
     this.messaging = isFirebaseInitialized ? admin.messaging() : null;
-    // Prefer certificate-based (.pem) provider if available; fall back to token-based (.p8)
-    const pemPath = resolveApnsPemPath();
-    console.log("pemPath : ",pemPath);
+    // Initialize APNs using environment variables only
     const hasTokenCreds = !!(
       process.env.APNS_KEY_ID &&
       process.env.APNS_TEAM_ID &&
@@ -143,44 +92,9 @@ class NotificationService {
       (process.env.APNS_PRIVATE_KEY || process.env.APNS_PRIVATE_KEY_BASE64 || process.env.APNS_PRIVATE_KEY_FILE)
     );
 
-    if (pemPath) {
+    if (hasTokenCreds) {
       try {
-        apnsProvider = new apn.Provider({
-          // Many setups bundle cert+key in a single PEM. apn accepts cert/key pointing to same file.
-          cert: pemPath,
-          key: pemPath,
-          // passphrase: process.env.APNS_CERT_PASSPHRASE || undefined,
-          production: process.env.NODE_ENV === 'production'
-        });
-        console.log('APNs initialized using certificate (.pem):', pemPath);
-      } catch (e) {
-        console.warn('Failed to initialize APNs provider (pem):', e.message);
-        if (hasTokenCreds) {
-          try {
-            let normalizedKey = normalizeApnsPrivateKey();
-            if (!normalizedKey || !normalizedKey.includes('-----BEGIN') || !normalizedKey.includes('PRIVATE KEY')) {
-              throw new Error('APNS_PRIVATE_KEY is not a valid .p8 Auth Key (PEM with BEGIN/END PRIVATE KEY).');
-            }
-            if (!/\n$/.test(normalizedKey)) normalizedKey += '\n';
-            apnsProvider = new apn.Provider({
-              token: {
-                key: normalizedKey,
-                keyId: process.env.APNS_KEY_ID,
-                teamId: process.env.APNS_TEAM_ID
-              },
-              production: process.env.NODE_ENV === 'production'
-            });
-            console.log('APNs initialized using token-based auth (.p8 key) — fallback after pem failure');
-          } catch (e2) {
-            console.warn('Failed to initialize APNs provider (token fallback):', e2.message);
-          }
-        } else {
-          console.warn('No APNs token credentials available for fallback after pem failure. APNs disabled.');
-        }
-      }
-    } else if (hasTokenCreds) {
-      try {
-        let normalizedKey = normalizeApnsPrivateKey();
+        let normalizedKey = getApnsPrivateKey();
         if (!normalizedKey || !normalizedKey.includes('-----BEGIN') || !normalizedKey.includes('PRIVATE KEY')) {
           throw new Error('APNS_PRIVATE_KEY is not a valid .p8 Auth Key (PEM with BEGIN/END PRIVATE KEY).');
         }
@@ -193,7 +107,7 @@ class NotificationService {
           },
           production: process.env.NODE_ENV === 'production'
         });
-        console.log('APNs initialized using token-based auth (.p8 key)');
+        console.log('APNs initialized using token-based auth (.p8 key) from environment variables');
       } catch (e) {
         console.warn('Failed to initialize APNs provider (token):', e.message);
         const preview = (process.env.APNS_PRIVATE_KEY || process.env.APNS_PRIVATE_KEY_BASE64 || process.env.APNS_PRIVATE_KEY_FILE || '').toString().slice(0, 40);
@@ -206,7 +120,7 @@ class NotificationService {
         });
       }
     } else {
-      console.warn('APNs credentials not provided (no PEM and no token). iOS APNs notifications will be disabled.');
+      console.warn('APNs credentials not provided. iOS APNs notifications will be disabled.');
     }
   }
 
