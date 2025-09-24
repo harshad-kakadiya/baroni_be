@@ -10,6 +10,17 @@ let firebaseApp;
 let isFirebaseInitialized = false;
 let apnsProvider = null;
 
+// Helper function to get the correct APNs topic
+function getApnsTopic(isVoip = false) {
+  if (isVoip) {
+    // VoIP notifications should use .voip topic
+    return process.env.APNS_VOIP_BUNDLE_ID || (process.env.APNS_BUNDLE_ID ? `${process.env.APNS_BUNDLE_ID}.voip` : undefined);
+  } else {
+    // Regular push notifications use the main bundle ID
+    return process.env.APNS_BUNDLE_ID;
+  }
+}
+
 // Normalize APNs private key from env (handles file path, base64, escaped newlines, quotes)
 function normalizeApnsPrivateKey() {
   // Priority: explicit file var → APNS_PRIVATE_KEY → APNS_PRIVATE_KEY_BASE64
@@ -312,6 +323,19 @@ class NotificationService {
         if (!deliverySucceeded) {
           const reasons = (apnsResponse && apnsResponse.failed || []).map(f => ({ device: f.device, status: f.status, reason: f.response && f.response.reason, error: f.error && f.error.message }));
           console.warn('APNs delivery failed, falling back to FCM if available', reasons);
+          
+          // Handle specific APNs token errors
+          if (apnsResponse && apnsResponse.failed && apnsResponse.failed.length > 0) {
+            const failedTokens = apnsResponse.failed.map(f => f.device);
+            if (failedTokens.length > 0) {
+              // Remove invalid APNs tokens
+              await User.updateMany(
+                { apnsToken: { $in: failedTokens } },
+                { $unset: { apnsToken: 1 } }
+              );
+              console.log(`Removed ${failedTokens.length} invalid APNs tokens`);
+            }
+          }
         }
         if (deliverySucceeded) {
           const firstSent = apnsResponse.sent && apnsResponse.sent[0];
@@ -327,36 +351,51 @@ class NotificationService {
 
       // Handle VoIP token separately for VoIP-specific notifications
       if (!deliverySucceeded && user.voipToken && apnsProvider) {
-        const voipNote = new apn.Notification();
-        voipNote.topic = process.env.APNS_VOIP_BUNDLE_ID || process.env.APNS_BUNDLE_ID;
-        voipNote.pushType = 'voip';
-        voipNote.contentAvailable = 1;
-        voipNote.expiry = Math.floor(Date.now() / 1000) + 3600;
+        const voipTopic = getApnsTopic(true);
+        if (!voipTopic) {
+          console.warn('[VoIP] No VoIP topic configured, skipping VoIP notification');
+        } else {
+          const voipNote = new apn.Notification();
+          voipNote.topic = voipTopic;
+          voipNote.pushType = 'voip';
+          voipNote.contentAvailable = 1;
+          voipNote.expiry = Math.floor(Date.now() / 1000) + 3600;
         
-        // VoIP notifications don't support alert, sound, or badge
-        voipNote.payload = {
-          extra: {
-            ...data,
-            ...(options.customPayload ? { customPayload: options.customPayload } : {}),
-            clickAction: 'FLUTTER_NOTIFICATION_CLICK',
-            pushType: 'VoIP'
+          // VoIP notifications don't support alert, sound, or badge
+          voipNote.payload = {
+            extra: {
+              ...data,
+              ...(options.customPayload ? { customPayload: options.customPayload } : {}),
+              clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+              pushType: 'VoIP'
+            }
+          };
+
+          const voipResponse = await apnsProvider.send(voipNote, user.voipToken);
+          console.log('[VoIP] sendToUser', {
+            userId,
+            topic: voipNote.topic,
+            title: notificationData.title,
+            sent: (voipResponse && voipResponse.sent && voipResponse.sent.length) || 0,
+            failed: (voipResponse && voipResponse.failed && voipResponse.failed.length) || 0
+          });
+
+          if (voipResponse && voipResponse.sent && voipResponse.sent.length > 0) {
+            deliverySucceeded = true;
           }
-        };
-
-        const voipResponse = await apnsProvider.send(voipNote, user.voipToken);
-        console.log('[VoIP] sendToUser', {
-          userId,
-          topic: voipNote.topic,
-          title: notificationData.title,
-          sent: (voipResponse && voipResponse.sent && voipResponse.sent.length) || 0,
-          failed: (voipResponse && voipResponse.failed && voipResponse.failed.length) || 0
-        });
-
-        if (voipResponse && voipResponse.sent && voipResponse.sent.length > 0) {
-          deliverySucceeded = true;
-        }
-        if (voipResponse && voipResponse.failed && voipResponse.failed.length > 0) {
-          console.log('[VoIP] failed tokens:', voipResponse.failed);
+          if (voipResponse && voipResponse.failed && voipResponse.failed.length > 0) {
+            console.log('[VoIP] failed tokens:', voipResponse.failed);
+            // Handle specific VoIP token errors
+            const failedTokens = voipResponse.failed.map(f => f.device);
+            if (failedTokens.length > 0) {
+              // Remove invalid VoIP tokens
+              await User.updateMany(
+                { voipToken: { $in: failedTokens } },
+                { $unset: { voipToken: 1 } }
+              );
+              console.log(`Removed ${failedTokens.length} invalid VoIP tokens`);
+            }
+          }
         }
       }
 
@@ -416,7 +455,21 @@ class NotificationService {
           const apnsReason = (firstFail && firstFail.response && firstFail.response.reason) || (firstFail && firstFail.error && firstFail.error.message);
           if (apnsReason) reason = `APNs failed: ${apnsReason}`;
         }
-        throw new Error(reason);
+        
+        // Log the error but don't throw it to prevent breaking the application
+        console.error(`[NotificationService] Failed to send notification to user ${userId}:`, reason);
+        
+        // Update notification status to failed
+        try {
+          await Notification.findByIdAndUpdate(notificationRecord._id, {
+            deliveryStatus: 'failed',
+            failureReason: reason
+          });
+        } catch (updateError) {
+          console.error('Error updating notification status:', updateError);
+        }
+        
+        return { success: false, message: reason };
       }
 
       console.log(`Notification sent to user ${userId}`);
