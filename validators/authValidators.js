@@ -9,7 +9,10 @@ export const registerValidator = [
     .withMessage('Invalid contact number format. Use international format, e.g. +22376299719'),
   body('email').optional().isEmail().withMessage('Invalid email format'),
   body('password').optional().isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-  body('role').optional().isIn(['fan', 'star', 'admin']).withMessage('Invalid role')
+  body('role').optional().isIn(['fan', 'star', 'admin']).withMessage('Invalid role'),
+  body('fcmToken').optional().isString().withMessage('FCM token must be a string'),
+  body('apnsToken').optional().isString().withMessage('APNs token must be a string'),
+  body('voipToken').optional().isString().withMessage('VoIP token must be a string')
 ];
 
 export const loginValidator = [
@@ -21,7 +24,10 @@ export const loginValidator = [
     .withMessage('Invalid contact number format. Use international format, e.g. +22376299719'),
   body('email').optional().isEmail().withMessage('Invalid email format'),
   body('isMobile').optional().isBoolean().withMessage('isMobile must be a boolean'),
-  body('password').optional().isString().withMessage('Password must be a string')
+  body('password').optional().isString().withMessage('Password must be a string'),
+  body('fcmToken').optional().isString().withMessage('FCM token must be a string'),
+  body('apnsToken').optional().isString().withMessage('APNs token must be a string'),
+  body('voipToken').optional().isString().withMessage('VoIP token must be a string')
 ];
 
 export const completeProfileValidator = [

@@ -430,7 +430,11 @@ class NotificationHelper {
       const followers = await User.find({
         favorites: { $in: [starId] },
         role: 'fan',
-        fcmToken: { $exists: true, $ne: null }
+        $or: [
+          { fcmToken: { $exists: true, $ne: null } },
+          { apnsToken: { $exists: true, $ne: null } },
+          { voipToken: { $exists: true, $ne: null } }
+        ]
       });
 
       const followerIds = followers.map(follower => follower._id);
@@ -457,10 +461,13 @@ class NotificationHelper {
       const attendees = await LiveShowAttendance.find({
         liveShowId: liveShowId,
         status: 'joined'
-      }).populate('userId', 'fcmToken role');
+      }).populate('userId', 'fcmToken apnsToken voipToken role');
 
       const attendeeIds = attendees
-        .filter(attendance => attendance.userId?.fcmToken && attendance.userId?.role === 'fan')
+        .filter(attendance => 
+          attendance.userId?.role === 'fan' && 
+          (attendance.userId?.fcmToken || attendance.userId?.apnsToken || attendance.userId?.voipToken)
+        )
         .map(attendance => attendance.userId._id);
 
       if (attendeeIds.length > 0) {

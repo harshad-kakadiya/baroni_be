@@ -22,6 +22,7 @@ const userSchema = new mongoose.Schema(
     hidden: { type: Boolean, default: false },
     fcmToken: { type: String, sparse: true, index: true },
     apnsToken: { type: String, sparse: true, index: true },
+    voipToken: { type: String, sparse: true, index: true },
     favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     isDeleted: { type: Boolean, default: false, index: true },
     deletedAt: { type: Date },

@@ -14,6 +14,8 @@ import {
     getSoftDeletedUsers,
     toggleAvailableForBookings,
     updateFcmToken,
+    updateApnsToken,
+    updateVoipToken,
 } from '../../controllers/auth.js';
 import { registerValidator, loginValidator, completeProfileValidator, checkUserValidator } from '../../validators/authValidators.js';
 import { requireAuth, requireRole } from '../../middlewares/auth.js';
@@ -47,6 +49,8 @@ router.delete('/users/:userId', requireAuth, requireRole('admin'), permanentlyDe
 
 router.patch('/toggle-availability', requireAuth, toggleAvailableForBookings);
 router.patch('/fcm-token', requireAuth, updateFcmToken);
+router.patch('/apns-token', requireAuth, updateApnsToken);
+router.patch('/voip-token', requireAuth, updateVoipToken);
 
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 router.get(

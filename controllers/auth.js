@@ -51,7 +51,7 @@ export const register = async (req, res) => {
       return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
     }
 
-  const { contact, email, password, role, fcmToken, apnsToken } = req.body;
+  const { contact, email, password, role, fcmToken, apnsToken, voipToken } = req.body;
   const normalizedContact = typeof contact === 'string' ? normalizeContact(contact) : contact;
 
     // Check if we have either contact or email
@@ -98,7 +98,8 @@ export const register = async (req, res) => {
       password: hashedPassword,
       role,
       ...(fcmToken ? { fcmToken } : {}),
-      ...(apnsToken ? { apnsToken } : {})
+      ...(apnsToken ? { apnsToken } : {}),
+      ...(voipToken ? { voipToken } : {})
     });
 
     // Generate unique Agora key for the user
@@ -135,7 +136,7 @@ export const login = async (req, res) => {
       return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
     }
 
-    const { contact, email, isMobile } = req.body;
+    const { contact, email, isMobile, fcmToken, apnsToken, voipToken } = req.body;
     const normalizedContact = typeof contact === 'string' ? normalizeContact(contact) : contact;
     let user;
 
@@ -180,9 +181,20 @@ export const login = async (req, res) => {
       }
     }
 
+    // Update tokens if provided
+    const updateData = {};
+    if (fcmToken) updateData.fcmToken = fcmToken;
+    if (apnsToken) updateData.apnsToken = apnsToken;
+    if (voipToken) updateData.voipToken = voipToken;
+
     // Increment sessionVersion to invalidate tokens from other devices
     user.sessionVersion = (typeof user.sessionVersion === 'number' ? user.sessionVersion : 0) + 1;
-    await user.save();
+    updateData.sessionVersion = user.sessionVersion;
+
+    // Update user with new tokens and session version
+    if (Object.keys(updateData).length > 0) {
+      await User.findByIdAndUpdate(user._id, updateData);
+    }
 
     const accessToken = createAccessToken({ userId: user._id, sessionVersion: user.sessionVersion });
     const refreshToken = createRefreshToken({ userId: user._id, sessionVersion: user.sessionVersion });
@@ -830,6 +842,43 @@ export const updateApnsToken = async (req, res) => {
     return res.json({
       success: true,
       message: 'APNs token updated successfully',
+      data: sanitizeUser(updatedUser)
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Update VoIP token for iOS VoIP push notifications
+export const updateVoipToken = async (req, res) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const userId = req.user._id;
+    const { voipToken } = req.body;
+
+    if (!voipToken || typeof voipToken !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'VoIP token is required and must be a string'
+      });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { voipToken },
+      { new: true }
+    ).select('-password -passwordResetToken -passwordResetExpires');
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    return res.json({
+      success: true,
+      message: 'VoIP token updated successfully',
       data: sanitizeUser(updatedUser)
     });
   } catch (err) {

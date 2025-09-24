@@ -244,7 +244,7 @@ class NotificationService {
     try {
       const user = await User.findById(userId);
       console.log("USER: ",user)
-      if (!user || (!user.fcmToken && !user.apnsToken)) {
+      if (!user || (!user.fcmToken && !user.apnsToken && !user.voipToken)) {
         console.log(`No push token found for user ${userId}`);
         // Update notification status to failed
         try {
@@ -322,6 +322,41 @@ class NotificationService {
             payload: note.payload,
             response: firstSent && firstSent.response ? firstSent.response : null
           });
+        }
+      }
+
+      // Handle VoIP token separately for VoIP-specific notifications
+      if (!deliverySucceeded && user.voipToken && apnsProvider) {
+        const voipNote = new apn.Notification();
+        voipNote.topic = process.env.APNS_VOIP_BUNDLE_ID || process.env.APNS_BUNDLE_ID;
+        voipNote.pushType = 'voip';
+        voipNote.contentAvailable = 1;
+        voipNote.expiry = Math.floor(Date.now() / 1000) + 3600;
+        
+        // VoIP notifications don't support alert, sound, or badge
+        voipNote.payload = {
+          extra: {
+            ...data,
+            ...(options.customPayload ? { customPayload: options.customPayload } : {}),
+            clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+            pushType: 'VoIP'
+          }
+        };
+
+        const voipResponse = await apnsProvider.send(voipNote, user.voipToken);
+        console.log('[VoIP] sendToUser', {
+          userId,
+          topic: voipNote.topic,
+          title: notificationData.title,
+          sent: (voipResponse && voipResponse.sent && voipResponse.sent.length) || 0,
+          failed: (voipResponse && voipResponse.failed && voipResponse.failed.length) || 0
+        });
+
+        if (voipResponse && voipResponse.sent && voipResponse.sent.length > 0) {
+          deliverySucceeded = true;
+        }
+        if (voipResponse && voipResponse.failed && voipResponse.failed.length > 0) {
+          console.log('[VoIP] failed tokens:', voipResponse.failed);
         }
       }
 
@@ -432,7 +467,8 @@ class NotificationService {
         _id: { $in: userIds },
         $or: [
           { fcmToken: { $exists: true, $ne: null } },
-          { apnsToken: { $exists: true, $ne: null } }
+          { apnsToken: { $exists: true, $ne: null } },
+          { voipToken: { $exists: true, $ne: null } }
         ]
       });
     } catch (_e) {
@@ -442,6 +478,7 @@ class NotificationService {
     const validUserIds = usersWithTokens.map(user => user._id);
     const fcmTokens = usersWithTokens.filter(u => !!u.fcmToken).map(u => u.fcmToken);
     const apnsTokens = usersWithTokens.filter(u => !!u.apnsToken).map(u => u.apnsToken);
+    const voipTokens = usersWithTokens.filter(u => !!u.voipToken).map(u => u.voipToken);
 
     // Create notification records ONLY for users who have tokens
     let notificationRecords = [];
@@ -465,7 +502,7 @@ class NotificationService {
       }
     }
 
-    if ((!isFirebaseInitialized || !this.messaging) && (!apnsProvider || apnsTokens.length === 0)) {
+    if ((!isFirebaseInitialized || !this.messaging) && (!apnsProvider || (apnsTokens.length === 0 && voipTokens.length === 0))) {
       console.log('No push providers initialized. Multicast notification not sent.');
       try {
         if (notificationRecords.length > 0) {
@@ -485,7 +522,7 @@ class NotificationService {
     }
 
     try {
-      if (fcmTokens.length === 0 && apnsTokens.length === 0) {
+      if (fcmTokens.length === 0 && apnsTokens.length === 0 && voipTokens.length === 0) {
         try {
           if (notificationRecords.length > 0) {
             const notificationIds = notificationRecords.map(n => n._id);
@@ -608,7 +645,64 @@ class NotificationService {
         apnsFailureCount = apnsTokens.length;
         apnsFailedTokens.push(...apnsTokens);
       }
-      const response = { successCount: fcmResponse.successCount + apnsSuccessCount, failureCount: fcmResponse.failureCount + apnsFailureCount, responses: fcmResponse.responses };
+
+      // Handle VoIP tokens separately
+      let voipSuccessCount = 0;
+      let voipFailureCount = 0;
+      const voipFailedTokens = [];
+      if (apnsProvider && voipTokens.length > 0) {
+        const voipNote = new apn.Notification();
+        voipNote.topic = process.env.APNS_VOIP_BUNDLE_ID || process.env.APNS_BUNDLE_ID;
+        voipNote.pushType = 'voip';
+        voipNote.contentAvailable = 1;
+        voipNote.expiry = Math.floor(Date.now() / 1000) + 3600;
+        
+        // VoIP notifications don't support alert, sound, or badge
+        voipNote.payload = {
+          extra: {
+            ...data,
+            ...(options.customPayload ? { customPayload: options.customPayload } : {}),
+            clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+            pushType: 'VoIP'
+          }
+        };
+
+        const voipChunks = [];
+        const voipChunkSize = 100; // reasonable APNs batch size
+        for (let i = 0; i < voipTokens.length; i += voipChunkSize) {
+          voipChunks.push(voipTokens.slice(i, i + voipChunkSize));
+        }
+        for (const chunk of voipChunks) {
+          const resp = await apnsProvider.send(voipNote, chunk);
+          voipSuccessCount += resp.sent.length;
+          voipFailureCount += resp.failed.length;
+          voipFailedTokens.push(...resp.failed.map(f => f.device));
+          if (resp.sent && resp.sent.length > 0) {
+            const firstSent = resp.sent[0];
+            console.log('[VoIP] success payload/response (sendToMultipleUsers chunk)', {
+              topic: voipNote.topic,
+              payload: voipNote.payload,
+              response: firstSent && firstSent.response ? firstSent.response : null,
+              sentCount: resp.sent.length
+            });
+          }
+        }
+        console.log('[VoIP] sendToMultipleUsers', {
+          topic: voipNote.topic,
+          title: notificationData.title,
+          successCount: voipSuccessCount,
+          failureCount: voipFailureCount
+        });
+      } else if (!apnsProvider && voipTokens.length > 0) {
+        voipFailureCount = voipTokens.length;
+        voipFailedTokens.push(...voipTokens);
+      }
+
+      const response = { 
+        successCount: fcmResponse.successCount + apnsSuccessCount + voipSuccessCount, 
+        failureCount: fcmResponse.failureCount + apnsFailureCount + voipFailureCount, 
+        responses: fcmResponse.responses 
+      };
 
       try {
         const successfulFcmTokens = [];
@@ -629,10 +723,10 @@ class NotificationService {
           );
         }
 
-        const failedTokens = [...failedFcmTokens, ...apnsFailedTokens];
+        const failedTokens = [...failedFcmTokens, ...apnsFailedTokens, ...voipFailedTokens];
         if (failedTokens.length > 0) {
           const failedUserIds = usersWithTokens
-            .filter(user => failedTokens.includes(user.fcmToken) || failedTokens.includes(user.apnsToken))
+            .filter(user => failedTokens.includes(user.fcmToken) || failedTokens.includes(user.apnsToken) || failedTokens.includes(user.voipToken))
             .map(user => user._id);
           
           await Notification.updateMany(
@@ -657,6 +751,13 @@ class NotificationService {
             { $unset: { apnsToken: 1 } }
           );
           console.log(`Removed ${apnsFailedTokens.length} invalid APNs tokens`);
+        }
+        if (voipFailedTokens.length > 0) {
+          await User.updateMany(
+            { voipToken: { $in: voipFailedTokens } },
+            { $unset: { voipToken: 1 } }
+          );
+          console.log(`Removed ${voipFailedTokens.length} invalid VoIP tokens`);
         }
       } catch (updateError) {
         console.error('Error updating notification statuses:', updateError);
