@@ -26,7 +26,7 @@ function getApnsTopic(isVoip = false) {
 function getApnsPrivateKey() {
   // Priority: APNS_PRIVATE_KEY → APNS_PRIVATE_KEY_BASE64 → APNS_PRIVATE_KEY_FILE
   let key = process.env.APNS_PRIVATE_KEY || process.env.APNS_PRIVATE_KEY_BASE64 || '';
-  
+
   // If provided via BASE64 var, attempt decoding
   if (process.env.APNS_PRIVATE_KEY_BASE64) {
     try {
@@ -34,7 +34,7 @@ function getApnsPrivateKey() {
       if (decoded && decoded.includes('-----BEGIN')) key = decoded;
     } catch (_e) {}
   }
-  
+
   // If provided via file path, read the file
   if (process.env.APNS_PRIVATE_KEY_FILE) {
     try {
@@ -47,12 +47,12 @@ function getApnsPrivateKey() {
       }
     } catch (_e) {}
   }
-  
+
   // Strip surrounding quotes if present
   if (key && typeof key === 'string') {
     key = key.replace(/^["']|["']$/g, '').trim();
   }
-  
+
   return key || null;
 }
 
@@ -182,7 +182,7 @@ class NotificationService {
         }
         return { success: false, message: 'No push token found' };
       }
-      // Prefer APNs if iOS token present, otherwise use FCM
+      // Prefer APNs if iOS token present, otherwise use FCMm
       let deliverySucceeded = false;
       let fcmResponse = null;
       let apnsResponse = null;
@@ -237,7 +237,7 @@ class NotificationService {
         if (!deliverySucceeded) {
           const reasons = (apnsResponse && apnsResponse.failed || []).map(f => ({ device: f.device, status: f.status, reason: f.response && f.response.reason, error: f.error && f.error.message }));
           console.warn('APNs delivery failed, falling back to FCM if available', reasons);
-          
+
           // Handle specific APNs token errors (but don't remove tokens)
           if (apnsResponse && apnsResponse.failed && apnsResponse.failed.length > 0) {
             const failedTokens = apnsResponse.failed.map(f => f.device);
@@ -271,7 +271,7 @@ class NotificationService {
           voipNote.pushType = 'voip';
           voipNote.contentAvailable = 1;
           voipNote.expiry = Math.floor(Date.now() / 1000) + 3600;
-        
+
           // VoIP notifications don't support alert, sound, or badge
           voipNote.payload = {
             extra: {
@@ -363,10 +363,10 @@ class NotificationService {
           const apnsReason = (firstFail && firstFail.response && firstFail.response.reason) || (firstFail && firstFail.error && firstFail.error.message);
           if (apnsReason) reason = `APNs failed: ${apnsReason}`;
         }
-        
+
         // Log the error but don't throw it to prevent breaking the application
         console.error(`[NotificationService] Failed to send notification to user ${userId}:`, reason);
-        
+
         // Update notification status to failed
         try {
           await Notification.findByIdAndUpdate(notificationRecord._id, {
@@ -376,12 +376,12 @@ class NotificationService {
         } catch (updateError) {
           console.error('Error updating notification status:', updateError);
         }
-        
+
         return { success: false, message: reason };
       }
 
       console.log(`Notification sent to user ${userId}`);
-      
+
       try {
         const update = { deliveryStatus: 'sent' };
         if (fcmResponse) update.fcmMessageId = fcmResponse;
@@ -389,7 +389,7 @@ class NotificationService {
       } catch (updateError) {
         console.error('Error updating notification status:', updateError);
       }
-      
+
       return { success: true, messageId: fcmResponse || (apnsResponse && apnsResponse.sent && apnsResponse.sent[0] && apnsResponse.sent[0].response) || null, notificationId: notificationRecord._id };
     } catch (error) {
       console.error(`Error sending notification to user ${userId}:`, error);
@@ -617,7 +617,7 @@ class NotificationService {
         voipNote.pushType = 'voip';
         voipNote.contentAvailable = 1;
         voipNote.expiry = Math.floor(Date.now() / 1000) + 3600;
-        
+
         // VoIP notifications don't support alert, sound, or badge
         voipNote.payload = {
           extra: {
@@ -659,10 +659,10 @@ class NotificationService {
         voipFailedTokens.push(...voipTokens);
       }
 
-      const response = { 
-        successCount: fcmResponse.successCount + apnsSuccessCount + voipSuccessCount, 
-        failureCount: fcmResponse.failureCount + apnsFailureCount + voipFailureCount, 
-        responses: fcmResponse.responses 
+      const response = {
+        successCount: fcmResponse.successCount + apnsSuccessCount + voipSuccessCount,
+        failureCount: fcmResponse.failureCount + apnsFailureCount + voipFailureCount,
+        responses: fcmResponse.responses
       };
 
       try {
@@ -677,7 +677,7 @@ class NotificationService {
           const successfulUserIds = usersWithTokens
             .filter(user => successfulFcmTokens.includes(user.fcmToken))
             .map(user => user._id);
-          
+
           await Notification.updateMany(
             { user: { $in: successfulUserIds }, deliveryStatus: 'pending' },
             { deliveryStatus: 'sent' }
@@ -689,10 +689,10 @@ class NotificationService {
           const failedUserIds = usersWithTokens
             .filter(user => failedTokens.includes(user.fcmToken) || failedTokens.includes(user.apnsToken) || failedTokens.includes(user.voipToken))
             .map(user => user._id);
-          
+
           await Notification.updateMany(
             { user: { $in: failedUserIds }, deliveryStatus: 'pending' },
-            { 
+            {
               deliveryStatus: 'failed',
               failureReason: 'Push delivery failed'
             }
@@ -727,7 +727,7 @@ class NotificationService {
       };
     } catch (error) {
       console.error('Error sending multicast notification:', error);
-      
+
       try {
         const notificationIds = notificationRecords.map(n => n._id);
         await Notification.updateMany(
@@ -740,7 +740,7 @@ class NotificationService {
       } catch (updateError) {
         console.error('Error updating notification statuses:', updateError);
       }
-      
+
       return { success: false, error: error.message };
     }
   }
