@@ -483,7 +483,22 @@ export const getStarById = async (req, res) => {
                     const item = typeof doc.toObject === 'function' ? doc.toObject() : doc;
                     const timeSlots = Array.isArray(item.timeSlots)
                         ? item.timeSlots
-                            .filter((s) => s && s.status === 'available')
+                            .filter((s) => {
+                                // Filter by status
+                                if (!s || s.status !== 'available') return false;
+                                
+                                // Check if time slot is in the past for current day
+                                const today = new Date().toISOString().split('T')[0];
+                                if (item.date === today) {
+                                    const now = new Date();
+                                    const slotStartTime = parseTimeSlotToDate(item.date, s.slot);
+                                    if (slotStartTime && slotStartTime <= now) {
+                                        return false; // Filter out passed time slots
+                                    }
+                                }
+                                
+                                return true;
+                            })
                             .sort((a, b) => {
                                 // Sort time slots by time within each day
                                 const timeA = parseTimeSlot(a.slot);
@@ -504,12 +519,26 @@ export const getStarById = async (req, res) => {
         function parseTimeSlot(slot) {
             if (!slot || typeof slot !== 'string') return 0;
             
-            // Extract start time from slot (format: "HH:MM AM/PM - HH:MM AM/PM")
-            const timeMatch = slot.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-            if (timeMatch) {
-                let hour = parseInt(timeMatch[1], 10);
-                const minute = parseInt(timeMatch[2], 10);
-                const ampm = timeMatch[3].toUpperCase();
+            // Extract start time from slot (format: "HH:MM - HH:MM" or "HH:MM AM/PM - HH:MM AM/PM")
+            const parts = slot.split(' - ');
+            if (parts.length !== 2) return 0;
+            
+            const startTime = parts[0].trim();
+            
+            // Try 24-hour format first (HH:MM)
+            const h24Match = startTime.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+            if (h24Match) {
+                const hour = parseInt(h24Match[1], 10);
+                const minute = parseInt(h24Match[2], 10);
+                return hour * 60 + minute; // Convert to minutes for easy comparison
+            }
+            
+            // Try AM/PM format (HH:MM AM/PM)
+            const ampmMatch = startTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+            if (ampmMatch) {
+                let hour = parseInt(ampmMatch[1], 10);
+                const minute = parseInt(ampmMatch[2], 10);
+                const ampm = ampmMatch[3].toUpperCase();
                 
                 // Convert to 24-hour format
                 if (ampm === 'PM' && hour !== 12) hour += 12;
@@ -517,7 +546,43 @@ export const getStarById = async (req, res) => {
                 
                 return hour * 60 + minute; // Convert to minutes for easy comparison
             }
+            
             return 0;
+        }
+
+        // Helper function to parse time slot and convert to Date object for comparison
+        function parseTimeSlotToDate(dateStr, slot) {
+            if (!slot || typeof slot !== 'string' || !dateStr) return null;
+            
+            // Extract start time from slot (format: "HH:MM - HH:MM" or "HH:MM AM/PM - HH:MM AM/PM")
+            const parts = slot.split(' - ');
+            if (parts.length !== 2) return null;
+            
+            const startTime = parts[0].trim();
+            let hour, minute;
+            
+            // Try 24-hour format first (HH:MM)
+            const h24Match = startTime.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+            if (h24Match) {
+                hour = parseInt(h24Match[1], 10);
+                minute = parseInt(h24Match[2], 10);
+            } else {
+                // Try AM/PM format (HH:MM AM/PM)
+                const ampmMatch = startTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+                if (!ampmMatch) return null;
+                
+                hour = parseInt(ampmMatch[1], 10);
+                minute = parseInt(ampmMatch[2], 10);
+                const ampm = ampmMatch[3].toUpperCase();
+                
+                // Convert to 24-hour format
+                if (ampm === 'PM' && hour !== 12) hour += 12;
+                if (ampm === 'AM' && hour === 12) hour = 0;
+            }
+            
+            // Create date object with the specified date and time
+            const [year, month, day] = dateStr.split('-').map(v => parseInt(v, 10));
+            return new Date(year, month - 1, day, hour, minute, 0, 0);
         }
 
         res.status(200).json({
