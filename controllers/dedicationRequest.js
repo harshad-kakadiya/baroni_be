@@ -4,17 +4,18 @@ import DedicationRequest from '../models/DedicationRequest.js';
 import {generateUniqueTrackingId} from '../utils/trackingIdGenerator.js';
 import {uploadVideo} from '../utils/uploadFile.js';
 import { createTransaction, createHybridTransaction, completeTransaction, cancelTransaction } from '../services/transactionService.js';
-import { TRANSACTION_TYPES, TRANSACTION_DESCRIPTIONS } from '../utils/transactionConstants.js';
+import { TRANSACTION_TYPES, TRANSACTION_DESCRIPTIONS, createTransactionDescription } from '../utils/transactionConstants.js';
 import Transaction from '../models/Transaction.js';
 import NotificationHelper from '../utils/notificationHelper.js';
 const { normalizeContact } = await import('../utils/normalizeContact.js');
 import { deleteConversationBetweenUsers } from '../services/messagingCleanup.js';
+import { sanitizeUserData } from '../utils/userDataHelper.js';
 
 const sanitize = (doc) => ({
   id: doc._id,
   trackingId: doc.trackingId,
-  fanId: doc.fanId,
-  starId: doc.starId,
+  fanId: doc.fanId ? sanitizeUserData(doc.fanId) : doc.fanId,
+  starId: doc.starId ? sanitizeUserData(doc.starId) : doc.starId,
   starBaroniId: doc.starId && doc.starId.baroniId ? doc.starId.baroniId : undefined,
   occasion: doc.occasion,
   eventName: doc.eventName,
@@ -64,9 +65,9 @@ export const createDedicationRequest = async (req, res) => {
         payerId: req.user._id,
         receiverId: starId,
         amount: price,
-        description: TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT],
+        description: createTransactionDescription(TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT, starName || ''),
         userPhone: payloadContact,
-        starName,
+        starName: starName || '',
         metadata: {
           occasion,
           eventName,

@@ -2,11 +2,12 @@ import { validationResult } from 'express-validator';
 import { getFirstValidationError } from '../utils/validationHelper.js';
 import ReportUser from '../models/ReportUser.js';
 import mongoose from 'mongoose';
+import { sanitizeUserData } from '../utils/userDataHelper.js';
 
 const sanitize = (doc) => ({
   id: doc._id,
-  reporter: doc.reporterId,
-  reportedUser: doc.reportedUserId,
+  reporter: doc.reporterId ? sanitizeUserData(doc.reporterId) : doc.reporterId,
+  reportedUser: doc.reportedUserId ? sanitizeUserData(doc.reportedUserId) : doc.reportedUserId,
   createdAt: doc.createdAt,
   updatedAt: doc.updatedAt
 });

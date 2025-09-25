@@ -10,9 +10,10 @@ import Appointment from "../models/Appointment.js";
 import DedicationRequest from "../models/DedicationRequest.js";
 import Transaction from "../models/Transaction.js";
 import { createTransaction, completeTransaction, createHybridTransaction } from "../services/transactionService.js";
-import { TRANSACTION_DESCRIPTIONS, TRANSACTION_TYPES } from "../utils/transactionConstants.js";
+import { TRANSACTION_DESCRIPTIONS, TRANSACTION_TYPES, createTransactionDescription } from "../utils/transactionConstants.js";
 import { generateUniqueGoldBaroniId, generateUniqueBaroniId } from "../utils/baroniIdGenerator.js";
 import Review from "../models/Review.js";
+import { sanitizeUserData, sanitizeUserDataArray } from "../utils/userDataHelper.js";
 
 /**
  * Get available baroni ID patterns for becoming a star
@@ -139,9 +140,9 @@ export const becomeStar = async (req, res) => {
                     payerId: req.user._id,
                     receiverId: adminUser._id,
                     amount: numericAmount,
-                    description: TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.BECOME_STAR_PAYMENT],
+                    description: createTransactionDescription(TRANSACTION_TYPES.BECOME_STAR_PAYMENT, req.user.name || ''),
                     userPhone: normalizedPhone,
-                    starName: undefined,
+                    starName: req.user.name || '',
                     metadata: { plan }
                 });
             } else {
@@ -150,7 +151,7 @@ export const becomeStar = async (req, res) => {
                     payerId: req.user._id,
                     receiverId: adminUser._id,
                     amount: numericAmount,
-                    description: paymentMode === 'external' && paymentDescription ? String(paymentDescription) : TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.BECOME_STAR_PAYMENT],
+                    description: paymentMode === 'external' && paymentDescription ? String(paymentDescription) : createTransactionDescription(TRANSACTION_TYPES.BECOME_STAR_PAYMENT, req.user.name || ''),
                     paymentMode,
                     metadata: { plan }
                 });
@@ -302,7 +303,7 @@ export const getAllStars = async (req, res) => {
                 }
                 
                 // Check if user is authenticated to add favorite/liked status
-                let starsData = stars.map(star => star.toObject());
+                let starsData = sanitizeUserDataArray(stars);
 
                 if (req.user) {
                     // Check if each star is in user's favorites
@@ -340,7 +341,7 @@ export const getAllStars = async (req, res) => {
         }
 
         // Check if user is authenticated to add favorite/liked status
-        let starsData = stars.map(star => star.toObject());
+        let starsData = sanitizeUserDataArray(stars);
 
         if (req.user) {
             // Check if each star is in user's favorites
@@ -400,7 +401,7 @@ export const getStarById = async (req, res) => {
         await User.findByIdAndUpdate(id, { $inc: { profileImpressions: 1 } });
 
         // Check if user is authenticated to add favorite/liked status
-        let starData = star.toObject();
+        let starData = sanitizeUserData(star);
 
         if (req.user) {
             // Check if the star is in user's favorites
@@ -615,12 +616,7 @@ export const getStarById = async (req, res) => {
                     id: r._id,
                     rating: r.rating,
                     comment: r.comment,
-                    reviewer: r.reviewerId ? {
-                        id: r.reviewerId._id,
-                        name: r.reviewerId.name,
-                        pseudo: r.reviewerId.pseudo,
-                        profilePic: r.reviewerId.profilePic,
-                    } : null,
+                    reviewer: r.reviewerId ? sanitizeUserData(r.reviewerId) : null,
                     reviewType: r.reviewType,
                     createdAt: r.createdAt,
                 }))

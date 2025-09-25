@@ -6,6 +6,7 @@ import Appointment from '../models/Appointment.js';
 import DedicationRequest from '../models/DedicationRequest.js';
 import LiveShow from '../models/LiveShow.js';
 import mongoose from 'mongoose';
+import { sanitizeUserData } from '../utils/userDataHelper.js';
 
 // Helper function to calculate and update star's average rating
 const updateStarRating = async (starId) => {
@@ -294,12 +295,7 @@ export const getStarReviews = async (req, res) => {
           id: review._id,
           rating: review.rating,
           comment: review.comment,
-          reviewer: {
-            id: review.reviewerId._id,
-            name: review.reviewerId.name,
-            pseudo: review.reviewerId.pseudo,
-            profilePic: review.reviewerId.profilePic
-          },
+          reviewer: review.reviewerId ? sanitizeUserData(review.reviewerId) : null,
           reviewType: review.reviewType,
           createdAt: review.createdAt
         })),
@@ -336,20 +332,10 @@ export const getMyReviews = async (req, res) => {
           // If star is requesting, include reviewer details; otherwise include star details
           ...(isStar
             ? {
-                reviewer: {
-                  id: review.reviewerId._id,
-                  name: review.reviewerId.name,
-                  pseudo: review.reviewerId.pseudo,
-                  profilePic: review.reviewerId.profilePic
-                }
+                reviewer: review.reviewerId ? sanitizeUserData(review.reviewerId) : null
               }
             : {
-                star: {
-                  id: review.starId._id,
-                  name: review.starId.name,
-                  pseudo: review.starId.pseudo,
-                  profilePic: review.starId.profilePic
-                }
+                star: review.starId ? sanitizeUserData(review.starId) : null
               }),
           reviewType: review.reviewType,
           createdAt: review.createdAt
@@ -439,6 +425,7 @@ export const deleteReview = async (req, res) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
+
 
 
 

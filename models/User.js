@@ -11,7 +11,7 @@ const userSchema = new mongoose.Schema(
     pseudo: { type: String, trim: true, unique: true, sparse: true },
     profilePic: { type: String },
     preferredLanguage: { type: String },
-    preferredCurrency: { type: String, default: 'USD' },
+    preferredCurrency: { type: String, default: 'F' },
     country: { type: String },
     about: { type: String, trim: true},
     location: { type: String, trim: true },

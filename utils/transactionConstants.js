@@ -41,3 +41,26 @@ export const TRANSACTION_DESCRIPTIONS = {
   [TRANSACTION_TYPES.ADMIN_CREDIT]: 'Admin credit adjustment',
   [TRANSACTION_TYPES.ADMIN_DEBIT]: 'Admin debit adjustment'
 };
+
+// Helper function to create transaction descriptions with star name
+export const createTransactionDescription = (type, starName = '') => {
+  const baseDescription = TRANSACTION_DESCRIPTIONS[type];
+  if (!starName || starName.trim() === '') {
+    return baseDescription;
+  }
+  
+  // Add star name to star-related transactions
+  const starRelatedTypes = [
+    TRANSACTION_TYPES.APPOINTMENT_PAYMENT,
+    TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT,
+    TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT,
+    TRANSACTION_TYPES.SERVICE_PAYMENT,
+    TRANSACTION_TYPES.DEDICATION_PAYMENT
+  ];
+  
+  if (starRelatedTypes.includes(type)) {
+    return `${baseDescription} with ${starName}`;
+  }
+  
+  return baseDescription;
+};

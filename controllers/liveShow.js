@@ -7,10 +7,11 @@ import { generateUniqueShowCode } from '../utils/liveShowCodeGenerator.js';
 import { uploadFile } from '../utils/uploadFile.js';
 import mongoose from 'mongoose';
 import { createTransaction, createHybridTransaction, completeTransaction, cancelTransaction } from '../services/transactionService.js';
-import { TRANSACTION_TYPES, TRANSACTION_DESCRIPTIONS } from '../utils/transactionConstants.js';
+import { TRANSACTION_TYPES, TRANSACTION_DESCRIPTIONS, createTransactionDescription } from '../utils/transactionConstants.js';
 import Transaction from '../models/Transaction.js';
 import NotificationHelper from '../utils/notificationHelper.js';
 import { deleteConversationBetweenUsers } from '../services/messagingCleanup.js';
+import { sanitizeUserData } from '../utils/userDataHelper.js';
 
 // Get single live show details for fan
 export const getLiveShowDetails = async (req, res) => {
@@ -156,32 +157,8 @@ const sanitizeLiveShow = (show) => ({
   thumbnail: show.thumbnail,
   showCode: show.showCode,
   inviteLink: show.inviteLink,
-  starId: show.starId ? {
-    id: show.starId._id,
-    baroniId: show.starId.baroniId,
-    name: show.starId.name,
-    pseudo: show.starId.pseudo,
-    profilePic: show.starId.profilePic,
-    availableForBookings: show.starId.availableForBookings,
-    about: show.starId.about,
-    location: show.starId.location,
-    country: show.starId.country,
-    preferredLanguage: show.starId.preferredLanguage,
-    coinBalance: show.starId.coinBalance,
-    profession: show.starId.profession ? {
-      id: show.starId.profession._id,
-      name: show.starId.profession.name,
-      image: show.starId.profession.image
-    } : undefined
-  } : show.starId,
-  attendees: Array.isArray(show.attendees) ? show.attendees.map((a) => a && a._id ? {
-    id: a._id,
-    name: a.name,
-    pseudo: a.pseudo,
-    profilePic: a.profilePic,
-    baroniId: a.baroniId,
-    role: a.role
-  } : a) : show.attendees,
+  starId: show.starId ? sanitizeUserData(show.starId) : null,
+  attendees: Array.isArray(show.attendees) ? show.attendees.map((a) => a ? sanitizeUserData(a) : null) : show.attendees,
   likes: show.likes,
   likeCount: Array.isArray(show.likes) ? show.likes.length : 0,
   likesCount: Array.isArray(show.likes) ? show.likes.length : 0,
@@ -253,9 +230,9 @@ export const createLiveShow = async (req, res) => {
         payerId: req.user._id,
         receiverId: adminUser._id,
         amount: Number(hostingPrice || 0),
-        description: TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.LIVE_SHOW_HOSTING_PAYMENT],
+        description: createTransactionDescription(TRANSACTION_TYPES.LIVE_SHOW_HOSTING_PAYMENT, starName || ''),
         userPhone: normalizedPhone,
-        starName,
+        starName: starName || '',
         metadata: {
           showType: 'live_show_hosting',
           requestedAt: new Date()
@@ -490,9 +467,9 @@ export const joinLiveShow = async (req, res) => {
           payerId: req.user._id,
           receiverId: show.starId,
           amount,
-          description: TRANSACTION_DESCRIPTIONS[TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT],
+          description: createTransactionDescription(TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT, starName || ''),
           userPhone: normalizedPhone,
-          starName,
+          starName: starName || '',
           metadata: {
             showId: show._id,
             showCode: show.showCode,
