@@ -20,28 +20,9 @@ import LiveShowAttendance from '../models/LiveShowAttendance.js';
 import mongoose from 'mongoose';
 import { normalizeContact } from '../utils/normalizeContact.js';
 import { generateUniqueAgoraKey } from '../utils/agoraKeyGenerator.js';
+import { createSanitizedUserResponse, sanitizeUserData } from '../utils/userDataHelper.js';
 
-const sanitizeUser = (user) => ({
-  id: user._id,
-  baroniId: user.baroniId,
-  contact: user.contact,
-  email: user.email,
-  name: user.name,
-  pseudo: user.pseudo,
-  profilePic: user.profilePic,
-  preferredLanguage: user.preferredLanguage,
-  preferredCurrency: user.preferredCurrency,
-  country: user.country,
-  about: user.about,
-  location: user.location,
-  profession: user.profession,
-  role: user.role,
-  availableForBookings: user.availableForBookings,
-  appNotification: user.appNotification,
-  hidden: user.hidden,
-  coinBalance: user.coinBalance,
-  agoraKey: user.agoraKey,
-});
+const sanitizeUser = (user) => createSanitizedUserResponse(user);
 
 export const register = async (req, res) => {
   try {
@@ -512,13 +493,7 @@ export const me = async (req, res) => {
         transactions: transactions.map(txn => ({
           id: txn._id,
           type: txn.type,
-          receiver: txn.receiverId ? {
-            id: txn.receiverId._id,
-            name: txn.receiverId.name,
-            pseudo: txn.receiverId.pseudo,
-            profilePic: txn.receiverId.profilePic,
-            role: txn.receiverId.role
-          } : null,
+          receiver: txn.receiverId ? sanitizeUserData(txn.receiverId) : null,
           amount: txn.amount,
           description: txn.description,
           paymentMode: txn.paymentMode,
