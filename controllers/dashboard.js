@@ -8,19 +8,9 @@ import Availability from '../models/Availability.js';
 import LiveShow from '../models/LiveShow.js';
 import Transaction from "../models/Transaction.js";
 import Review from '../models/Review.js';
+import { createSanitizedUserResponse, sanitizeUserData } from '../utils/userDataHelper.js';
 
-const sanitizeUser = (user) => ({
-  id: user._id,
-  name: user.name,
-  pseudo: user.pseudo,
-  profilePic: user.profilePic,
-  about: user.about,
-  profession: user.profession,
-  role: user.role,
-  availableForBookings: user.availableForBookings,
-  baroniId: user.baroniId,
-  agoraKey: user.agoraKey,
-});
+const sanitizeUser = (user) => createSanitizedUserResponse(user);
 
 export const getDashboard = async (req, res) => {
   try {
@@ -131,14 +121,7 @@ export const getDashboard = async (req, res) => {
             thumbnail: show.thumbnail,
             likeCount: Array.isArray(show.likes) ? show.likes.length : 0,
             isLiked: Array.isArray(show.likes) && req.user ? show.likes.some(u => u.toString() === req.user._id.toString()) : false,
-            star: show.starId ? {
-              id: show.starId._id,
-              name: show.starId.name,
-              pseudo: show.starId.pseudo,
-              profilePic: show.starId.profilePic,
-              availableForBookings: show.starId.availableForBookings,
-              baroniId: show.starId.baroniId
-            } : null
+            star: show.starId ? sanitizeUserData(show.starId) : null
           }))
         },
       });
@@ -217,12 +200,7 @@ export const getDashboard = async (req, res) => {
         data: {
           upcomingBookings: upcomingBookings.map(booking => ({
             id: booking._id,
-            fan: {
-              id: booking.fanId._id,
-              name: booking.fanId.name,
-              pseudo: booking.fanId.pseudo,
-              profilePic: booking.fanId.profilePic
-            },
+            fan: booking.fanId ? sanitizeUserData(booking.fanId) : null,
             date: booking.date,
             time: booking.time,
             status: booking.status
@@ -249,12 +227,7 @@ export const getDashboard = async (req, res) => {
             currency: 'USD',
             escrowFunds: pendingEscrow
           },
-          engagedFans: fanDetails.map(fan => ({
-            id: fan._id,
-            name: fan.name,
-            pseudo: fan.pseudo,
-            profilePic: fan.profilePic
-          })),
+          engagedFans: fanDetails.map(fan => sanitizeUserData(fan)),
           rating: starRating,
           stats: {
             totalBookings: upcomingBookings.length,
@@ -296,17 +269,11 @@ export const getDashboard = async (req, res) => {
             totalCategories,
             totalAppointments,
           },
-          recentUsers: recentUsers.map(u => ({
-            id: u._id,
-            name: u.name,
-            pseudo: u.pseudo,
-            role: u.role,
-            createdAt: u.createdAt,
-          })),
+          recentUsers: recentUsers.map(u => sanitizeUserData(u)),
           recentAppointments: recentAppointments.map(apt => ({
             id: apt._id,
-            star: apt.starId ? { id: apt.starId._id, name: apt.starId.name, pseudo: apt.starId.pseudo, baroniId: apt.starId.baroniId } : null,
-            fan: apt.fanId ? { id: apt.fanId._id, name: apt.fanId.name, pseudo: apt.fanId.pseudo } : null,
+            star: apt.starId ? sanitizeUserData(apt.starId) : null,
+            fan: apt.fanId ? sanitizeUserData(apt.fanId) : null,
             date: apt.date,
             time: apt.time,
             status: apt.status,
