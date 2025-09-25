@@ -422,6 +422,15 @@ export const getStarById = async (req, res) => {
             starData.isMessage = false;
         }
 
+        // Helper function to get current date in YYYY-MM-DD format using local timezone
+        function getCurrentDateString() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
         // fetch related data including upcoming live shows
         const [dedications, services, dedicationSamples, availability, upcomingShows] = await Promise.all([
             Dedication.find({ userId: id }),
@@ -429,7 +438,7 @@ export const getStarById = async (req, res) => {
             DedicationSample.find({ userId: id }),
             Availability.find({
                 userId: id,
-                date: { $gte: new Date().toISOString().split('T')[0] } // Only current and future availabilities (YYYY-MM-DD format)
+                date: { $gte: getCurrentDateString() } // Only current and future availabilities (YYYY-MM-DD format)
             }).sort({ date: 1 }),
             LiveShow.find({
                 starId: id,
@@ -488,11 +497,15 @@ export const getStarById = async (req, res) => {
                                 if (!s || s.status !== 'available') return false;
                                 
                                 // Check if time slot is in the past for current day
-                                const today = new Date().toISOString().split('T')[0];
+                                const now = new Date();
+                                const today = getCurrentDateString();
+                                
+                                console.log(`Checking time slot: ${s.slot} on ${item.date}, today: ${today}, now: ${now.toISOString()}`);
+                                
                                 if (item.date === today) {
-                                    const now = new Date();
                                     const slotStartTime = parseTimeSlotToDate(item.date, s.slot);
                                     if (slotStartTime && slotStartTime <= now) {
+                                        console.log(`Filtering out passed time slot: ${s.slot} on ${item.date}, slot time: ${slotStartTime.toISOString()}, now: ${now.toISOString()}`);
                                         return false; // Filter out passed time slots
                                     }
                                 }
@@ -580,9 +593,14 @@ export const getStarById = async (req, res) => {
                 if (ampm === 'AM' && hour === 12) hour = 0;
             }
             
-            // Create date object with the specified date and time
+            // Create date object with the specified date and time in local timezone
             const [year, month, day] = dateStr.split('-').map(v => parseInt(v, 10));
-            return new Date(year, month - 1, day, hour, minute, 0, 0);
+            const slotDate = new Date(year, month - 1, day, hour, minute, 0, 0);
+            
+            // Add debugging info
+            console.log(`Parsed time slot: ${slot} on ${dateStr} -> ${slotDate.toISOString()} (local: ${slotDate.toString()})`);
+            
+            return slotDate;
         }
 
         res.status(200).json({
