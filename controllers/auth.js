@@ -24,6 +24,17 @@ import { createSanitizedUserResponse, sanitizeUserData } from '../utils/userData
 
 const sanitizeUser = (user) => createSanitizedUserResponse(user);
 
+// Helper function to convert various types to boolean
+const convertToBoolean = (value) => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return ['true', '1', 'yes', 'on'].includes(normalized);
+  }
+  if (typeof value === 'number') return value === 1;
+  return Boolean(value);
+};
+
 export const register = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -32,7 +43,7 @@ export const register = async (req, res) => {
       return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
     }
 
-  const { contact, email, password, role, fcmToken, apnsToken, voipToken, deviceType } = req.body;
+  const { contact, email, password, role, fcmToken, apnsToken, voipToken, deviceType, isDev } = req.body;
   const normalizedContact = typeof contact === 'string' ? normalizeContact(contact) : contact;
 
     // Check if we have either contact or email
@@ -73,6 +84,9 @@ export const register = async (req, res) => {
       hashedPassword = await bcrypt.hash(password, salt);
     }
 
+  // Convert isDev to boolean if provided
+  const booleanIsDev = typeof isDev !== 'undefined' ? convertToBoolean(isDev) : false;
+
   const user = await User.create({
       contact: normalizedContact,
       email: normalizedEmail,
@@ -81,7 +95,8 @@ export const register = async (req, res) => {
       ...(fcmToken ? { fcmToken } : {}),
       ...(apnsToken ? { apnsToken } : {}),
       ...(voipToken ? { voipToken } : {}),
-      ...(deviceType ? { deviceType } : {})
+      ...(deviceType ? { deviceType } : {}),
+      ...(typeof isDev !== 'undefined' ? { isDev: booleanIsDev } : {})
     });
 
     // Generate unique Agora key for the user
@@ -118,7 +133,7 @@ export const login = async (req, res) => {
       return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
     }
 
-    const { contact, email, isMobile, fcmToken, apnsToken, voipToken, deviceType } = req.body;
+    const { contact, email, isMobile, fcmToken, apnsToken, voipToken, deviceType, isDev } = req.body;
     const normalizedContact = typeof contact === 'string' ? normalizeContact(contact) : contact;
     let user;
 
@@ -185,6 +200,13 @@ export const login = async (req, res) => {
         unsetData.fcmToken = 1;
         console.log(`User ${user._id} switching to iOS - removing FCM token`);
       }
+    }
+    
+    // Handle isDev parameter - convert string to boolean if needed
+    if (typeof isDev !== 'undefined') {
+      const booleanIsDev = convertToBoolean(isDev);
+      updateData.isDev = booleanIsDev;
+      console.log(`User ${user._id} setting isDev to ${booleanIsDev} (converted from ${typeof isDev}: ${isDev})`);
     }
 
     // Increment sessionVersion to invalidate tokens from other devices
@@ -914,6 +936,45 @@ export const updateDeviceType = async (req, res) => {
     return res.json({
       success: true,
       message: 'Device type updated successfully',
+      data: sanitizeUser(updatedUser)
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Update development mode setting
+export const updateIsDev = async (req, res) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const userId = req.user._id;
+    const { isDev } = req.body;
+
+    if (typeof isDev === 'undefined') {
+      return res.status(400).json({
+        success: false,
+        message: 'isDev parameter is required'
+      });
+    }
+
+    const booleanIsDev = convertToBoolean(isDev);
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { isDev: booleanIsDev },
+      { new: true }
+    ).select('-password -passwordResetToken -passwordResetExpires');
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Development mode updated successfully',
       data: sanitizeUser(updatedUser)
     });
   } catch (err) {

@@ -84,6 +84,7 @@ try {
 class NotificationService {
   constructor() {
     this.messaging = isFirebaseInitialized ? admin.messaging() : null;
+    this.apnsProviders = new Map(); // Cache providers for different environments
     // Initialize APNs using environment variables only
     const hasTokenCreds = !!(
       process.env.APNS_KEY_ID &&
@@ -105,7 +106,7 @@ class NotificationService {
             keyId: process.env.APNS_KEY_ID,
             teamId: process.env.APNS_TEAM_ID
           },
-          production: process.env.NODE_ENV === 'production'
+          production: process.env.NODE_ENV === 'production' // Default initialization, will be overridden per user
         });
         console.log('APNs initialized using token-based auth (.p8 key) from environment variables');
       } catch (e) {
@@ -124,6 +125,193 @@ class NotificationService {
     }
   }
 
+  /**
+   * Get APNs provider based on user's isDev setting
+   * @param {boolean} isDev - User's development mode setting
+   * @returns {apn.Provider|null} APNs provider or null if not available
+   */
+  getApnsProvider(isDev = false) {
+    if (!apnsProvider) return null;
+    
+    const cacheKey = isDev ? 'sandbox' : 'production';
+    
+    if (!this.apnsProviders.has(cacheKey)) {
+      try {
+        let normalizedKey = getApnsPrivateKey();
+        if (!normalizedKey || !normalizedKey.includes('-----BEGIN') || !normalizedKey.includes('PRIVATE KEY')) {
+          throw new Error('APNS_PRIVATE_KEY is not a valid .p8 Auth Key (PEM with BEGIN/END PRIVATE KEY).');
+        }
+        if (!/\n$/.test(normalizedKey)) normalizedKey += '\n';
+        
+        const provider = new apn.Provider({
+          token: {
+            key: normalizedKey,
+            keyId: process.env.APNS_KEY_ID,
+            teamId: process.env.APNS_TEAM_ID
+          },
+          production: !isDev // If isDev is true, use sandbox (production: false)
+        });
+        
+        this.apnsProviders.set(cacheKey, provider);
+        console.log(`APNs provider initialized for ${cacheKey} mode (production: ${!isDev})`);
+      } catch (e) {
+        console.warn(`Failed to initialize APNs provider for ${cacheKey}:`, e.message);
+        return null;
+      }
+    }
+    
+    return this.apnsProviders.get(cacheKey);
+  }
+
+  /**
+   * Send APNs notifications to multiple tokens
+   * @param {apn.Provider} provider - APNs provider
+   * @param {Array} tokens - Array of APNs tokens
+   * @param {Object} notificationData - Notification data
+   * @param {Object} data - Additional data payload
+   * @param {Object} options - Additional options
+   * @param {boolean} isDev - Whether using dev mode
+   * @returns {Object} Result with successCount, failureCount, and failedTokens
+   */
+  async sendApnsToTokens(provider, tokens, notificationData, data, options, isDev) {
+    const note = new apn.Notification();
+    const isVoip = (
+      options.apnsVoip ||
+      data.pushType === 'voip' ||
+      notificationData.pushType === 'voip' ||
+      (typeof notificationData.type === 'string' && notificationData.type.toLowerCase() === 'voip')
+    );
+    
+    const voipBundle = process.env.APNS_VOIP_BUNDLE_ID || (process.env.APNS_BUNDLE_ID ? `${process.env.APNS_BUNDLE_ID}.voip` : undefined);
+    note.topic = isVoip && voipBundle ? voipBundle : process.env.APNS_BUNDLE_ID;
+    
+    if (isVoip) {
+      note.pushType = 'voip';
+      note.contentAvailable = 1;
+      note.expiry = Math.floor(Date.now() / 1000) + 3600;
+    } else {
+      note.alert = {
+        title: notificationData.title,
+        body: notificationData.body
+      };
+      note.sound = 'default';
+      note.badge = 1;
+    }
+    
+    if (isVoip) {
+      note.payload = {
+        extra: {
+          ...data,
+          ...(options.customPayload ? { customPayload: options.customPayload } : {}),
+          clickAction: 'FLUTTER_NOTIFICATION_CLICK'
+        }
+      };
+    } else {
+      note.payload = { ...data, ...(options.customPayload ? { customPayload: options.customPayload } : {}) };
+    }
+
+    const chunks = [];
+    const chunkSize = 100;
+    for (let i = 0; i < tokens.length; i += chunkSize) {
+      chunks.push(tokens.slice(i, i + chunkSize));
+    }
+    
+    let successCount = 0;
+    let failureCount = 0;
+    const failedTokens = [];
+    
+    for (const chunk of chunks) {
+      const resp = await provider.send(note, chunk);
+      successCount += resp.sent.length;
+      failureCount += resp.failed.length;
+      failedTokens.push(...resp.failed.map(f => f.device));
+      
+      if (resp.sent && resp.sent.length > 0) {
+        const firstSent = resp.sent[0];
+        console.log(`[APNs ${isDev ? 'sandbox' : 'production'}] success payload/response (sendToMultipleUsers chunk)`, {
+          topic: note.topic,
+          alert: note.alert,
+          payload: note.payload,
+          response: firstSent && firstSent.response ? firstSent.response : null,
+          sentCount: resp.sent.length
+        });
+      }
+    }
+    
+    console.log(`[APNs ${isDev ? 'sandbox' : 'production'}] sendToMultipleUsers`, {
+      isVoip,
+      topic: note.topic,
+      title: notificationData.title,
+      successCount,
+      failureCount
+    });
+    
+    return { successCount, failureCount, failedTokens };
+  }
+
+  /**
+   * Send VoIP notifications to multiple tokens
+   * @param {apn.Provider} provider - APNs provider
+   * @param {Array} tokens - Array of VoIP tokens
+   * @param {Object} notificationData - Notification data
+   * @param {Object} data - Additional data payload
+   * @param {Object} options - Additional options
+   * @param {boolean} isDev - Whether using dev mode
+   * @returns {Object} Result with successCount, failureCount, and failedTokens
+   */
+  async sendVoipToTokens(provider, tokens, notificationData, data, options, isDev) {
+    const voipNote = new apn.Notification();
+    voipNote.topic = process.env.APNS_VOIP_BUNDLE_ID || process.env.APNS_BUNDLE_ID;
+    voipNote.pushType = 'voip';
+    voipNote.contentAvailable = 1;
+    voipNote.expiry = Math.floor(Date.now() / 1000) + 3600;
+
+    // VoIP notifications don't support alert, sound, or badge
+    voipNote.payload = {
+      extra: {
+        ...data,
+        ...(options.customPayload ? { customPayload: options.customPayload } : {}),
+        clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+        pushType: 'VoIP'
+      }
+    };
+
+    const voipChunks = [];
+    const voipChunkSize = 100;
+    for (let i = 0; i < tokens.length; i += voipChunkSize) {
+      voipChunks.push(tokens.slice(i, i + voipChunkSize));
+    }
+    
+    let successCount = 0;
+    let failureCount = 0;
+    const failedTokens = [];
+    
+    for (const chunk of voipChunks) {
+      const resp = await provider.send(voipNote, chunk);
+      successCount += resp.sent.length;
+      failureCount += resp.failed.length;
+      failedTokens.push(...resp.failed.map(f => f.device));
+      
+      if (resp.sent && resp.sent.length > 0) {
+        const firstSent = resp.sent[0];
+        console.log(`[VoIP ${isDev ? 'sandbox' : 'production'}] success payload/response (sendToMultipleUsers chunk)`, {
+          topic: voipNote.topic,
+          payload: voipNote.payload,
+          response: firstSent && firstSent.response ? firstSent.response : null,
+          sentCount: resp.sent.length
+        });
+      }
+    }
+    
+    console.log(`[VoIP ${isDev ? 'sandbox' : 'production'}] sendToMultipleUsers`, {
+      topic: voipNote.topic,
+      title: notificationData.title,
+      successCount,
+      failureCount
+    });
+    
+    return { successCount, failureCount, failedTokens };
+  }
 
   /**
    * Send notification to a single user
@@ -193,7 +381,9 @@ class NotificationService {
       let apnsResponse = null;
 
       // For iOS devices, prioritize APNs tokens
-      if (isIOS && user.apnsToken && apnsProvider) {
+      if (isIOS && user.apnsToken) {
+        const userApnsProvider = this.getApnsProvider(user.isDev);
+        if (userApnsProvider) {
         const note = new apn.Notification();
         const isVoip = (
           options.apnsVoip ||
@@ -233,7 +423,8 @@ class NotificationService {
 
         console.log("note : ",note)
         console.log("user.apnsToken : ",isVoip ? user.voipToken : user.apnsToken)
-        apnsResponse = await apnsProvider.send(note, user.apnsToken);
+        console.log(`Using ${user.isDev ? 'sandbox' : 'production'} APNs for user ${userId}`)
+        apnsResponse = await userApnsProvider.send(note, user.apnsToken);
         console.log("apnsResponse : ",apnsResponse)
         console.log('[APNs] sendToUser', {
           userId,
@@ -268,10 +459,13 @@ class NotificationService {
             response: firstSent && firstSent.response ? firstSent.response : null
           });
         }
+        }
       }
 
       // Handle VoIP token separately for VoIP-specific notifications
-      if (!deliverySucceeded && user.voipToken && apnsProvider) {
+      if (!deliverySucceeded && user.voipToken) {
+        const userApnsProvider = this.getApnsProvider(user.isDev);
+        if (userApnsProvider) {
         const voipTopic = getApnsTopic(true);
         if (!voipTopic) {
           console.warn('[VoIP] No VoIP topic configured, skipping VoIP notification');
@@ -292,7 +486,8 @@ class NotificationService {
             }
           };
 
-          const voipResponse = await apnsProvider.send(voipNote, user.voipToken);
+          console.log(`Using ${user.isDev ? 'sandbox' : 'production'} APNs for VoIP user ${userId}`)
+          const voipResponse = await userApnsProvider.send(voipNote, user.voipToken);
           console.log('[VoIP] sendToUser', {
             userId,
             topic: voipNote.topic,
@@ -314,6 +509,7 @@ class NotificationService {
               // and the failure could be temporary (network, server issues, etc.)
             }
           }
+        }
         }
       }
 
@@ -355,8 +551,8 @@ class NotificationService {
       if (!deliverySucceeded) {
         let failureReason = 'All push delivery attempts failed';
         
-        if (isIOS && !apnsProvider) {
-          failureReason = 'iOS device but APNs not configured';
+        if (isIOS && !this.getApnsProvider(user.isDev)) {
+          failureReason = `iOS device but APNs not configured for ${user.isDev ? 'sandbox' : 'production'} mode`;
         } else if (isAndroid && !this.messaging) {
           failureReason = 'Android device but FCM not configured';
         } else if (!isIOS && !isAndroid && !user.deviceType) {
@@ -547,6 +743,40 @@ class NotificationService {
       let apnsSuccessCount = 0;
       let apnsFailureCount = 0;
       const apnsFailedTokens = [];
+      
+      // Group iOS users by their isDev setting
+      const iosDevUsers = iosUsers.filter(u => u.isDev === true);
+      const iosProdUsers = iosUsers.filter(u => u.isDev === false);
+      
+      // Handle dev iOS users
+      if (iosDevUsers.length > 0) {
+        const devApnsProvider = this.getApnsProvider(true);
+        if (devApnsProvider) {
+          const devApnsTokens = iosDevUsers.filter(u => !!u.apnsToken).map(u => u.apnsToken);
+          if (devApnsTokens.length > 0) {
+            const result = await this.sendApnsToTokens(devApnsProvider, devApnsTokens, notificationData, data, options, true);
+            apnsSuccessCount += result.successCount;
+            apnsFailureCount += result.failureCount;
+            apnsFailedTokens.push(...result.failedTokens);
+          }
+        }
+      }
+      
+      // Handle production iOS users
+      if (iosProdUsers.length > 0) {
+        const prodApnsProvider = this.getApnsProvider(false);
+        if (prodApnsProvider) {
+          const prodApnsTokens = iosProdUsers.filter(u => !!u.apnsToken).map(u => u.apnsToken);
+          if (prodApnsTokens.length > 0) {
+            const result = await this.sendApnsToTokens(prodApnsProvider, prodApnsTokens, notificationData, data, options, false);
+            apnsSuccessCount += result.successCount;
+            apnsFailureCount += result.failureCount;
+            apnsFailedTokens.push(...result.failedTokens);
+          }
+        }
+      }
+      
+      // Legacy fallback for backward compatibility
       if (apnsProvider && apnsTokens.length > 0) {
         const note = new apn.Notification();
         const isVoip = (
@@ -621,6 +851,36 @@ class NotificationService {
       let voipSuccessCount = 0;
       let voipFailureCount = 0;
       const voipFailedTokens = [];
+      
+      // Group VoIP users by their isDev setting
+      const voipDevUsers = iosUsers.filter(u => u.isDev === true && !!u.voipToken);
+      const voipProdUsers = iosUsers.filter(u => u.isDev === false && !!u.voipToken);
+      
+      // Handle dev VoIP users
+      if (voipDevUsers.length > 0) {
+        const devApnsProvider = this.getApnsProvider(true);
+        if (devApnsProvider) {
+          const devVoipTokens = voipDevUsers.map(u => u.voipToken);
+          const result = await this.sendVoipToTokens(devApnsProvider, devVoipTokens, notificationData, data, options, true);
+          voipSuccessCount += result.successCount;
+          voipFailureCount += result.failureCount;
+          voipFailedTokens.push(...result.failedTokens);
+        }
+      }
+      
+      // Handle production VoIP users
+      if (voipProdUsers.length > 0) {
+        const prodApnsProvider = this.getApnsProvider(false);
+        if (prodApnsProvider) {
+          const prodVoipTokens = voipProdUsers.map(u => u.voipToken);
+          const result = await this.sendVoipToTokens(prodApnsProvider, prodVoipTokens, notificationData, data, options, false);
+          voipSuccessCount += result.successCount;
+          voipFailureCount += result.failureCount;
+          voipFailedTokens.push(...result.failedTokens);
+        }
+      }
+      
+      // Legacy fallback for backward compatibility
       if (apnsProvider && voipTokens.length > 0) {
         const voipNote = new apn.Notification();
         voipNote.topic = process.env.APNS_VOIP_BUNDLE_ID || process.env.APNS_BUNDLE_ID;

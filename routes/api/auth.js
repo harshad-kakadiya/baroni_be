@@ -17,6 +17,7 @@ import {
     updateApnsToken,
     updateVoipToken,
     updateDeviceType,
+    updateIsDev,
 } from '../../controllers/auth.js';
 import { registerValidator, loginValidator, completeProfileValidator, checkUserValidator } from '../../validators/authValidators.js';
 import { requireAuth, requireRole } from '../../middlewares/auth.js';
@@ -53,6 +54,7 @@ router.patch('/fcm-token', requireAuth, updateFcmToken);
 router.patch('/apns-token', requireAuth, updateApnsToken);
 router.patch('/voip-token', requireAuth, updateVoipToken);
 router.patch('/device-type', requireAuth, updateDeviceType);
+router.patch('/is-dev', requireAuth, updateIsDev);
 
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 router.get(
