@@ -122,23 +122,20 @@ export const createAvailability = async (req, res) => {
         const parts = slotString.split(' - ');
         if (parts.length === 2) {
           const startTime = parts[0].trim();
-          const endTime = parts[1].trim();
           
-          // Check both start and end times
-          for (const timeStr of [startTime, endTime]) {
-            const timeMatch = timeStr.match(/^(\d{1,2}):(\d{2})$/);
-            if (timeMatch) {
-              const hour = parseInt(timeMatch[1], 10);
-              const minute = parseInt(timeMatch[2], 10);
-              
-              if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-                const slotTime = hour * 60 + minute;
-                if (slotTime <= currentTime) {
-                  return res.status(400).json({ 
-                    success: false, 
-                    message: `Cannot create availability for past time slots. Time slot "${slotString}" is in the past.` 
-                  });
-                }
+          // Only check the start time, not the end time
+          const timeMatch = startTime.match(/^(\d{1,2}):(\d{2})$/);
+          if (timeMatch) {
+            const hour = parseInt(timeMatch[1], 10);
+            const minute = parseInt(timeMatch[2], 10);
+            
+            if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+              const slotTime = hour * 60 + minute;
+              if (slotTime <= currentTime) {
+                return res.status(400).json({ 
+                  success: false, 
+                  message: `Cannot create availability for past time slots. Time slot "${slotString}" is in the past.` 
+                });
               }
             }
           }
@@ -315,23 +312,20 @@ export const updateAvailability = async (req, res) => {
             const parts = slotString.split(' - ');
             if (parts.length === 2) {
               const startTime = parts[0].trim();
-              const endTime = parts[1].trim();
               
-              // Check both start and end times
-              for (const timeStr of [startTime, endTime]) {
-                const timeMatch = timeStr.match(/^(\d{1,2}):(\d{2})$/);
-                if (timeMatch) {
-                  const hour = parseInt(timeMatch[1], 10);
-                  const minute = parseInt(timeMatch[2], 10);
-                  
-                  if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-                    const slotTime = hour * 60 + minute;
-                    if (slotTime <= currentTime) {
-                      return res.status(400).json({ 
-                        success: false, 
-                        message: `Cannot update availability with past time slots. Time slot "${slotString}" is in the past.` 
-                      });
-                    }
+              // Only check the start time, not the end time
+              const timeMatch = startTime.match(/^(\d{1,2}):(\d{2})$/);
+              if (timeMatch) {
+                const hour = parseInt(timeMatch[1], 10);
+                const minute = parseInt(timeMatch[2], 10);
+                
+                if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+                  const slotTime = hour * 60 + minute;
+                  if (slotTime <= currentTime) {
+                    return res.status(400).json({ 
+                      success: false, 
+                      message: `Cannot update availability with past time slots. Time slot "${slotString}" is in the past.` 
+                    });
                   }
                 }
               }

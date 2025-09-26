@@ -14,8 +14,8 @@ import { sanitizeUserData } from '../utils/userDataHelper.js';
 const sanitize = (doc) => ({
   id: doc._id,
   trackingId: doc.trackingId,
-  fanId: doc.fanId ? sanitizeUserData(doc.fanId) : doc.fanId,
-  starId: doc.starId ? sanitizeUserData(doc.starId) : doc.starId,
+  fanId: doc.fanId && typeof doc.fanId === 'object' ? sanitizeUserData(doc.fanId) : doc.fanId,
+  starId: doc.starId && typeof doc.starId === 'object' ? sanitizeUserData(doc.starId) : doc.starId,
   starBaroniId: doc.starId && doc.starId.baroniId ? doc.starId.baroniId : undefined,
   occasion: doc.occasion,
   eventName: doc.eventName,

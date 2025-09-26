@@ -15,7 +15,8 @@ export const sanitizeUserData = (user) => {
   }
 
   // Convert to plain object if it's a Mongoose document
-  const userObj = user.toObject ? user.toObject() : { ...user };
+  // Use toJSON() instead of toObject() to properly serialize ObjectIds as strings
+  const userObj = user.toJSON ? user.toJSON() : (user.toObject ? user.toObject() : { ...user });
 
   // Ensure all string fields have empty string instead of undefined/null
   const stringFields = [
@@ -125,3 +126,4 @@ export const createSanitizedUserResponse = (user) => {
     updatedAt: sanitized.updatedAt
   };
 };
+

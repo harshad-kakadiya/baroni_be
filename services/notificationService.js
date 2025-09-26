@@ -124,6 +124,7 @@ class NotificationService {
     }
   }
 
+
   /**
    * Send notification to a single user
    * @param {string} userId - User ID to send notification to
@@ -182,12 +183,17 @@ class NotificationService {
         }
         return { success: false, message: 'No push token found' };
       }
-      // Prefer APNs if iOS token present, otherwise use FCMm
+
+      // Determine which token to use based on deviceType
+      const isIOS = user.deviceType === 'ios';
+      const isAndroid = user.deviceType === 'android';
+      // Use device-specific token based on deviceType
       let deliverySucceeded = false;
       let fcmResponse = null;
       let apnsResponse = null;
 
-      if (user.apnsToken && apnsProvider) {
+      // For iOS devices, prioritize APNs tokens
+      if (isIOS && user.apnsToken && apnsProvider) {
         const note = new apn.Notification();
         const isVoip = (
           options.apnsVoip ||
@@ -195,6 +201,7 @@ class NotificationService {
           notificationData.pushType === 'voip' ||
           (typeof notificationData.type === 'string' && notificationData.type.toLowerCase() === 'voip')
         );
+
         const voipBundle = process.env.APNS_VOIP_BUNDLE_ID || (process.env.APNS_BUNDLE_ID ? `${process.env.APNS_BUNDLE_ID}.voip` : undefined);
         note.topic = isVoip && voipBundle ? voipBundle : process.env.APNS_BUNDLE_ID;
         if (isVoip) {
@@ -224,7 +231,10 @@ class NotificationService {
           note.payload = { ...data, ...(options.customPayload ? { customPayload: options.customPayload } : {}) };
         }
 
+        console.log("note : ",note)
+        console.log("user.apnsToken : ",isVoip ? user.voipToken : user.apnsToken)
         apnsResponse = await apnsProvider.send(note, user.apnsToken);
+        console.log("apnsResponse : ",apnsResponse)
         console.log('[APNs] sendToUser', {
           userId,
           isVoip,
@@ -238,7 +248,7 @@ class NotificationService {
           const reasons = (apnsResponse && apnsResponse.failed || []).map(f => ({ device: f.device, status: f.status, reason: f.response && f.response.reason, error: f.error && f.error.message }));
           console.warn('APNs delivery failed, falling back to FCM if available', reasons);
 
-          // Handle specific APNs token errors (but don't remove tokens)
+          // Log APNs token errors (but don't remove tokens)
           if (apnsResponse && apnsResponse.failed && apnsResponse.failed.length > 0) {
             const failedTokens = apnsResponse.failed.map(f => f.device);
             if (failedTokens.length > 0) {
@@ -296,7 +306,7 @@ class NotificationService {
           }
           if (voipResponse && voipResponse.failed && voipResponse.failed.length > 0) {
             console.log('[VoIP] failed tokens:', voipResponse.failed);
-            // Handle specific VoIP token errors (but don't remove tokens)
+            // Log VoIP token errors (but don't remove tokens)
             const failedTokens = voipResponse.failed.map(f => f.device);
             if (failedTokens.length > 0) {
               console.log(`VoIP delivery failed for ${failedTokens.length} tokens, but keeping them for retry`);
@@ -307,7 +317,8 @@ class NotificationService {
         }
       }
 
-      if (!deliverySucceeded && user.fcmToken && this.messaging) {
+      // For Android devices or fallback, use FCM
+      if (!deliverySucceeded && (isAndroid || !isIOS) && user.fcmToken && this.messaging) {
         const message = {
           token: user.fcmToken,
           notification: {
@@ -340,45 +351,32 @@ class NotificationService {
         deliverySucceeded = !!fcmResponse;
       }
 
-      if (
-        !deliverySucceeded &&
-        user.apnsToken &&
-        !apnsProvider &&
-        (!user.fcmToken || !this.messaging)
-      ) {
-        try {
-          await Notification.findByIdAndUpdate(notificationRecord._id, {
-            deliveryStatus: 'failed',
-            failureReason: 'APNs not configured and no FCM fallback'
-          });
-        } catch (_e) {}
-        return { success: false, message: 'APNs not configured and no FCM fallback', notificationId: notificationRecord._id };
-      }
-
+      // Check if we have the right provider for the device type
       if (!deliverySucceeded) {
-        // Prefer a descriptive APNs reason if available
-        let reason = 'All push delivery attempts failed';
-        if (apnsResponse && Array.isArray(apnsResponse.failed) && apnsResponse.failed.length > 0) {
-          const firstFail = apnsResponse.failed[0];
-          const apnsReason = (firstFail && firstFail.response && firstFail.response.reason) || (firstFail && firstFail.error && firstFail.error.message);
-          if (apnsReason) reason = `APNs failed: ${apnsReason}`;
+        let failureReason = 'All push delivery attempts failed';
+        
+        if (isIOS && !apnsProvider) {
+          failureReason = 'iOS device but APNs not configured';
+        } else if (isAndroid && !this.messaging) {
+          failureReason = 'Android device but FCM not configured';
+        } else if (!isIOS && !isAndroid && !user.deviceType) {
+          failureReason = 'Device type not specified and no valid tokens';
         }
-
-        // Log the error but don't throw it to prevent breaking the application
-        console.error(`[NotificationService] Failed to send notification to user ${userId}:`, reason);
-
-        // Update notification status to failed
+        
         try {
           await Notification.findByIdAndUpdate(notificationRecord._id, {
             deliveryStatus: 'failed',
-            failureReason: reason
+            failureReason: failureReason
           });
         } catch (updateError) {
           console.error('Error updating notification status:', updateError);
         }
-
-        return { success: false, message: reason };
+        
+        // Log the error but don't throw it to prevent breaking the application
+        console.error(`[NotificationService] Failed to send notification to user ${userId}:`, failureReason);
+        return { success: false, message: failureReason, notificationId: notificationRecord._id };
       }
+
 
       console.log(`Notification sent to user ${userId}`);
 
@@ -392,24 +390,30 @@ class NotificationService {
 
       return { success: true, messageId: fcmResponse || (apnsResponse && apnsResponse.sent && apnsResponse.sent[0] && apnsResponse.sent[0].response) || null, notificationId: notificationRecord._id };
     } catch (error) {
-      console.error(`Error sending notification to user ${userId}:`, error);
+      // Log the error but don't throw it to prevent breaking the application
+      console.error(`[NotificationService] Error sending notification to user ${userId}:`, error);
 
       try {
         await Notification.findByIdAndUpdate(notificationRecord._id, {
           deliveryStatus: 'failed',
-          failureReason: error.message
+          failureReason: error.message || 'Unknown error occurred'
         });
       } catch (updateError) {
         console.error('Error updating notification status:', updateError);
       }
 
+      // Log specific token errors but don't remove tokens
       if (error.code === 'messaging/invalid-registration-token' ||
           error.code === 'messaging/registration-token-not-registered') {
-        await User.findByIdAndUpdate(userId, { $unset: { fcmToken: 1 } });
-        console.log(`Removed invalid FCM token for user ${userId}`);
+        console.log(`FCM token failed for user ${userId}: ${error.code} - keeping token for retry`);
       }
 
-      return { success: false, error: error.message, notificationId: notificationRecord._id };
+      // Log APNs token errors but don't remove tokens
+      if (error.code === 'BadDeviceToken' || error.code === 'Unregistered') {
+        console.log(`APNs token failed for user ${userId}: ${error.code} - keeping token for retry`);
+      }
+
+      return { success: false, error: error.message || 'Unknown error occurred', notificationId: notificationRecord._id };
     }
   }
 
@@ -437,9 +441,15 @@ class NotificationService {
     }
 
     const validUserIds = usersWithTokens.map(user => user._id);
-    const fcmTokens = usersWithTokens.filter(u => !!u.fcmToken).map(u => u.fcmToken);
-    const apnsTokens = usersWithTokens.filter(u => !!u.apnsToken).map(u => u.apnsToken);
-    const voipTokens = usersWithTokens.filter(u => !!u.voipToken).map(u => u.voipToken);
+    
+    // Separate tokens by device type
+    const iosUsers = usersWithTokens.filter(u => u.deviceType === 'ios');
+    const androidUsers = usersWithTokens.filter(u => u.deviceType === 'android');
+    const unknownDeviceUsers = usersWithTokens.filter(u => !u.deviceType);
+    
+    const fcmTokens = [...androidUsers, ...unknownDeviceUsers].filter(u => !!u.fcmToken).map(u => u.fcmToken);
+    const apnsTokens = iosUsers.filter(u => !!u.apnsToken).map(u => u.apnsToken);
+    const voipTokens = iosUsers.filter(u => !!u.voipToken).map(u => u.voipToken);
 
     // Create notification records ONLY for users who have tokens
     let notificationRecords = [];
@@ -700,11 +710,9 @@ class NotificationService {
         }
 
         if (failedFcmTokens.length > 0) {
-          await User.updateMany(
-            { fcmToken: { $in: failedFcmTokens } },
-            { $unset: { fcmToken: 1 } }
-          );
-          console.log(`Removed ${failedFcmTokens.length} invalid FCM tokens`);
+          console.log(`FCM delivery failed for ${failedFcmTokens.length} tokens, but keeping them for retry`);
+          // Note: We're not removing FCM tokens on failure as they might be valid
+          // and the failure could be temporary (network, server issues, etc.)
         }
         if (apnsFailedTokens.length > 0) {
           console.log(`APNs delivery failed for ${apnsFailedTokens.length} tokens, but keeping them for retry`);
