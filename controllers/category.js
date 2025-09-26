@@ -37,8 +37,8 @@ export const createCategory = async (req, res) => {
     const created = await Category.create({ name: name.trim(), image: imageUrl });
     return res.status(201).json({ 
       success: true, 
+      message: 'Category created successfully',
       data: {
-        message: 'Category created successfully',
         category: sanitizeCategory(created)
       }
     });
@@ -52,8 +52,8 @@ export const listCategories = async (_req, res) => {
     const items = await Category.find().sort({ createdAt: -1 });
     return res.json({ 
       success: true, 
+      message: 'Categories retrieved successfully',
       data: {
-        message: 'Categories retrieved successfully',
         categories: items.map(sanitizeCategory)
       }
     });
@@ -76,8 +76,8 @@ export const getCategoryById = async (req, res) => {
     }
     return res.json({ 
       success: true, 
+      message: 'Category retrieved successfully',
       data: {
-        message: 'Category retrieved successfully',
         category: sanitizeCategory(category)
       }
     });
@@ -118,8 +118,8 @@ export const updateCategory = async (req, res) => {
     const updated = await category.save();
     return res.json({ 
       success: true, 
+      message: 'Category updated successfully',
       data: {
-        message: 'Category updated successfully',
         category: sanitizeCategory(updated)
       }
     });
@@ -142,9 +142,7 @@ export const deleteCategory = async (req, res) => {
     }
     return res.json({ 
       success: true, 
-      data: {
-        message: 'Category deleted successfully'
-      }
+      message: 'Category deleted successfully'
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });

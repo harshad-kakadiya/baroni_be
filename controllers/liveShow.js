@@ -294,8 +294,8 @@ export const createLiveShow = async (req, res) => {
 
     const resp = { 
       success: true, 
+      message: 'Live show created successfully and is now open for joining',
       data: {
-        message: 'Live show created successfully and is now open for joining',
         liveShow: sanitizeLiveShow(liveShow),
         count: 1
       }
@@ -346,8 +346,8 @@ export const getAllLiveShows = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'Live shows retrieved successfully',
       data: {
-        message: 'Live shows retrieved successfully',
         liveShows: data
       }
     });
@@ -368,8 +368,8 @@ export const getLiveShowById = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'Live show retrieved successfully',
       data: {
-        message: 'Live show retrieved successfully',
         liveShow: showData
       }
     });
@@ -388,8 +388,8 @@ export const getLiveShowByCode = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'Live show retrieved successfully',
       data: {
-        message: 'Live show retrieved successfully',
         liveShow: showData
       }
     });
@@ -426,8 +426,8 @@ export const updateLiveShow = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'Live show updated successfully',
       data: {
-        message: 'Live show updated successfully',
         liveShow: sanitizeLiveShow(updatedShow)
       }
     });
@@ -452,9 +452,7 @@ export const deleteLiveShow = async (req, res) => {
 
     return res.json({ 
       success: true, 
-      data: {
-        message: 'Live show deleted successfully'
-      }
+      message: 'Live show deleted successfully'
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -479,8 +477,8 @@ export const joinLiveShow = async (req, res) => {
       const data = setPerUserFlags(sanitizeLiveShow(populated), populated, req);
       return res.json({ 
         success: true, 
+        message: 'Already joined',
         data: {
-          message: 'Already joined',
           ...data
         }
       });
@@ -615,8 +613,8 @@ export const getMyJoinedLiveShows = async (req, res) => {
     const data = shows.map(show => setPerUserFlags(sanitizeLiveShow(show), show, req));
     return res.json({ 
       success: true, 
+      message: 'Live shows retrieved successfully',
       data: {
-        message: 'Live shows retrieved successfully',
         liveShows: data
       }
     });
@@ -665,8 +663,8 @@ export const cancelLiveShow = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'Live show cancelled',
       data: {
-        message: 'Live show cancelled',
         liveShow: sanitizeLiveShow(updated)
       }
     });
@@ -708,8 +706,8 @@ export const rescheduleLiveShow = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'Live show rescheduled',
       data: {
-        message: 'Live show rescheduled',
         liveShow: sanitizeLiveShow(updated)
       }
     });
@@ -735,8 +733,8 @@ export const getStarUpcomingShows = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'Live shows retrieved successfully',
       data: {
-        message: 'Live shows retrieved successfully',
         liveShows: showsData
       }
     });
@@ -762,8 +760,8 @@ export const getStarAllShows = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'Live shows retrieved successfully',
       data: {
-        message: 'Live shows retrieved successfully',
         liveShows: showsData
       }
     });
@@ -791,8 +789,8 @@ export const toggleLikeLiveShow = async (req, res) => {
     data.isLiked = !hasLiked;
     return res.json({ 
       success: true, 
+      message: hasLiked ? 'Unliked' : 'Liked',
       data: {
-        message: hasLiked ? 'Unliked' : 'Liked',
         ...data,
         likeCount: Array.isArray(updated.likes) ? updated.likes.length : 0
       }
@@ -842,9 +840,7 @@ export const completeLiveShowAttendance = async (req, res) => {
 
     return res.json({ 
       success: true, 
-      data: {
-        message: 'Live show attendance completed and coins transferred'
-      }
+      message: 'Live show attendance completed and coins transferred'
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });

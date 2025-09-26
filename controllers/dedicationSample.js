@@ -35,8 +35,8 @@ export const listMyDedicationSamples = async (req, res) => {
     const items = await DedicationSample.find({ userId: req.user._id }).sort({ createdAt: -1 });
     return res.json({ 
       success: true, 
+      message: 'Dedication samples retrieved successfully',
       data: {
-        message: 'Dedication samples retrieved successfully',
         dedicationSamples: items.map(sanitize)
       }
     });
@@ -56,8 +56,8 @@ export const getDedicationSample = async (req, res) => {
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
     return res.json({ 
       success: true, 
+      message: 'Dedication sample retrieved successfully',
       data: {
-        message: 'Dedication sample retrieved successfully',
         dedicationSample: sanitize(item)
       }
     });
@@ -87,8 +87,8 @@ export const updateDedicationSample = async (req, res) => {
     const updated = await item.save();
     return res.json({ 
       success: true, 
+      message: 'Dedication sample updated successfully',
       data: {
-        message: 'Dedication sample updated successfully',
         dedicationSample: sanitize(updated)
       }
     });
@@ -108,9 +108,7 @@ export const deleteDedicationSample = async (req, res) => {
     if (!deleted) return res.status(404).json({ success: false, message: 'Not found' });
     return res.json({ 
       success: true, 
-      data: {
-        message: 'Dedication sample deleted successfully'
-      }
+      message: 'Dedication sample deleted successfully'
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });

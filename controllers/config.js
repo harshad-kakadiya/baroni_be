@@ -17,8 +17,8 @@ export const getPublicConfig = async (_req, res) => {
     const cfg = await Config.getSingleton();
     return res.json({ 
       success: true, 
+      message: 'Configuration retrieved successfully',
       data: {
-        message: 'Configuration retrieved successfully',
         config: sanitizeConfig(cfg)
       }
     });
@@ -67,8 +67,8 @@ export const upsertConfig = async (req, res) => {
     const saved = await cfg.save();
     return res.json({ 
       success: true, 
+      message: 'Configuration updated successfully',
       data: {
-        message: 'Configuration updated successfully',
         config: sanitizeConfig(saved)
       }
     });

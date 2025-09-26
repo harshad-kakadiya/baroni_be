@@ -51,8 +51,8 @@ export const addToFavorites = async (req, res) => {
 
     return res.json({
       success: true,
+      message: 'Star added to favorites',
       data: {
-        message: 'Star added to favorites',
         starId, 
         added: true
       }
@@ -107,8 +107,8 @@ export const removeFromFavorites = async (req, res) => {
 
     return res.json({
       success: true,
+      message: 'Star removed from favorites',
       data: {
-        message: 'Star removed from favorites',
         starId, 
         removed: true
       }
@@ -168,8 +168,8 @@ export const toggleFavorite = async (req, res) => {
 
       return res.json({
         success: true,
+        message: 'Star removed from favorites',
         data: {
-          message: 'Star removed from favorites',
           starId, 
           isFavorite: false, 
           action: 'removed'
@@ -182,8 +182,8 @@ export const toggleFavorite = async (req, res) => {
 
       return res.json({
         success: true,
+        message: 'Star added to favorites',
         data: {
-          message: 'Star added to favorites',
           starId, 
           isFavorite: true, 
           action: 'added'
@@ -224,8 +224,8 @@ export const getFavorites = async (req, res) => {
 
     return res.json({
       success: true,
+      message: 'Favorites retrieved successfully',
       data: {
-        message: 'Favorites retrieved successfully',
         favorites: validFavorites,
         count: validFavorites.length
       }

@@ -110,8 +110,8 @@ export const getAppointmentDetails = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      message: 'Appointment details retrieved successfully',
       data: {
-        message: 'Appointment details retrieved successfully',
         appointment: appointmentData
       }
     });
@@ -257,8 +257,8 @@ export const createAppointment = async (req, res) => {
 
     const responseBody = { 
       success: true, 
+      message: 'Appointment created successfully',
       data: {
-        message: 'Appointment created successfully',
         appointment: sanitize(created)
       }
     };
@@ -334,8 +334,8 @@ export const listAppointments = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'Appointments retrieved successfully',
       data: {
-        message: 'Appointments retrieved successfully',
         appointments: data
       }
     });
@@ -377,8 +377,8 @@ export const approveAppointment = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'Appointment approved successfully',
       data: {
-        message: 'Appointment approved successfully',
         appointment: sanitize(updated)
       }
     });
@@ -419,8 +419,8 @@ export const rejectAppointment = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'Appointment rejected successfully',
       data: {
-        message: 'Appointment rejected successfully',
         appointment: sanitize(updated)
       }
     });
@@ -469,8 +469,8 @@ export const cancelAppointment = async (req, res) => {
     const updated = await appt.save();
     return res.json({ 
       success: true, 
+      message: 'Appointment cancelled successfully',
       data: {
-        message: 'Appointment cancelled successfully',
         appointment: sanitize(updated)
       }
     });
@@ -561,8 +561,8 @@ export const rescheduleAppointment = async (req, res) => {
     const updated = await appt.save();
     return res.json({ 
       success: true, 
+      message: 'Appointment rescheduled successfully',
       data: {
-        message: 'Appointment rescheduled successfully',
         appointment: sanitize(updated)
       }
     });
@@ -608,8 +608,8 @@ export const completeAppointment = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'Appointment completed successfully',
       data: {
-        message: 'Appointment completed successfully',
         appointment: sanitize(updated)
       }
     });

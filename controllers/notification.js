@@ -34,8 +34,8 @@ export const getUserNotifications = async (req, res) => {
 
     res.json({
       success: true,
+      message: 'Notifications retrieved successfully',
       data: {
-        message: 'Notifications retrieved successfully',
         notifications: notificationsWithTimeAgo
       }
     });
@@ -70,9 +70,7 @@ export const deleteNotification = async (req, res) => {
 
     res.json({
       success: true,
-      data: {
-        message: 'Notification deleted successfully'
-      }
+      message: 'Notification deleted successfully'
     });
   } catch (error) {
     console.error('Error deleting notification:', error);
@@ -153,8 +151,8 @@ export const getNotificationStats = async (req, res) => {
 
     res.json({
       success: true,
+      message: 'Notification statistics retrieved successfully',
       data: {
-        message: 'Notification statistics retrieved successfully',
         ...result
       }
     });
@@ -199,8 +197,8 @@ export const sendTestNotification = async (req, res) => {
     if (result.success) {
       return res.json({
         success: true,
+        message: 'Test notification sent successfully',
         data: {
-          message: 'Test notification sent successfully',
           notificationId: result.notificationId, 
           messageId: result.messageId
         }
@@ -245,8 +243,8 @@ export const sendNotificationToUser = async (req, res) => {
     if (result.success) {
       return res.json({ 
         success: true, 
+        message: 'Notification sent successfully',
         data: { 
-          message: 'Notification sent successfully',
           notificationId: result.notificationId, 
           messageId: result.messageId 
         } 
@@ -281,8 +279,8 @@ export const sendNotificationToMultipleUsers = async (req, res) => {
     if (result.success) {
       return res.json({ 
         success: true, 
+        message: 'Notifications sent successfully',
         data: { 
-          message: 'Notifications sent successfully',
           successCount: result.successCount, 
           failureCount: result.failureCount 
         } 
@@ -331,8 +329,8 @@ export const sendNotificationToLiveShowAttendees = async (req, res) => {
     if (attendances.length === 0) {
       return res.json({
         success: true,
+        message: 'No attendees found for this live show',
         data: {
-          message: 'No attendees found for this live show',
           successCount: 0, 
           failureCount: 0, 
           totalAttendees: 0
@@ -418,8 +416,8 @@ export const sendNotificationToLiveShowAttendees = async (req, res) => {
     if (result.success) {
       return res.json({
         success: true,
+        message: `Notifications sent to live show attendees`,
         data: {
-          message: `Notifications sent to live show attendees`,
           successCount: result.successCount,
           failureCount: result.failureCount,
           totalAttendees: userIds.length,

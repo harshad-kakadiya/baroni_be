@@ -234,8 +234,8 @@ export const listMyAvailabilities = async (req, res) => {
     const items = await Availability.find({ userId: req.user._id }).sort({ date: 1, createdAt: -1 });
     return res.json({ 
       success: true, 
+      message: 'Availabilities retrieved successfully',
       data: {
-        message: 'Availabilities retrieved successfully',
         availabilities: items.map(sanitize)
       }
     });
@@ -255,8 +255,8 @@ export const getAvailability = async (req, res) => {
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
     return res.json({ 
       success: true, 
+      message: 'Availability retrieved successfully',
       data: {
-        message: 'Availability retrieved successfully',
         availability: sanitize(item)
       }
     });
@@ -363,8 +363,8 @@ export const updateAvailability = async (req, res) => {
     const updated = await item.save();
     return res.json({ 
       success: true, 
+      message: 'Availability updated successfully',
       data: {
-        message: 'Availability updated successfully',
         availability: sanitize(updated)
       }
     });
@@ -387,9 +387,7 @@ export const deleteAvailability = async (req, res) => {
     if (!deleted) return res.status(404).json({ success: false, message: 'Not found' });
     return res.json({ 
       success: true, 
-      data: {
-        message: 'Availability deleted successfully'
-      }
+      message: 'Availability deleted successfully'
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -471,9 +469,7 @@ export const deleteTimeSlotByDate = async (req, res) => {
       await availability.deleteOne();
       return res.json({ 
         success: true, 
-        data: {
-          message: 'Time slot deleted and availability removed (no remaining slots)'
-        }
+        message: 'Time slot deleted and availability removed (no remaining slots)'
       });
     }
 
@@ -481,8 +477,8 @@ export const deleteTimeSlotByDate = async (req, res) => {
     const saved = await availability.save();
     return res.json({ 
       success: true, 
+      message: 'Time slot deleted successfully',
       data: {
-        message: 'Time slot deleted successfully',
         availability: sanitize(saved)
       }
     });

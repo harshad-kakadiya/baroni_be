@@ -50,8 +50,8 @@ export const createNewHybridTransaction = async (req, res) => {
 
     return res.status(201).json({
       success: true,
+      message: result.message,
       data: {
-        message: result.message,
         ...result
       }
     });
@@ -98,8 +98,8 @@ export const createNewTransaction = async (req, res) => {
 
     return res.status(201).json({
       success: true,
+      message: result.message,
       data: {
-        message: result.message,
         ...result
       }
     });
@@ -125,8 +125,8 @@ export const getUserTransactions = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      message: 'Transaction history retrieved successfully',
       data: {
-        message: 'Transaction history retrieved successfully',
         transactions
       }
     });
@@ -159,8 +159,8 @@ export const getTransaction = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      message: 'Transaction retrieved successfully',
       data: {
-        message: 'Transaction retrieved successfully',
         transaction
       }
     });
@@ -182,8 +182,8 @@ export const getUserBalance = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      message: 'User balance retrieved successfully',
       data: {
-        message: 'User balance retrieved successfully',
         balance
       }
     });

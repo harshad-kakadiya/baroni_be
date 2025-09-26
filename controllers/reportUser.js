@@ -51,8 +51,8 @@ export const listReports = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'User reports retrieved successfully',
       data: {
-        message: 'User reports retrieved successfully',
         reports: items.map(sanitize)
       }
     });
@@ -73,8 +73,8 @@ export const getReportById = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'User report retrieved successfully',
       data: {
-        message: 'User report retrieved successfully',
         report: sanitize(item)
       }
     });
@@ -109,8 +109,8 @@ export const updateReport = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'User report updated successfully',
       data: {
-        message: 'User report updated successfully',
         report: sanitize(updated)
       }
     });
@@ -134,9 +134,7 @@ export const deleteReport = async (req, res) => {
     await ReportUser.findByIdAndDelete(id);
     return res.json({ 
       success: true, 
-      data: {
-        message: 'Report deleted successfully'
-      }
+      message: 'Report deleted successfully'
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });

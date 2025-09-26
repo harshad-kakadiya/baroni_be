@@ -15,8 +15,8 @@ export const createService = async (req, res) => {
     const created = await Service.create({ type: type.trim(), price, userId: req.user._id });
     return res.status(201).json({ 
       success: true, 
+      message: 'Service created successfully',
       data: {
-        message: 'Service created successfully',
         service: sanitize(created)
       }
     });
@@ -30,8 +30,8 @@ export const listMyServices = async (req, res) => {
     const items = await Service.find({ userId: req.user._id }).sort({ createdAt: -1 });
     return res.json({ 
       success: true, 
+      message: 'Services retrieved successfully',
       data: {
-        message: 'Services retrieved successfully',
         services: items.map(sanitize)
       }
     });
@@ -51,8 +51,8 @@ export const getService = async (req, res) => {
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
     return res.json({ 
       success: true, 
+      message: 'Service retrieved successfully',
       data: {
-        message: 'Service retrieved successfully',
         service: sanitize(item)
       }
     });
@@ -76,8 +76,8 @@ export const updateService = async (req, res) => {
     const updated = await item.save();
     return res.json({ 
       success: true, 
+      message: 'Service updated successfully',
       data: {
-        message: 'Service updated successfully',
         service: sanitize(updated)
       }
     });
@@ -97,9 +97,7 @@ export const deleteService = async (req, res) => {
     if (!deleted) return res.status(404).json({ success: false, message: 'Not found' });
     return res.json({ 
       success: true, 
-      data: {
-        message: 'Service deleted successfully'
-      }
+      message: 'Service deleted successfully'
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });

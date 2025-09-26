@@ -24,8 +24,8 @@ export const listMyDedications = async (req, res) => {
     const items = await Dedication.find({ userId: req.user._id }).sort({ createdAt: -1 });
     return res.json({ 
       success: true, 
+      message: 'Dedications retrieved successfully',
       data: {
-        message: 'Dedications retrieved successfully',
         dedications: items.map(sanitize)
       }
     });
@@ -45,8 +45,8 @@ export const getDedication = async (req, res) => {
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
     return res.json({ 
       success: true, 
+      message: 'Dedication retrieved successfully',
       data: {
-        message: 'Dedication retrieved successfully',
         dedication: sanitize(item)
       }
     });
@@ -70,8 +70,8 @@ export const updateDedication = async (req, res) => {
     const updated = await item.save();
     return res.json({ 
       success: true, 
+      message: 'Dedication updated successfully',
       data: {
-        message: 'Dedication updated successfully',
         dedication: sanitize(updated)
       }
     });
@@ -91,9 +91,7 @@ export const deleteDedication = async (req, res) => {
     if (!deleted) return res.status(404).json({ success: false, message: 'Not found' });
     return res.json({ 
       success: true, 
-      data: {
-        message: 'Dedication deleted successfully'
-      }
+      message: 'Dedication deleted successfully'
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });

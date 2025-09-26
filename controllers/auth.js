@@ -116,8 +116,8 @@ export const register = async (req, res) => {
 
     return res.status(201).json({
       success: true,
+      message: 'Registered successfully',
       data: {
-        message: 'Registered successfully',
         user: sanitizeUser(user),
         tokens: { accessToken, refreshToken }
       }
@@ -228,8 +228,8 @@ export const login = async (req, res) => {
     const refreshToken = createRefreshToken({ userId: user._id, sessionVersion: user.sessionVersion });
     return res.json({ 
       success: true, 
+      message: 'Login successful',
       data: {
-        message: 'Login successful',
         user: sanitizeUser(user), 
         tokens: { accessToken, refreshToken }
       }
@@ -416,8 +416,8 @@ export const completeProfile = async (req, res) => {
     }
     return res.json({ 
       success: true, 
+      message: 'Profile updated', 
       data: { 
-        message: 'Profile updated', 
         ...sanitizeUser(updatedUser), 
         ...extra 
       } 
@@ -444,8 +444,8 @@ export const refresh = async (req, res) => {
     const accessToken = createAccessToken({ userId: decoded.userId, sessionVersion: user.sessionVersion });
     return res.json({ 
       success: true, 
+      message: 'Token refreshed successfully',
       data: {
-        message: 'Token refreshed successfully',
         tokens: { accessToken }
       }
     });
@@ -469,8 +469,8 @@ export const checkUser = async (req, res) => {
     const exists = await User.exists(query);
     return res.json({ 
       success: true, 
+      message: 'User check completed',
       data: {
-        message: 'User check completed',
         exists: !!exists
       }
     });
@@ -497,9 +497,7 @@ export const forgotPassword = async (req, res) => {
     await user.save();
     return res.json({ 
       success: true, 
-      data: {
-        message: 'Password updated successfully'
-      }
+      message: 'Password updated successfully'
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -526,9 +524,7 @@ export const resetPassword = async (req, res) => {
     await user.save();
     return res.json({ 
       success: true, 
-      data: {
-        message: 'Password updated successfully'
-      }
+      message: 'Password updated successfully'
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -595,8 +591,8 @@ export const me = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'User profile retrieved successfully',
       data: { 
-        message: 'User profile retrieved successfully',
         ...sanitizeUser(user), 
         ...extra 
       } 
@@ -682,8 +678,8 @@ export const softDeleteAccount = async (req, res) => {
 
     return res.json({
       success: true,
+      message: 'Account marked for deletion successfully',
       data: {
-        message: 'Account marked for deletion successfully',
         deletedAt
       }
     });
@@ -726,8 +722,8 @@ export const toggleAvailableForBookings = async (req, res) => {
 
     return res.json({
       success: true,
+      message: `Successfully ${coerced ? 'enabled' : 'disabled'} bookings availability`,
       data: {
-        message: `Successfully ${coerced ? 'enabled' : 'disabled'} bookings availability`,
         user: sanitizeUser(updatedUser)
       }
     });
@@ -814,8 +810,8 @@ export const permanentlyDeleteUser = async (req, res) => {
 
     return res.json({
       success: true,
+      message: 'User permanently deleted successfully',
       data: {
-        message: 'User permanently deleted successfully',
         deletedAt: new Date(), 
         userId
       }
@@ -838,8 +834,8 @@ export const getSoftDeletedUsers = async (req, res) => {
 
     return res.json({
       success: true,
+      message: 'Soft deleted users retrieved successfully',
       data: {
-        message: 'Soft deleted users retrieved successfully',
         count: softDeletedUsers.length,
         users: softDeletedUsers
       }
@@ -879,8 +875,8 @@ export const updateFcmToken = async (req, res) => {
 
     return res.json({
       success: true,
+      message: 'FCM token updated successfully',
       data: {
-        message: 'FCM token updated successfully',
         user: sanitizeUser(updatedUser)
       }
     });
@@ -918,8 +914,8 @@ export const updateApnsToken = async (req, res) => {
 
     return res.json({
       success: true,
+      message: 'APNs token updated successfully',
       data: {
-        message: 'APNs token updated successfully',
         user: sanitizeUser(updatedUser)
       }
     });
@@ -957,8 +953,8 @@ export const updateVoipToken = async (req, res) => {
 
     return res.json({
       success: true,
+      message: 'VoIP token updated successfully',
       data: {
-        message: 'VoIP token updated successfully',
         user: sanitizeUser(updatedUser)
       }
     });
@@ -996,8 +992,8 @@ export const updateDeviceType = async (req, res) => {
 
     return res.json({
       success: true,
+      message: 'Device type updated successfully',
       data: {
-        message: 'Device type updated successfully',
         user: sanitizeUser(updatedUser)
       }
     });
@@ -1037,8 +1033,8 @@ export const updateIsDev = async (req, res) => {
 
     return res.json({
       success: true,
+      message: 'Development mode updated successfully',
       data: {
-        message: 'Development mode updated successfully',
         user: sanitizeUser(updatedUser)
       }
     });

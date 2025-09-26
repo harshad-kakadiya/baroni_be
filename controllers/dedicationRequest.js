@@ -119,8 +119,8 @@ export const createDedicationRequest = async (req, res) => {
 
     const responseBody = { 
       success: true, 
+      message: 'Dedication request created successfully',
       data: {
-        message: 'Dedication request created successfully',
         dedicationRequest: sanitize(created)
       }
     };
@@ -181,8 +181,8 @@ export const listDedicationRequests = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'Dedication requests retrieved successfully',
       data: {
-        message: 'Dedication requests retrieved successfully',
         dedicationRequests: data
       }
     });
@@ -216,8 +216,8 @@ export const getDedicationRequest = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'Dedication request retrieved successfully',
       data: {
-        message: 'Dedication request retrieved successfully',
         dedicationRequest: sanitize(item)
       }
     });
@@ -260,8 +260,8 @@ export const approveDedicationRequest = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'Dedication request approved successfully',
       data: {
-        message: 'Dedication request approved successfully',
         dedicationRequest: sanitize(updated)
       }
     });
@@ -314,8 +314,8 @@ export const rejectDedicationRequest = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'Dedication request rejected successfully',
       data: {
-        message: 'Dedication request rejected successfully',
         dedicationRequest: sanitize(updated)
       }
     });
@@ -361,8 +361,8 @@ export const uploadDedicationVideo = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'Dedication video uploaded successfully',
       data: {
-        message: 'Dedication video uploaded successfully',
         dedicationRequest: sanitize(updated)
       }
     });
@@ -417,8 +417,8 @@ export const completeDedicationByFan = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'Dedication completed successfully',
       data: {
-        message: 'Dedication completed successfully',
         dedicationRequest: sanitize(updated)
       }
     });
@@ -462,8 +462,8 @@ export const cancelDedicationRequest = async (req, res) => {
     const updated = await item.save();
     return res.json({ 
       success: true, 
+      message: 'Dedication request cancelled successfully',
       data: {
-        message: 'Dedication request cancelled successfully',
         dedicationRequest: sanitize(updated)
       }
     });
@@ -491,8 +491,8 @@ export const getDedicationRequestByTrackingId = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'Dedication request retrieved successfully',
       data: {
-        message: 'Dedication request retrieved successfully',
         dedicationRequest: sanitize(item)
       }
     });
