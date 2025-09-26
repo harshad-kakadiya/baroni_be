@@ -35,7 +35,13 @@ export const createCategory = async (req, res) => {
     }
 
     const created = await Category.create({ name: name.trim(), image: imageUrl });
-    return res.status(201).json({ success: true, data: sanitizeCategory(created) });
+    return res.status(201).json({ 
+      success: true, 
+      data: {
+        message: 'Category created successfully',
+        category: sanitizeCategory(created)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -44,7 +50,13 @@ export const createCategory = async (req, res) => {
 export const listCategories = async (_req, res) => {
   try {
     const items = await Category.find().sort({ createdAt: -1 });
-    return res.json({ success: true, data: items.map(sanitizeCategory) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Categories retrieved successfully',
+        categories: items.map(sanitizeCategory)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -62,7 +74,13 @@ export const getCategoryById = async (req, res) => {
     if (!category) {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
-    return res.json({ success: true, data: sanitizeCategory(category) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Category retrieved successfully',
+        category: sanitizeCategory(category)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -98,7 +116,13 @@ export const updateCategory = async (req, res) => {
     }
 
     const updated = await category.save();
-    return res.json({ success: true, data: sanitizeCategory(updated) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Category updated successfully',
+        category: sanitizeCategory(updated)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -116,7 +140,12 @@ export const deleteCategory = async (req, res) => {
     if (!deleted) {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
-    return res.json({ success: true, message: 'Category deleted' });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Category deleted successfully'
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

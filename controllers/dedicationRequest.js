@@ -117,10 +117,16 @@ export const createDedicationRequest = async (req, res) => {
       console.error('Error sending dedication notification:', notificationError);
     }
 
-    const responseBody = { success: true, data: sanitize(created) };
+    const responseBody = { 
+      success: true, 
+      data: {
+        message: 'Dedication request created successfully',
+        dedicationRequest: sanitize(created)
+      }
+    };
     if (txnResult && txnResult.paymentMode === 'hybrid' || txnResult?.externalAmount > 0) {
       if (txnResult.externalPaymentMessage) {
-        responseBody.externalPaymentMessage = txnResult.externalPaymentMessage;
+        responseBody.data.externalPaymentMessage = txnResult.externalPaymentMessage;
       }
     }
 
@@ -173,7 +179,13 @@ export const listDedicationRequests = async (req, res) => {
     past.sort((a, b) => Math.abs(a.timeToNowMs ?? 0) - Math.abs(b.timeToNowMs ?? 0));
     const data = [...future, ...past];
 
-    return res.json({ success: true, data });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Dedication requests retrieved successfully',
+        dedicationRequests: data
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -202,7 +214,13 @@ export const getDedicationRequest = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
-    return res.json({ success: true, data: sanitize(item) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Dedication request retrieved successfully',
+        dedicationRequest: sanitize(item)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -240,7 +258,13 @@ export const approveDedicationRequest = async (req, res) => {
       console.error('Error sending dedication approval notification:', notificationError);
     }
 
-    return res.json({ success: true, data: sanitize(updated) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Dedication request approved successfully',
+        dedicationRequest: sanitize(updated)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -288,7 +312,13 @@ export const rejectDedicationRequest = async (req, res) => {
       console.error('Error sending dedication rejection notification:', notificationError);
     }
 
-    return res.json({ success: true, data: sanitize(updated) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Dedication request rejected successfully',
+        dedicationRequest: sanitize(updated)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -329,7 +359,13 @@ export const uploadDedicationVideo = async (req, res) => {
       console.error('Error sending dedication video upload notification:', notificationError);
     }
 
-    return res.json({ success: true, data: sanitize(updated) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Dedication video uploaded successfully',
+        dedicationRequest: sanitize(updated)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -379,7 +415,13 @@ export const completeDedicationByFan = async (req, res) => {
       await deleteConversationBetweenUsers(item.fanId, item.starId);
     } catch (_e) {}
 
-    return res.json({ success: true, data: sanitize(updated) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Dedication completed successfully',
+        dedicationRequest: sanitize(updated)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -418,7 +460,13 @@ export const cancelDedicationRequest = async (req, res) => {
     item.status = 'cancelled';
     item.cancelledAt = new Date();
     const updated = await item.save();
-    return res.json({ success: true, data: sanitize(updated) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Dedication request cancelled successfully',
+        dedicationRequest: sanitize(updated)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -441,7 +489,13 @@ export const getDedicationRequestByTrackingId = async (req, res) => {
 
     if (!item) return res.status(404).json({ success: false, message: 'Request not found' });
 
-    return res.json({ success: true, data: sanitize(item) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Dedication request retrieved successfully',
+        dedicationRequest: sanitize(item)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

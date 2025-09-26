@@ -13,7 +13,13 @@ export const createService = async (req, res) => {
     }
     const { type, price } = req.body;
     const created = await Service.create({ type: type.trim(), price, userId: req.user._id });
-    return res.status(201).json({ success: true, data: sanitize(created) });
+    return res.status(201).json({ 
+      success: true, 
+      data: {
+        message: 'Service created successfully',
+        service: sanitize(created)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -22,7 +28,13 @@ export const createService = async (req, res) => {
 export const listMyServices = async (req, res) => {
   try {
     const items = await Service.find({ userId: req.user._id }).sort({ createdAt: -1 });
-    return res.json({ success: true, data: items.map(sanitize) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Services retrieved successfully',
+        services: items.map(sanitize)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -37,7 +49,13 @@ export const getService = async (req, res) => {
     }
     const item = await Service.findOne({ _id: req.params.id, userId: req.user._id });
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
-    return res.json({ success: true, data: sanitize(item) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Service retrieved successfully',
+        service: sanitize(item)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -56,7 +74,13 @@ export const updateService = async (req, res) => {
     if (type) item.type = type.trim();
     if (price !== undefined) item.price = price;
     const updated = await item.save();
-    return res.json({ success: true, data: sanitize(updated) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Service updated successfully',
+        service: sanitize(updated)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -71,7 +95,12 @@ export const deleteService = async (req, res) => {
     }
     const deleted = await Service.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!deleted) return res.status(404).json({ success: false, message: 'Not found' });
-    return res.json({ success: true, message: 'Deleted' });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Service deleted successfully'
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

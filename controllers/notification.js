@@ -35,6 +35,7 @@ export const getUserNotifications = async (req, res) => {
     res.json({
       success: true,
       data: {
+        message: 'Notifications retrieved successfully',
         notifications: notificationsWithTimeAgo
       }
     });
@@ -69,7 +70,9 @@ export const deleteNotification = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Notification deleted successfully'
+      data: {
+        message: 'Notification deleted successfully'
+      }
     });
   } catch (error) {
     console.error('Error deleting notification:', error);
@@ -150,7 +153,10 @@ export const getNotificationStats = async (req, res) => {
 
     res.json({
       success: true,
-      data: result
+      data: {
+        message: 'Notification statistics retrieved successfully',
+        ...result
+      }
     });
   } catch (error) {
     console.error('Error fetching notification stats:', error);
@@ -193,8 +199,11 @@ export const sendTestNotification = async (req, res) => {
     if (result.success) {
       return res.json({
         success: true,
-        message: 'Test notification sent successfully',
-        data: { notificationId: result.notificationId, messageId: result.messageId }
+        data: {
+          message: 'Test notification sent successfully',
+          notificationId: result.notificationId, 
+          messageId: result.messageId
+        }
       });
     }
 
@@ -234,7 +243,14 @@ export const sendNotificationToUser = async (req, res) => {
     );
 
     if (result.success) {
-      return res.json({ success: true, data: { notificationId: result.notificationId, messageId: result.messageId } });
+      return res.json({ 
+        success: true, 
+        data: { 
+          message: 'Notification sent successfully',
+          notificationId: result.notificationId, 
+          messageId: result.messageId 
+        } 
+      });
     }
 
     return res.status(400).json({ success: false, message: result.message || result.error || 'Failed to send notification' });
@@ -263,7 +279,14 @@ export const sendNotificationToMultipleUsers = async (req, res) => {
     );
 
     if (result.success) {
-      return res.json({ success: true, data: { successCount: result.successCount, failureCount: result.failureCount } });
+      return res.json({ 
+        success: true, 
+        data: { 
+          message: 'Notifications sent successfully',
+          successCount: result.successCount, 
+          failureCount: result.failureCount 
+        } 
+      });
     }
 
     return res.status(400).json({ success: false, message: result.message || result.error || 'Failed to send notifications' });
@@ -308,8 +331,12 @@ export const sendNotificationToLiveShowAttendees = async (req, res) => {
     if (attendances.length === 0) {
       return res.json({
         success: true,
-        message: 'No attendees found for this live show',
-        data: { successCount: 0, failureCount: 0, totalAttendees: 0 }
+        data: {
+          message: 'No attendees found for this live show',
+          successCount: 0, 
+          failureCount: 0, 
+          totalAttendees: 0
+        }
       });
     }
 
@@ -391,8 +418,8 @@ export const sendNotificationToLiveShowAttendees = async (req, res) => {
     if (result.success) {
       return res.json({
         success: true,
-        message: `Notifications sent to live show attendees`,
         data: {
+          message: `Notifications sent to live show attendees`,
           successCount: result.successCount,
           failureCount: result.failureCount,
           totalAttendees: userIds.length,

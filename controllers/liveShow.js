@@ -157,8 +157,8 @@ const sanitizeLiveShow = (show) => ({
   thumbnail: show.thumbnail,
   showCode: show.showCode,
   inviteLink: show.inviteLink,
-  starId: show.starId ? sanitizeUserData(show.starId) : null,
-  attendees: Array.isArray(show.attendees) ? show.attendees.map((a) => a ? sanitizeUserData(a) : null) : show.attendees,
+  starId: show.starId && typeof show.starId === 'object' ? sanitizeUserData(show.starId) : show.starId,
+  attendees: Array.isArray(show.attendees) ? show.attendees.map((a) => a && typeof a === 'object' ? sanitizeUserData(a) : a) : show.attendees,
   likes: show.likes,
   likeCount: Array.isArray(show.likes) ? show.likes.length : 0,
   likesCount: Array.isArray(show.likes) ? show.likes.length : 0,
@@ -292,9 +292,16 @@ export const createLiveShow = async (req, res) => {
       console.error('Error sending live show notification:', notificationError);
     }
 
-    const resp = { success: true, message: 'Live show created successfully and is now open for joining', data: sanitizeLiveShow(liveShow) };
+    const resp = { 
+      success: true, 
+      data: {
+        message: 'Live show created successfully and is now open for joining',
+        liveShow: sanitizeLiveShow(liveShow),
+        count: 1
+      }
+    };
     if (hostingTxnResult && hostingTxnResult.paymentMode === 'hybrid' || hostingTxnResult?.externalAmount > 0) {
-      if (hostingTxnResult.externalPaymentMessage) resp.externalPaymentMessage = hostingTxnResult.externalPaymentMessage;
+      if (hostingTxnResult.externalPaymentMessage) resp.data.externalPaymentMessage = hostingTxnResult.externalPaymentMessage;
     }
     return res.status(201).json(resp);
   } catch (err) {
@@ -337,7 +344,13 @@ export const getAllLiveShows = async (req, res) => {
     past.sort((a, b) => Math.abs(a.timeToNowMs ?? 0) - Math.abs(b.timeToNowMs ?? 0));
     const data = [...future, ...past];
 
-    return res.json({ success: true, data });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Live shows retrieved successfully',
+        liveShows: data
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -353,7 +366,13 @@ export const getLiveShowById = async (req, res) => {
 
     const showData = setPerUserFlags(sanitizeLiveShow(show), show, req);
 
-    return res.json({ success: true, data: showData });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Live show retrieved successfully',
+        liveShow: showData
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -367,7 +386,13 @@ export const getLiveShowByCode = async (req, res) => {
 
     const showData = setPerUserFlags(sanitizeLiveShow(show), show, req);
 
-    return res.json({ success: true, data: showData });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Live show retrieved successfully',
+        liveShow: showData
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -399,7 +424,13 @@ export const updateLiveShow = async (req, res) => {
     const updatedShow = await LiveShow.findByIdAndUpdate(id, updateData, { new: true, runValidators: true })
       .populate('starId', 'name pseudo profilePic availableForBookings agoraKey');
 
-    return res.json({ success: true, message: 'Live show updated successfully', data: sanitizeLiveShow(updatedShow) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Live show updated successfully',
+        liveShow: sanitizeLiveShow(updatedShow)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -419,7 +450,12 @@ export const deleteLiveShow = async (req, res) => {
 
     await LiveShow.findByIdAndDelete(id);
 
-    return res.json({ success: true, message: 'Live show deleted successfully' });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Live show deleted successfully'
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -441,7 +477,13 @@ export const joinLiveShow = async (req, res) => {
     if (alreadyJoined) {
       const populated = await LiveShow.findById(id).populate('starId', 'name pseudo profilePic availableForBookings');
       const data = setPerUserFlags(sanitizeLiveShow(populated), populated, req);
-      return res.json({ success: true, message: 'Already joined', data });
+      return res.json({ 
+        success: true, 
+        data: {
+          message: 'Already joined',
+          ...data
+        }
+      });
     }
 
     // Capacity check
@@ -571,7 +613,13 @@ export const getMyJoinedLiveShows = async (req, res) => {
       .sort({ date: -1 });
 
     const data = shows.map(show => setPerUserFlags(sanitizeLiveShow(show), show, req));
-    return res.json({ success: true, data });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Live shows retrieved successfully',
+        liveShows: data
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -615,7 +663,13 @@ export const cancelLiveShow = async (req, res) => {
       console.error('Error sending live show cancellation notification:', notificationError);
     }
 
-    return res.json({ success: true, message: 'Live show cancelled', data: sanitizeLiveShow(updated) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Live show cancelled',
+        liveShow: sanitizeLiveShow(updated)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -652,7 +706,13 @@ export const rescheduleLiveShow = async (req, res) => {
       console.error('Error sending live show reschedule notification:', notificationError);
     }
 
-    return res.json({ success: true, message: 'Live show rescheduled', data: sanitizeLiveShow(updated) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Live show rescheduled',
+        liveShow: sanitizeLiveShow(updated)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -673,7 +733,13 @@ export const getStarUpcomingShows = async (req, res) => {
 
     const showsData = shows.map(show => setPerUserFlags(sanitizeLiveShow(show), show, req));
 
-    return res.json({ success: true, data: showsData });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Live shows retrieved successfully',
+        liveShows: showsData
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -694,7 +760,13 @@ export const getStarAllShows = async (req, res) => {
 
     const showsData = shows.map(show => setPerUserFlags(sanitizeLiveShow(show), show, req));
 
-    return res.json({ success: true, data: showsData });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Live shows retrieved successfully',
+        liveShows: showsData
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -717,7 +789,14 @@ export const toggleLikeLiveShow = async (req, res) => {
     const updated = await LiveShow.findByIdAndUpdate(id, update, { new: true });
     const data = sanitizeLiveShow(updated);
     data.isLiked = !hasLiked;
-    return res.json({ success: true, message: hasLiked ? 'Unliked' : 'Liked', data });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: hasLiked ? 'Unliked' : 'Liked',
+        ...data,
+        likeCount: Array.isArray(updated.likes) ? updated.likes.length : 0
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -761,7 +840,12 @@ export const completeLiveShowAttendance = async (req, res) => {
       }
     } catch (_e) {}
 
-    return res.json({ success: true, message: 'Live show attendance completed and coins transferred' });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Live show attendance completed and coins transferred'
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

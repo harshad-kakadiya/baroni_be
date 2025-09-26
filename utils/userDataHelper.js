@@ -10,13 +10,25 @@
  * @returns {Object} Sanitized user object
  */
 export const sanitizeUserData = (user) => {
-  if (!user || typeof user !== 'object') {
+  // If it's falsy or a primitive, return as-is
+  if (!user || (typeof user !== 'object' && typeof user !== 'function')) {
     return user;
   }
 
-  // Convert to plain object if it's a Mongoose document
-  // Use toJSON() instead of toObject() to properly serialize ObjectIds as strings
-  const userObj = user.toJSON ? user.toJSON() : (user.toObject ? user.toObject() : { ...user });
+  // Convert to plain object if it's a Mongoose document.
+  // Note: for ObjectId, toJSON() returns a string, so guard against non-object results
+  const converted = user.toJSON
+    ? user.toJSON()
+    : (user.toObject
+      ? user.toObject()
+      : (typeof user === 'object' ? { ...user } : user));
+
+  // If conversion yielded a non-object (e.g., string ObjectId), return original value unchanged
+  if (!converted || typeof converted !== 'object') {
+    return user;
+  }
+
+  const userObj = converted;
 
   // Ensure all string fields have empty string instead of undefined/null
   const stringFields = [

@@ -116,9 +116,11 @@ export const register = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Registered successfully',
-      data: sanitizeUser(user),
-      tokens: { accessToken, refreshToken }
+      data: {
+        message: 'Registered successfully',
+        user: sanitizeUser(user),
+        tokens: { accessToken, refreshToken }
+      }
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -224,7 +226,14 @@ export const login = async (req, res) => {
 
     const accessToken = createAccessToken({ userId: user._id, sessionVersion: user.sessionVersion });
     const refreshToken = createRefreshToken({ userId: user._id, sessionVersion: user.sessionVersion });
-    return res.json({ success: true, data: sanitizeUser(user), tokens: { accessToken, refreshToken } });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Login successful',
+        user: sanitizeUser(user), 
+        tokens: { accessToken, refreshToken }
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -405,7 +414,14 @@ export const completeProfile = async (req, res) => {
         dedicationSamples: samplesRes.map((x) => ({ id: x._id, type: x.type, video: x.video, description: x.description, userId: x.userId, createdAt: x.createdAt, updatedAt: x.updatedAt })),
       };
     }
-    return res.json({ success: true, message: 'Profile updated', data: { ...sanitizeUser(updatedUser), ...extra } });
+    return res.json({ 
+      success: true, 
+      data: { 
+        message: 'Profile updated', 
+        ...sanitizeUser(updatedUser), 
+        ...extra 
+      } 
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -426,7 +442,13 @@ export const refresh = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
     const accessToken = createAccessToken({ userId: decoded.userId, sessionVersion: user.sessionVersion });
-    return res.json({ success: true, tokens: { accessToken } });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Token refreshed successfully',
+        tokens: { accessToken }
+      }
+    });
   } catch (err) {
     return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
   }
@@ -445,7 +467,13 @@ export const checkUser = async (req, res) => {
 
     const query = email ? { email: email.toLowerCase() } : { contact };
     const exists = await User.exists(query);
-    return res.json({ success: true, exists: !!exists });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'User check completed',
+        exists: !!exists
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -467,7 +495,12 @@ export const forgotPassword = async (req, res) => {
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
     await user.save();
-    return res.json({ success: true, message: 'Password updated successfully' });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Password updated successfully'
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -491,7 +524,12 @@ export const resetPassword = async (req, res) => {
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
     await user.save();
-    return res.json({ success: true, message: 'Password updated successfully' });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Password updated successfully'
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -555,7 +593,14 @@ export const me = async (req, res) => {
       };
     }
 
-    return res.json({ success: true, data: { ...sanitizeUser(user), ...extra } });
+    return res.json({ 
+      success: true, 
+      data: { 
+        message: 'User profile retrieved successfully',
+        ...sanitizeUser(user), 
+        ...extra 
+      } 
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -637,8 +682,10 @@ export const softDeleteAccount = async (req, res) => {
 
     return res.json({
       success: true,
-      message: 'Account marked for deletion successfully',
-      data: { deletedAt }
+      data: {
+        message: 'Account marked for deletion successfully',
+        deletedAt
+      }
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -679,8 +726,10 @@ export const toggleAvailableForBookings = async (req, res) => {
 
     return res.json({
       success: true,
-      message: `Successfully ${coerced ? 'enabled' : 'disabled'} bookings availability`,
-      data: sanitizeUser(updatedUser)
+      data: {
+        message: `Successfully ${coerced ? 'enabled' : 'disabled'} bookings availability`,
+        user: sanitizeUser(updatedUser)
+      }
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -765,8 +814,11 @@ export const permanentlyDeleteUser = async (req, res) => {
 
     return res.json({
       success: true,
-      message: 'User permanently deleted successfully',
-      data: { deletedAt: new Date(), userId }
+      data: {
+        message: 'User permanently deleted successfully',
+        deletedAt: new Date(), 
+        userId
+      }
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -786,8 +838,11 @@ export const getSoftDeletedUsers = async (req, res) => {
 
     return res.json({
       success: true,
-      count: softDeletedUsers.length,
-      data: softDeletedUsers
+      data: {
+        message: 'Soft deleted users retrieved successfully',
+        count: softDeletedUsers.length,
+        users: softDeletedUsers
+      }
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -824,8 +879,10 @@ export const updateFcmToken = async (req, res) => {
 
     return res.json({
       success: true,
-      message: 'FCM token updated successfully',
-      data: sanitizeUser(updatedUser)
+      data: {
+        message: 'FCM token updated successfully',
+        user: sanitizeUser(updatedUser)
+      }
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -861,8 +918,10 @@ export const updateApnsToken = async (req, res) => {
 
     return res.json({
       success: true,
-      message: 'APNs token updated successfully',
-      data: sanitizeUser(updatedUser)
+      data: {
+        message: 'APNs token updated successfully',
+        user: sanitizeUser(updatedUser)
+      }
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -898,8 +957,10 @@ export const updateVoipToken = async (req, res) => {
 
     return res.json({
       success: true,
-      message: 'VoIP token updated successfully',
-      data: sanitizeUser(updatedUser)
+      data: {
+        message: 'VoIP token updated successfully',
+        user: sanitizeUser(updatedUser)
+      }
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -935,8 +996,10 @@ export const updateDeviceType = async (req, res) => {
 
     return res.json({
       success: true,
-      message: 'Device type updated successfully',
-      data: sanitizeUser(updatedUser)
+      data: {
+        message: 'Device type updated successfully',
+        user: sanitizeUser(updatedUser)
+      }
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -974,8 +1037,10 @@ export const updateIsDev = async (req, res) => {
 
     return res.json({
       success: true,
-      message: 'Development mode updated successfully',
-      data: sanitizeUser(updatedUser)
+      data: {
+        message: 'Development mode updated successfully',
+        user: sanitizeUser(updatedUser)
+      }
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });

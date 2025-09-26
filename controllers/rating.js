@@ -95,8 +95,9 @@ export const submitAppointmentReview = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Review submitted successfully',
       data: {
+        message: 'Review submitted successfully',
+        review: {
         id: review._id,
         rating: review.rating,
         comment: review.comment,
@@ -107,6 +108,7 @@ export const submitAppointmentReview = async (req, res) => {
           profilePic: review.reviewerId.profilePic
         },
         createdAt: review.createdAt
+        }
       }
     });
   } catch (err) {
@@ -174,8 +176,9 @@ export const submitDedicationReview = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Review submitted successfully',
       data: {
+        message: 'Review submitted successfully',
+        review: {
         id: review._id,
         rating: review.rating,
         comment: review.comment,
@@ -186,6 +189,7 @@ export const submitDedicationReview = async (req, res) => {
           profilePic: review.reviewerId.profilePic
         },
         createdAt: review.createdAt
+        }
       }
     });
   } catch (err) {
@@ -249,8 +253,9 @@ export const submitLiveShowReview = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Review submitted successfully',
       data: {
+        message: 'Review submitted successfully',
+        review: {
         id: review._id,
         rating: review.rating,
         comment: review.comment,
@@ -261,6 +266,7 @@ export const submitLiveShowReview = async (req, res) => {
           profilePic: review.reviewerId.profilePic
         },
         createdAt: review.createdAt
+        }
       }
     });
   } catch (err) {
@@ -291,6 +297,7 @@ export const getStarReviews = async (req, res) => {
     return res.json({
       success: true,
       data: {
+        message: 'Star reviews retrieved successfully',
         reviews: reviews.map(review => ({
           id: review._id,
           rating: review.rating,
@@ -325,6 +332,7 @@ export const getMyReviews = async (req, res) => {
     return res.json({
       success: true,
       data: {
+        message: 'User reviews retrieved successfully',
         reviews: reviews.map(review => ({
           id: review._id,
           rating: review.rating,
@@ -381,12 +389,14 @@ export const updateReview = async (req, res) => {
 
     return res.json({
       success: true,
-      message: 'Review updated successfully',
       data: {
-        id: review._id,
-        rating: review.rating,
-        comment: review.comment,
-        updatedAt: review.updatedAt
+        message: 'Review updated successfully',
+        review: {
+          id: review._id,
+          rating: review.rating,
+          comment: review.comment,
+          updatedAt: review.updatedAt
+        }
       }
     });
   } catch (err) {
@@ -419,7 +429,9 @@ export const deleteReview = async (req, res) => {
 
     return res.json({
       success: true,
-      message: 'Review deleted successfully'
+      data: {
+        message: 'Review deleted successfully'
+      }
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });

@@ -49,7 +49,13 @@ export const listReports = async (req, res) => {
       .populate('reporterId', '-password -passwordResetToken -passwordResetExpires')
       .populate('reportedUserId', '-password -passwordResetToken -passwordResetExpires');
 
-    return res.json({ success: true, data: items.map(sanitize) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'User reports retrieved successfully',
+        reports: items.map(sanitize)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -65,7 +71,13 @@ export const getReportById = async (req, res) => {
       .populate('reportedUserId', '-password -passwordResetToken -passwordResetExpires');
     if (!item) return res.status(404).json({ success: false, message: 'Report not found' });
 
-    return res.json({ success: true, data: sanitize(item) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'User report retrieved successfully',
+        report: sanitize(item)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -95,7 +107,13 @@ export const updateReport = async (req, res) => {
       .populate('reporterId', '-password -passwordResetToken -passwordResetExpires')
       .populate('reportedUserId', '-password -passwordResetToken -passwordResetExpires');
 
-    return res.json({ success: true, data: sanitize(updated) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'User report updated successfully',
+        report: sanitize(updated)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -114,7 +132,12 @@ export const deleteReport = async (req, res) => {
     }
 
     await ReportUser.findByIdAndDelete(id);
-    return res.json({ success: true, message: 'Report deleted successfully' });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Report deleted successfully'
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

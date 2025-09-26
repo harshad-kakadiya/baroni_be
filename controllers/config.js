@@ -15,7 +15,13 @@ const sanitizeConfig = (cfg) => ({
 export const getPublicConfig = async (_req, res) => {
   try {
     const cfg = await Config.getSingleton();
-    return res.json({ success: true, data: sanitizeConfig(cfg) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Configuration retrieved successfully',
+        config: sanitizeConfig(cfg)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -59,7 +65,13 @@ export const upsertConfig = async (req, res) => {
     if (typeof nTestUser === 'boolean') cfg.isTestUser = nTestUser;
 
     const saved = await cfg.save();
-    return res.json({ success: true, data: sanitizeConfig(saved) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Configuration updated successfully',
+        config: sanitizeConfig(saved)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

@@ -51,8 +51,11 @@ export const addToFavorites = async (req, res) => {
 
     return res.json({
       success: true,
-      message: 'Star added to favorites',
-      data: { starId, added: true }
+      data: {
+        message: 'Star added to favorites',
+        starId, 
+        added: true
+      }
     });
   } catch (err) {
     console.error('Error in addToFavorites:', err);
@@ -104,8 +107,11 @@ export const removeFromFavorites = async (req, res) => {
 
     return res.json({
       success: true,
-      message: 'Star removed from favorites',
-      data: { starId, removed: true }
+      data: {
+        message: 'Star removed from favorites',
+        starId, 
+        removed: true
+      }
     });
   } catch (err) {
     console.error('Error in removeFromFavorites:', err);
@@ -162,8 +168,12 @@ export const toggleFavorite = async (req, res) => {
 
       return res.json({
         success: true,
-        message: 'Star removed from favorites',
-        data: { starId, isFavorite: false, action: 'removed' }
+        data: {
+          message: 'Star removed from favorites',
+          starId, 
+          isFavorite: false, 
+          action: 'removed'
+        }
       });
     } else {
       // Add to favorites
@@ -172,8 +182,12 @@ export const toggleFavorite = async (req, res) => {
 
       return res.json({
         success: true,
-        message: 'Star added to favorites',
-        data: { starId, isFavorite: true, action: 'added' }
+        data: {
+          message: 'Star added to favorites',
+          starId, 
+          isFavorite: true, 
+          action: 'added'
+        }
       });
     }
   } catch (err) {
@@ -210,8 +224,11 @@ export const getFavorites = async (req, res) => {
 
     return res.json({
       success: true,
-      data: validFavorites,
-      count: validFavorites.length
+      data: {
+        message: 'Favorites retrieved successfully',
+        favorites: validFavorites,
+        count: validFavorites.length
+      }
     });
   } catch (err) {
     console.error('Error in getFavorites:', err);

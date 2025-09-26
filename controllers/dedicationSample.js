@@ -33,7 +33,13 @@ export const createDedicationSample = async (req, res) => {
 export const listMyDedicationSamples = async (req, res) => {
   try {
     const items = await DedicationSample.find({ userId: req.user._id }).sort({ createdAt: -1 });
-    return res.json({ success: true, data: items.map(sanitize) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Dedication samples retrieved successfully',
+        dedicationSamples: items.map(sanitize)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -48,7 +54,13 @@ export const getDedicationSample = async (req, res) => {
     }
     const item = await DedicationSample.findOne({ _id: req.params.id, userId: req.user._id });
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
-    return res.json({ success: true, data: sanitize(item) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Dedication sample retrieved successfully',
+        dedicationSample: sanitize(item)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -73,7 +85,13 @@ export const updateDedicationSample = async (req, res) => {
       item.video = await uploadVideo(req.file.buffer);
     }
     const updated = await item.save();
-    return res.json({ success: true, data: sanitize(updated) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Dedication sample updated successfully',
+        dedicationSample: sanitize(updated)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -88,7 +106,12 @@ export const deleteDedicationSample = async (req, res) => {
     }
     const deleted = await DedicationSample.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!deleted) return res.status(404).json({ success: false, message: 'Not found' });
-    return res.json({ success: true, message: 'Deleted' });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Dedication sample deleted successfully'
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

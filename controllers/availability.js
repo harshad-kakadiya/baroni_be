@@ -232,7 +232,13 @@ export const createAvailability = async (req, res) => {
 export const listMyAvailabilities = async (req, res) => {
   try {
     const items = await Availability.find({ userId: req.user._id }).sort({ date: 1, createdAt: -1 });
-    return res.json({ success: true, data: items.map(sanitize) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Availabilities retrieved successfully',
+        availabilities: items.map(sanitize)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -247,7 +253,13 @@ export const getAvailability = async (req, res) => {
     }
     const item = await Availability.findOne({ _id: req.params.id, userId: req.user._id });
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
-    return res.json({ success: true, data: sanitize(item) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Availability retrieved successfully',
+        availability: sanitize(item)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -349,7 +361,13 @@ export const updateAvailability = async (req, res) => {
       }
     }
     const updated = await item.save();
-    return res.json({ success: true, data: sanitize(updated) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Availability updated successfully',
+        availability: sanitize(updated)
+      }
+    });
   } catch (err) {
     if (err?.code === 11000) {
       return res.status(409).json({ success: false, message: 'Availability for this date already exists' });
@@ -367,7 +385,12 @@ export const deleteAvailability = async (req, res) => {
     }
     const deleted = await Availability.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!deleted) return res.status(404).json({ success: false, message: 'Not found' });
-    return res.json({ success: true, message: 'Deleted' });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Availability deleted successfully'
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -446,12 +469,23 @@ export const deleteTimeSlotByDate = async (req, res) => {
 
     if (remaining.length === 0) {
       await availability.deleteOne();
-      return res.json({ success: true, message: 'Time slot deleted and availability removed (no remaining slots)' });
+      return res.json({ 
+        success: true, 
+        data: {
+          message: 'Time slot deleted and availability removed (no remaining slots)'
+        }
+      });
     }
 
     availability.timeSlots = remaining;
     const saved = await availability.save();
-    return res.json({ success: true, data: sanitize(saved), message: 'Time slot deleted successfully' });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Time slot deleted successfully',
+        availability: sanitize(saved)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -525,11 +559,22 @@ export const deleteTimeSlotById = async (req, res) => {
 
     if (availability.timeSlots.length === 0) {
       await availability.deleteOne();
-      return res.json({ success: true, message: 'Time slot deleted and availability removed (no remaining slots)' });
+      return res.json({ 
+        success: true, 
+        data: {
+          message: 'Time slot deleted and availability removed (no remaining slots)'
+        }
+      });
     }
 
     const saved = await availability.save();
-    return res.json({ success: true, data: sanitize(saved), message: 'Time slot deleted successfully' });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Time slot deleted successfully',
+        availability: sanitize(saved)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

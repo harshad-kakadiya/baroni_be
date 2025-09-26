@@ -110,7 +110,10 @@ export const getAppointmentDetails = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: appointmentData
+      data: {
+        message: 'Appointment details retrieved successfully',
+        appointment: appointmentData
+      }
     });
 
   } catch (error) {
@@ -252,10 +255,16 @@ export const createAppointment = async (req, res) => {
       console.error('Error sending appointment notification:', notificationError);
     }
 
-    const responseBody = { success: true, data: sanitize(created) };
+    const responseBody = { 
+      success: true, 
+      data: {
+        message: 'Appointment created successfully',
+        appointment: sanitize(created)
+      }
+    };
     if (transactionResult && transactionResult.paymentMode === 'hybrid' || transactionResult?.externalAmount > 0) {
       if (transactionResult.externalPaymentMessage) {
-        responseBody.externalPaymentMessage = transactionResult.externalPaymentMessage;
+        responseBody.data.externalPaymentMessage = transactionResult.externalPaymentMessage;
       }
     }
     return res.status(201).json(responseBody);
@@ -323,7 +332,13 @@ export const listAppointments = async (req, res) => {
     past.sort((a, b) => Math.abs(a.timeToNowMs ?? 0) - Math.abs(b.timeToNowMs ?? 0));
     const data = [...future, ...past];
 
-    return res.json({ success: true, data });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Appointments retrieved successfully',
+        appointments: data
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -360,7 +375,13 @@ export const approveAppointment = async (req, res) => {
       console.error('Error sending appointment approval notification:', notificationError);
     }
 
-    return res.json({ success: true, data: sanitize(updated) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Appointment approved successfully',
+        appointment: sanitize(updated)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -396,7 +417,13 @@ export const rejectAppointment = async (req, res) => {
       console.error('Error sending appointment rejection notification:', notificationError);
     }
 
-    return res.json({ success: true, data: sanitize(updated) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Appointment rejected successfully',
+        appointment: sanitize(updated)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -440,7 +467,13 @@ export const cancelAppointment = async (req, res) => {
 
     appt.status = 'cancelled';
     const updated = await appt.save();
-    return res.json({ success: true, data: sanitize(updated) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Appointment cancelled successfully',
+        appointment: sanitize(updated)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -526,7 +559,13 @@ export const rescheduleAppointment = async (req, res) => {
     appt.time = newSlot.slot;
     appt.status = 'pending';
     const updated = await appt.save();
-    return res.json({ success: true, data: sanitize(updated) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Appointment rescheduled successfully',
+        appointment: sanitize(updated)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -567,7 +606,13 @@ export const completeAppointment = async (req, res) => {
       await deleteConversationBetweenUsers(appt.fanId, appt.starId);
     } catch (_e) {}
 
-    return res.json({ success: true, data: sanitize(updated) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Appointment completed successfully',
+        appointment: sanitize(updated)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

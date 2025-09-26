@@ -22,7 +22,13 @@ export const createDedication = async (req, res) => {
 export const listMyDedications = async (req, res) => {
   try {
     const items = await Dedication.find({ userId: req.user._id }).sort({ createdAt: -1 });
-    return res.json({ success: true, data: items.map(sanitize) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Dedications retrieved successfully',
+        dedications: items.map(sanitize)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -37,7 +43,13 @@ export const getDedication = async (req, res) => {
     }
     const item = await Dedication.findOne({ _id: req.params.id, userId: req.user._id });
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
-    return res.json({ success: true, data: sanitize(item) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Dedication retrieved successfully',
+        dedication: sanitize(item)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -56,7 +68,13 @@ export const updateDedication = async (req, res) => {
     if (type) item.type = type.trim();
     if (price !== undefined) item.price = price;
     const updated = await item.save();
-    return res.json({ success: true, data: sanitize(updated) });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Dedication updated successfully',
+        dedication: sanitize(updated)
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -71,7 +89,12 @@ export const deleteDedication = async (req, res) => {
     }
     const deleted = await Dedication.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!deleted) return res.status(404).json({ success: false, message: 'Not found' });
-    return res.json({ success: true, message: 'Deleted' });
+    return res.json({ 
+      success: true, 
+      data: {
+        message: 'Dedication deleted successfully'
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

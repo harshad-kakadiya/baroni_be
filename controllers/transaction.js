@@ -50,8 +50,10 @@ export const createNewHybridTransaction = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: result.message,
-      data: result
+      data: {
+        message: result.message,
+        ...result
+      }
     });
   } catch (err) {
     console.error('Error creating hybrid transaction:', err);
@@ -96,8 +98,10 @@ export const createNewTransaction = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: result.message,
-      data: result
+      data: {
+        message: result.message,
+        ...result
+      }
     });
   } catch (err) {
     console.error('Error creating transaction:', err);
@@ -121,7 +125,10 @@ export const getUserTransactions = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: transactions
+      data: {
+        message: 'Transaction history retrieved successfully',
+        transactions
+      }
     });
   } catch (err) {
     console.error('Error fetching user transactions:', err);
@@ -152,7 +159,10 @@ export const getTransaction = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: transaction
+      data: {
+        message: 'Transaction retrieved successfully',
+        transaction
+      }
     });
   } catch (err) {
     console.error('Error fetching transaction:', err);
@@ -172,7 +182,10 @@ export const getUserBalance = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: { balance }
+      data: {
+        message: 'User balance retrieved successfully',
+        balance
+      }
     });
   } catch (err) {
     console.error('Error fetching user balance:', err);
