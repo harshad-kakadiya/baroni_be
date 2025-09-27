@@ -182,9 +182,7 @@ export const listDedicationRequests = async (req, res) => {
     return res.json({ 
       success: true, 
       message: 'Dedication requests retrieved successfully',
-      data: {
-        dedicationRequests: data
-      }
+      data: data
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
