@@ -36,9 +36,7 @@ export const listMyDedicationSamples = async (req, res) => {
     return res.json({ 
       success: true, 
       message: 'Dedication samples retrieved successfully',
-      data: {
-        dedicationSamples: items.map(sanitize)
-      }
+      data: items.map(sanitize)
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
