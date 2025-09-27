@@ -335,9 +335,7 @@ export const listAppointments = async (req, res) => {
     return res.json({ 
       success: true, 
       message: 'Appointments retrieved successfully',
-      data: {
-        appointments: data
-      }
+      data: data
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
