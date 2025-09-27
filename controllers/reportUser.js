@@ -52,9 +52,7 @@ export const listReports = async (req, res) => {
     return res.json({ 
       success: true, 
       message: 'User reports retrieved successfully',
-      data: {
-        reports: items.map(sanitize)
-      }
+      data: items.map(sanitize)
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });

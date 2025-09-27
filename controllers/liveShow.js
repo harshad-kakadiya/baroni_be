@@ -347,9 +347,7 @@ export const getAllLiveShows = async (req, res) => {
     return res.json({ 
       success: true, 
       message: 'Live shows retrieved successfully',
-      data: {
-        liveShows: data
-      }
+      data: data
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -614,9 +612,7 @@ export const getMyJoinedLiveShows = async (req, res) => {
     return res.json({ 
       success: true, 
       message: 'Live shows retrieved successfully',
-      data: {
-        liveShows: data
-      }
+      data: data
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
