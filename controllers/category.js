@@ -53,9 +53,7 @@ export const listCategories = async (_req, res) => {
     return res.json({ 
       success: true, 
       message: 'Categories retrieved successfully',
-      data: {
-        categories: items.map(sanitizeCategory)
-      }
+      data: items.map(sanitizeCategory)
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
