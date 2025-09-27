@@ -235,9 +235,7 @@ export const listMyAvailabilities = async (req, res) => {
     return res.json({ 
       success: true, 
       message: 'Availabilities retrieved successfully',
-      data: {
-        availabilities: items.map(sanitize)
-      }
+      data: items.map(sanitize)
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
