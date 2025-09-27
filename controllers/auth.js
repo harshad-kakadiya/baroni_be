@@ -183,14 +183,14 @@ export const login = async (req, res) => {
     // Update tokens and device type if provided
     const updateData = {};
     const unsetData = {};
-    
+
     if (fcmToken) updateData.fcmToken = fcmToken;
     if (apnsToken) updateData.apnsToken = apnsToken;
     if (voipToken) updateData.voipToken = voipToken;
-    
+
     if (deviceType) {
       updateData.deviceType = deviceType;
-      
+
       // Clean up tokens based on device type
       if (deviceType === 'android') {
         // Remove iOS tokens when switching to Android
@@ -203,7 +203,7 @@ export const login = async (req, res) => {
         console.log(`User ${user._id} switching to iOS - removing FCM token`);
       }
     }
-    
+
     // Handle isDev parameter - convert string to boolean if needed
     if (typeof isDev !== 'undefined') {
       const booleanIsDev = convertToBoolean(isDev);
@@ -226,14 +226,8 @@ export const login = async (req, res) => {
 
     const accessToken = createAccessToken({ userId: user._id, sessionVersion: user.sessionVersion });
     const refreshToken = createRefreshToken({ userId: user._id, sessionVersion: user.sessionVersion });
-    return res.json({ 
-      success: true, 
-      message: 'Login successful',
-      data: {
-        user: sanitizeUser(user), 
-        tokens: { accessToken, refreshToken }
-      }
-    });
+
+    return res.json({ success: true, message: 'Login successful', data: sanitizeUser(user), tokens: { accessToken, refreshToken } });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -414,13 +408,13 @@ export const completeProfile = async (req, res) => {
         dedicationSamples: samplesRes.map((x) => ({ id: x._id, type: x.type, video: x.video, description: x.description, userId: x.userId, createdAt: x.createdAt, updatedAt: x.updatedAt })),
       };
     }
-    return res.json({ 
-      success: true, 
-      message: 'Profile updated', 
-      data: { 
-        ...sanitizeUser(updatedUser), 
-        ...extra 
-      } 
+    return res.json({
+      success: true,
+      message: 'Profile updated',
+      data: {
+        ...sanitizeUser(updatedUser),
+        ...extra
+      }
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -442,8 +436,8 @@ export const refresh = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
     const accessToken = createAccessToken({ userId: decoded.userId, sessionVersion: user.sessionVersion });
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       message: 'Token refreshed successfully',
       data: {
         tokens: { accessToken }
@@ -467,8 +461,8 @@ export const checkUser = async (req, res) => {
 
     const query = email ? { email: email.toLowerCase() } : { contact };
     const exists = await User.exists(query);
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       message: 'User check completed',
       data: {
         exists: !!exists
@@ -495,8 +489,8 @@ export const forgotPassword = async (req, res) => {
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
     await user.save();
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       message: 'Password updated successfully'
     });
   } catch (err) {
@@ -522,8 +516,8 @@ export const resetPassword = async (req, res) => {
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
     await user.save();
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       message: 'Password updated successfully'
     });
   } catch (err) {
@@ -589,13 +583,13 @@ export const me = async (req, res) => {
       };
     }
 
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       message: 'User profile retrieved successfully',
-      data: { 
-        ...sanitizeUser(user), 
-        ...extra 
-      } 
+      data: {
+        ...sanitizeUser(user),
+        ...extra
+      }
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -812,7 +806,7 @@ export const permanentlyDeleteUser = async (req, res) => {
       success: true,
       message: 'User permanently deleted successfully',
       data: {
-        deletedAt: new Date(), 
+        deletedAt: new Date(),
         userId
       }
     });
