@@ -14,14 +14,17 @@ class NotificationHelper {
       return;
     }
 
+    // Check if appointment is in the past
+    const isPastAppointment = appointment.startTime && new Date(appointment.startTime) < new Date();
+    
     const data = {
       type: baseTemplate.type,
       appointmentId: appointment._id.toString(),
       starId: appointment.starId?.toString?.() || String(appointment.starId || ''),
       fanId: appointment.fanId?.toString?.() || String(appointment.fanId || ''),
-      pushType: 'VoIP',
       navigateTo: 'appointment',
       eventType: type,
+      isMessage: isPastAppointment ? false : (additionalData.isMessage || true),
       ...additionalData
     };
 
@@ -54,16 +57,14 @@ class NotificationHelper {
     // Send to star if star is not the current user
     if (appointment.starId && String(appointment.starId) !== String(currentUserId)) {
       await notificationService.sendToUser(data.starId, starTemplate, data, {
-        relatedEntity: { type: 'appointment', id: appointment._id },
-        apnsVoip: true
+        relatedEntity: { type: 'appointment', id: appointment._id }
       });
     }
 
     // Send to fan if fan is not the current user
     if (appointment.fanId && String(appointment.fanId) !== String(currentUserId)) {
       const result = await notificationService.sendToUser(appointment.fanId, fanTemplate, data, {
-        relatedEntity: { type: 'appointment', id: appointment._id },
-        apnsVoip: true
+        relatedEntity: { type: 'appointment', id: appointment._id }
       });
       console.log('[AppointmentNotification] sent to fan', {
         appointmentId: appointment._id?.toString?.() || String(appointment._id || ''),
@@ -82,12 +83,15 @@ class NotificationHelper {
     const templates = notificationService.constructor.getNotificationTemplates();
     const template = templates.VIDEO_CALL_REMINDER;
 
+    // Check if appointment is in the past
+    const isPastAppointment = appointment.startTime && new Date(appointment.startTime) < new Date();
+
     const data = {
       type: template.type,
       appointmentId: appointment._id.toString(),
       starName: appointment.starName || 'Star',
       fanName: appointment.fanName || 'Fan',
-      pushType: 'VoIP'
+      isMessage: isPastAppointment ? false : (additionalData.isMessage || true)
     };
 
     // Get current user ID from additionalData
@@ -107,16 +111,14 @@ class NotificationHelper {
     // Send to fan if fan is not the current user
     if (appointment.fanId && String(appointment.fanId) !== String(currentUserId)) {
       await notificationService.sendToUser(appointment.fanId, fanTemplate, data, {
-        relatedEntity: { type: 'appointment', id: appointment._id },
-        apnsVoip: true
+        relatedEntity: { type: 'appointment', id: appointment._id }
       });
     }
 
     // Send to star if star is not the current user
     if (appointment.starId && String(appointment.starId) !== String(currentUserId)) {
       const result = await notificationService.sendToUser(appointment.starId, starTemplate, data, {
-        relatedEntity: { type: 'appointment', id: appointment._id },
-        apnsVoip: true
+        relatedEntity: { type: 'appointment', id: appointment._id }
       });
       console.log('[AppointmentNotification] sent to star', {
         appointmentId: appointment._id?.toString?.() || String(appointment._id || ''),
@@ -328,9 +330,13 @@ class NotificationHelper {
       return;
     }
 
+    // Check if dedication is in the past
+    const isPastDedication = dedication.deliveryDate && new Date(dedication.deliveryDate) < new Date();
+
     const data = {
       type: template.type,
       dedicationId: dedication._id.toString(),
+      isMessage: isPastDedication ? false : (additionalData.isMessage || true),
       ...additionalData
     };
 

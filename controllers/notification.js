@@ -180,11 +180,18 @@ export const sendTestNotification = async (req, res) => {
       });
     }
 
-    // Normalize VoIP type to pushType for APNs
+    // Only allow VOIP notifications from frontend users, not from backend
     const normalizedType = typeof type === 'string' ? type.toLowerCase() : type;
     const enrichedData = { ...data };
-    if (normalizedType === 'VoIP') {
+    
+    // Check if this is a frontend request (client-side) by checking if the sender is the current user
+    const isFromFrontend = req.user && String(req.user._id) === String(userId);
+    
+    if (normalizedType === 'voip' && isFromFrontend) {
       enrichedData.pushType = 'VoIP';
+    } else if (normalizedType === 'voip' && !isFromFrontend) {
+      // If VOIP is requested from backend, convert to normal notification
+      normalizedType = 'normal';
     }
 
     const result = await notificationService.sendToUser(

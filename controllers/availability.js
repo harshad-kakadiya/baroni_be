@@ -124,6 +124,7 @@ export const createAvailability = async (req, res) => {
           const startTime = parts[0].trim();
           
           // Only check the start time, not the end time
+          // Use 24-hour format for time parsing
           const timeMatch = startTime.match(/^(\d{1,2}):(\d{2})$/);
           if (timeMatch) {
             const hour = parseInt(timeMatch[1], 10);
@@ -231,14 +232,24 @@ export const createAvailability = async (req, res) => {
 
 export const listMyAvailabilities = async (req, res) => {
   try {
-    const items = await Availability.find({ userId: req.user._id }).sort({ date: 1, createdAt: -1 });
-    return res.json({ 
-      success: true, 
+    // Filter out past availabilities
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set to start of today
+    
+    const items = await Availability.find({ 
+      userId: req.user._id,
+      date: { $gte: today } // Only get availabilities from today onwards
+    }).sort({ date: 1, createdAt: -1 });
+    
+    return res.status(200).json({
+      success: true,
       message: 'Availabilities retrieved successfully',
-      data: items.map(sanitize)
+      data: {
+        availabilities: items.map(sanitize)
+      }
     });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
