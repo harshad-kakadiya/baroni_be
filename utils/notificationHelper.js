@@ -54,9 +54,15 @@ class NotificationHelper {
       ...(type === 'APPOINTMENT_CREATED' ? { title: 'New Appointment Request', body: `You have a new appointment request from ${fanName}.` } : {})
     };
 
-    // Send to star if star is not the current user
+    // Send to star if star is not the current user.
+    // Also notify star on cancellation when cancelled by fan.
     if (appointment.starId && String(appointment.starId) !== String(currentUserId)) {
-      await notificationService.sendToUser(data.starId, starTemplate, data, {
+      const starNote = { ...starTemplate };
+      if (type === 'APPOINTMENT_CANCELLED' && String(currentUserId) === String(appointment.fanId)) {
+        starNote.title = 'Appointment Cancelled';
+        starNote.body = `${fanName} has cancelled the appointment.`;
+      }
+      await notificationService.sendToUser(data.starId, starNote, data, {
         relatedEntity: { type: 'appointment', id: appointment._id }
       });
     }
@@ -76,7 +82,13 @@ class NotificationHelper {
         fanTemplate.body = `${starName} has rejected your appointment request.`;
       } else if (type === 'APPOINTMENT_CANCELLED') {
         fanTemplate.title = 'Appointment Cancelled';
-        fanTemplate.body = `Your appointment with ${starName} has been cancelled.`;
+        // Notify fan only when cancelled by star
+        if (String(currentUserId) === String(appointment.starId)) {
+          fanTemplate.body = `${starName} has cancelled your appointment.`;
+        } else {
+          // If fan cancelled themselves, don't notify the fan
+          return;
+        }
       } else if (type === 'APPOINTMENT_COMPLETED') {
         fanTemplate.title = 'Appointment Completed';
         fanTemplate.body = `Your appointment with ${starName} has been completed.`;
@@ -404,6 +416,23 @@ class NotificationHelper {
           title: template.title
         });
         await notificationService.sendToUser(dedication.fanId, template, data, {
+          relatedEntity: { type: 'dedication', id: dedication._id }
+        });
+      }
+    } else if (type === 'DEDICATION_CANCELLED') {
+      // Notify counterpart only: if star cancelled, notify fan; if fan cancelled, notify star
+      const notifyFan = dedication.fanId && String(currentUserId) === String(dedication.starId);
+      const notifyStar = dedication.starId && String(currentUserId) === String(dedication.fanId);
+
+      if (notifyFan && String(dedication.fanId) !== String(currentUserId)) {
+        const custom = { ...template, title: 'Dedication Cancelled', body: 'Your dedication request was cancelled by the star.' };
+        await notificationService.sendToUser(dedication.fanId, custom, data, {
+          relatedEntity: { type: 'dedication', id: dedication._id }
+        });
+      }
+      if (notifyStar && String(dedication.starId) !== String(currentUserId)) {
+        const custom = { ...template, title: 'Dedication Cancelled', body: 'The fan cancelled their dedication request.' };
+        await notificationService.sendToUser(dedication.starId, custom, data, {
           relatedEntity: { type: 'dedication', id: dedication._id }
         });
       }

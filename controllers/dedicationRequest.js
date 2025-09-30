@@ -458,6 +458,13 @@ export const cancelDedicationRequest = async (req, res) => {
     item.status = 'cancelled';
     item.cancelledAt = new Date();
     const updated = await item.save();
+
+    // Notify counterpart only
+    try {
+      await NotificationHelper.sendDedicationNotification('DEDICATION_CANCELLED', updated, { currentUserId: req.user._id });
+    } catch (notificationError) {
+      console.error('Error sending dedication cancellation notification:', notificationError);
+    }
     return res.json({ 
       success: true, 
       message: 'Dedication request cancelled successfully',

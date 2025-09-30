@@ -465,6 +465,13 @@ export const cancelAppointment = async (req, res) => {
 
     appt.status = 'cancelled';
     const updated = await appt.save();
+
+    // Notify counterpart only: if star cancelled, notify fan; if fan cancelled, notify star
+    try {
+      await NotificationHelper.sendAppointmentNotification('APPOINTMENT_CANCELLED', updated, { currentUserId: req.user._id });
+    } catch (notificationError) {
+      console.error('Error sending appointment cancellation notification:', notificationError);
+    }
     return res.json({ 
       success: true, 
       message: 'Appointment cancelled successfully',

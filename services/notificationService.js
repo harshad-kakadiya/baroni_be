@@ -1252,6 +1252,11 @@ class NotificationService {
         body: 'Your dedication request was rejected.',
         type: 'dedication'
       },
+      DEDICATION_CANCELLED: {
+        title: 'Dedication Cancelled',
+        body: 'A dedication request has been cancelled.',
+        type: 'dedication'
+      },
       DEDICATION_VIDEO_UPLOADED: {
         title: 'Dedication Video Uploaded',
         body: 'Your dedication video has been uploaded.',
