@@ -19,7 +19,7 @@ class NotificationHelper {
       appointmentId: appointment._id.toString(),
       starId: appointment.starId?.toString?.() || String(appointment.starId || ''),
       fanId: appointment.fanId?.toString?.() || String(appointment.fanId || ''),
-      pushType: 'VoIP',
+      pushType: 'normal',
       navigateTo: 'appointment',
       eventType: type,
       ...additionalData
@@ -52,7 +52,7 @@ class NotificationHelper {
     if (appointment.starId) {
       await notificationService.sendToUser(data.starId, starTemplate, data, {
         relatedEntity: { type: 'appointment', id: appointment._id },
-        apnsVoip: true
+        apnsVoip: false
       });
     }
 
@@ -60,7 +60,7 @@ class NotificationHelper {
     if (appointment.fanId) {
       const result = await notificationService.sendToUser(appointment.fanId, fanTemplate, data, {
         relatedEntity: { type: 'appointment', id: appointment._id },
-        apnsVoip: true
+        apnsVoip: false
       });
       console.log('[AppointmentNotification] sent to fan', {
         appointmentId: appointment._id?.toString?.() || String(appointment._id || ''),
@@ -84,7 +84,7 @@ class NotificationHelper {
       appointmentId: appointment._id.toString(),
       starName: appointment.starName || 'Star',
       fanName: appointment.fanName || 'Fan',
-      pushType: 'VoIP'
+      pushType: 'normal'
     };
 
     // Customize message for each user
@@ -102,7 +102,7 @@ class NotificationHelper {
     if (appointment.fanId) {
       await notificationService.sendToUser(appointment.fanId, fanTemplate, data, {
         relatedEntity: { type: 'appointment', id: appointment._id },
-        apnsVoip: true
+        apnsVoip: false
       });
     }
 
@@ -110,7 +110,7 @@ class NotificationHelper {
     if (appointment.starId) {
       const result = await notificationService.sendToUser(appointment.starId, starTemplate, data, {
         relatedEntity: { type: 'appointment', id: appointment._id },
-        apnsVoip: true
+        apnsVoip: false
       });
       console.log('[AppointmentNotification] sent to star', {
         appointmentId: appointment._id?.toString?.() || String(appointment._id || ''),
