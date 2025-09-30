@@ -424,15 +424,30 @@ export const getStarById = async (req, res) => {
             starData.isMessage = false;
         }
 
-// Helper function to get current date in YYYY-MM-DD format using UTC
+        // Helper function to get current date in IST timezone (YYYY-MM-DD format)
         function getCurrentDateString() {
+            // Get current time in IST (UTC + 5:30)
             const now = new Date();
-            const year = now.getUTCFullYear();
-            const month = String(now.getUTCMonth() + 1).padStart(2, '0');
-            const day = String(now.getUTCDate()).padStart(2, '0');
+            const istOffset = 5.5 * 60 * 60 * 1000; // 5.5 hours in milliseconds
+            const istTime = new Date(now.getTime() + istOffset);
+
+            const year = istTime.getUTCFullYear();
+            const month = String(istTime.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(istTime.getUTCDate()).padStart(2, '0');
+
+            console.log(`Current IST date: ${year}-${month}-${day}`);
             return `${year}-${month}-${day}`;
         }
 
+        // Helper function to get current IST time as Date object
+        function getCurrentISTTime() {
+            const now = new Date();
+            const istOffset = 5.5 * 60 * 60 * 1000; // 5.5 hours in milliseconds
+            const istTime = new Date(now.getTime() + istOffset);
+
+            console.log(`Current IST time: ${istTime.toISOString()} (equivalent IST)`);
+            return istTime;
+        }
 
         // fetch related data including upcoming live shows
         const [dedications, services, dedicationSamples, availability, upcomingShows] = await Promise.all([
@@ -488,6 +503,47 @@ export const getStarById = async (req, res) => {
             return showData;
         });
 
+        // Helper function to parse time slot and convert to IST Date object for comparison
+        function parseTimeSlotToISTDate(dateStr, slot) {
+            if (!slot || typeof slot !== 'string' || !dateStr) return null;
+
+            const parts = slot.split(' - ');
+            if (parts.length !== 2) return null;
+
+            const startTime = parts[0].trim();
+            let hour, minute;
+
+            // Parse time logic
+            const h24Match = startTime.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+            if (h24Match) {
+                hour = parseInt(h24Match[1], 10);
+                minute = parseInt(h24Match[2], 10);
+            } else {
+                const ampmMatch = startTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+                if (!ampmMatch) return null;
+
+                hour = parseInt(ampmMatch[1], 10);
+                minute = parseInt(ampmMatch[2], 10);
+                const ampm = ampmMatch[3].toUpperCase();
+
+                if (ampm === 'PM' && hour !== 12) hour += 12;
+                if (ampm === 'AM' && hour === 12) hour = 0;
+            }
+
+            // Create date object treating the slot as IST time
+            const [year, month, day] = dateStr.split('-').map(v => parseInt(v, 10));
+            // Create the date in IST timezone - this represents the actual slot time
+            const slotDate = new Date(year, month - 1, day, hour, minute, 0, 0);
+
+            // Convert to equivalent UTC time for comparison (subtract IST offset)
+            const istOffset = 5.5 * 60 * 60 * 1000; // 5.5 hours in milliseconds
+            const equivalentUTCTime = new Date(slotDate.getTime() + istOffset);
+
+            console.log(`Parsed time slot: ${slot} on ${dateStr} -> IST time: ${slotDate.toISOString()} -> Equivalent UTC: ${equivalentUTCTime.toISOString()}`);
+
+            return equivalentUTCTime;
+        }
+
         // Filter out unavailable (booked) time slots from availability and sort by nearest
         const filteredAvailability = Array.isArray(availability)
             ? availability
@@ -500,15 +556,15 @@ export const getStarById = async (req, res) => {
                                 if (!s || s.status !== 'available') return false;
 
                                 // Check if time slot is in the past for current day
-                                const now = new Date();
+                                const currentISTTime = getCurrentISTTime();
                                 const today = getCurrentDateString();
 
-                                console.log(`Checking time slot: ${s.slot} on ${item.date}, today: ${today}, now: ${now.toISOString()}`);
+                                console.log(`Checking time slot: ${s.slot} on ${item.date}, today: ${today}, current IST: ${currentISTTime.toISOString()}`);
 
                                 if (item.date === today) {
-                                    const slotStartTime = parseTimeSlotToDate(item.date, s.slot);
-                                    if (slotStartTime && slotStartTime <= now) {
-                                        console.log(`Filtering out passed time slot: ${s.slot} on ${item.date}, slot time: ${slotStartTime.toISOString()}, now: ${now.toISOString()}`);
+                                    const slotStartTime = parseTimeSlotToISTDate(item.date, s.slot);
+                                    if (slotStartTime && slotStartTime <= currentISTTime) {
+                                        console.log(`Filtering out passed time slot: ${s.slot} on ${item.date}`);
                                         return false; // Filter out passed time slots
                                     }
                                 }
@@ -564,46 +620,6 @@ export const getStarById = async (req, res) => {
             }
 
             return 0;
-        }
-
-        // Helper function to parse time slot and convert to Date object for comparison
-        function parseTimeSlotToDate(dateStr, slot) {
-            if (!slot || typeof slot !== 'string' || !dateStr) return null;
-
-            // Extract start time from slot (format: "HH:MM - HH:MM" or "HH:MM AM/PM - HH:MM AM/PM")
-            const parts = slot.split(' - ');
-            if (parts.length !== 2) return null;
-
-            const startTime = parts[0].trim();
-            let hour, minute;
-
-            // Try 24-hour format first (HH:MM)
-            const h24Match = startTime.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
-            if (h24Match) {
-                hour = parseInt(h24Match[1], 10);
-                minute = parseInt(h24Match[2], 10);
-            } else {
-                // Try AM/PM format (HH:MM AM/PM)
-                const ampmMatch = startTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-                if (!ampmMatch) return null;
-
-                hour = parseInt(ampmMatch[1], 10);
-                minute = parseInt(ampmMatch[2], 10);
-                const ampm = ampmMatch[3].toUpperCase();
-
-                // Convert to 24-hour format
-                if (ampm === 'PM' && hour !== 12) hour += 12;
-                if (ampm === 'AM' && hour === 12) hour = 0;
-            }
-
-            // Create date object with the specified date and time in local timezone
-            const [year, month, day] = dateStr.split('-').map(v => parseInt(v, 10));
-            const slotDate = new Date(year, month - 1, day, hour, minute, 0, 0);
-
-            // Add debugging info
-            console.log(`Parsed time slot: ${slot} on ${dateStr} -> ${slotDate.toISOString()} (local: ${slotDate.toString()})`);
-
-            return slotDate;
         }
 
         res.status(200).json({
