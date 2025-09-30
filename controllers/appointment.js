@@ -250,7 +250,7 @@ export const createAppointment = async (req, res) => {
 
     // Send notification to star about new appointment request
     try {
-      await NotificationHelper.sendAppointmentNotification('APPOINTMENT_CREATED', created);
+      await NotificationHelper.sendAppointmentNotification('APPOINTMENT_CREATED', created, { currentUserId: req.user._id });
     } catch (notificationError) {
       console.error('Error sending appointment notification:', notificationError);
     }
@@ -368,7 +368,7 @@ export const approveAppointment = async (req, res) => {
 
     // Send notification to fan about appointment approval
     try {
-      await NotificationHelper.sendAppointmentNotification('APPOINTMENT_ACCEPTED', updated);
+      await NotificationHelper.sendAppointmentNotification('APPOINTMENT_ACCEPTED', updated, { currentUserId: req.user._id });
     } catch (notificationError) {
       console.error('Error sending appointment approval notification:', notificationError);
     }
@@ -410,7 +410,7 @@ export const rejectAppointment = async (req, res) => {
 
     // Send notification to fan about appointment rejection
     try {
-      await NotificationHelper.sendAppointmentNotification('APPOINTMENT_REJECTED', updated);
+      await NotificationHelper.sendAppointmentNotification('APPOINTMENT_REJECTED', updated, { currentUserId: req.user._id });
     } catch (notificationError) {
       console.error('Error sending appointment rejection notification:', notificationError);
     }

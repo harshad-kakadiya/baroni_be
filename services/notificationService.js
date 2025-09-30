@@ -381,16 +381,17 @@ class NotificationService {
       let apnsResponse = null;
 
       // For iOS devices, prioritize APNs tokens
+      const isVoipExplicit = (
+        options.apnsVoip === true ||
+        (typeof data.pushType === 'string' && data.pushType.toLowerCase() === 'voip') ||
+        (typeof notificationData.pushType === 'string' && notificationData.pushType.toLowerCase() === 'voip') ||
+        (typeof notificationData.type === 'string' && notificationData.type.toLowerCase() === 'voip')
+      );
       if (isIOS && user.apnsToken) {
         const userApnsProvider = this.getApnsProvider(user.isDev);
         if (userApnsProvider) {
         const note = new apn.Notification();
-        const isVoip = (
-          options.apnsVoip ||
-          data.pushType === 'voip' ||
-          notificationData.pushType === 'voip' ||
-          (typeof notificationData.type === 'string' && notificationData.type.toLowerCase() === 'voip')
-        );
+        const isVoip = isVoipExplicit;
 
         const voipBundle = process.env.APNS_VOIP_BUNDLE_ID || (process.env.APNS_BUNDLE_ID ? `${process.env.APNS_BUNDLE_ID}.voip` : undefined);
         note.topic = isVoip && voipBundle ? voipBundle : process.env.APNS_BUNDLE_ID;
@@ -462,8 +463,8 @@ class NotificationService {
         }
       }
 
-      // Handle VoIP token separately for VoIP-specific notifications
-      if (!deliverySucceeded && user.voipToken) {
+      // Handle VoIP token separately ONLY when explicitly requested
+      if (!deliverySucceeded && user.voipToken && isVoipExplicit) {
         const userApnsProvider = this.getApnsProvider(user.isDev);
         if (userApnsProvider) {
         const voipTopic = getApnsTopic(true);

@@ -112,7 +112,7 @@ export const createDedicationRequest = async (req, res) => {
 
     // Notify star
     try {
-      await NotificationHelper.sendDedicationNotification('DEDICATION_REQUEST_CREATED', created);
+      await NotificationHelper.sendDedicationNotification('DEDICATION_REQUEST_CREATED', created, { currentUserId: req.user._id });
     } catch (notificationError) {
       console.error('Error sending dedication notification:', notificationError);
     }
@@ -251,7 +251,7 @@ export const approveDedicationRequest = async (req, res) => {
 
     // Send notification to fan about dedication request approval
     try {
-      await NotificationHelper.sendDedicationNotification('DEDICATION_ACCEPTED', updated);
+      await NotificationHelper.sendDedicationNotification('DEDICATION_ACCEPTED', updated, { currentUserId: req.user._id });
     } catch (notificationError) {
       console.error('Error sending dedication approval notification:', notificationError);
     }
@@ -305,7 +305,7 @@ export const rejectDedicationRequest = async (req, res) => {
 
     // Send notification to fan about dedication request rejection
     try {
-      await NotificationHelper.sendDedicationNotification('DEDICATION_REJECTED', updated);
+      await NotificationHelper.sendDedicationNotification('DEDICATION_REJECTED', updated, { currentUserId: req.user._id });
     } catch (notificationError) {
       console.error('Error sending dedication rejection notification:', notificationError);
     }
@@ -352,7 +352,7 @@ export const uploadDedicationVideo = async (req, res) => {
 
     // Notify fan about video upload
     try {
-      await NotificationHelper.sendDedicationNotification('DEDICATION_VIDEO_UPLOADED', updated);
+      await NotificationHelper.sendDedicationNotification('DEDICATION_VIDEO_UPLOADED', updated, { currentUserId: req.user._id });
     } catch (notificationError) {
       console.error('Error sending dedication video upload notification:', notificationError);
     }
