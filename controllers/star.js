@@ -14,6 +14,7 @@ import { TRANSACTION_DESCRIPTIONS, TRANSACTION_TYPES, createTransactionDescripti
 import { generateUniqueGoldBaroniId, generateUniqueBaroniId } from "../utils/baroniIdGenerator.js";
 import Review from "../models/Review.js";
 import { sanitizeUserData, sanitizeUserDataArray } from "../utils/userDataHelper.js";
+import NotificationHelper from "../utils/notificationHelper.js";
 
 /**
  * Get available baroni ID patterns for becoming a star
@@ -23,10 +24,10 @@ export const getBaroniIdPatterns = async (req, res) => {
     try {
         // Generate a standard baroni ID pattern (5-digit random)
         const standardId = await generateUniqueBaroniId();
-        
+
         // Generate a gold baroni ID pattern (5-digit from predefined list)
         const goldId = await generateUniqueGoldBaroniId();
-        
+
         return res.status(200).json({
             success: true,
             data: {
@@ -67,20 +68,20 @@ export const becomeStar = async (req, res) => {
 
         // Check for pending commitments - fan must complete or cancel all before becoming star
         const userId = req.user._id;
-        
+
         const [pendingDedications, pendingAppointments, pendingLiveShows] = await Promise.all([
             // Check for pending or approved dedication requests where user is the fan
             DedicationRequest.countDocuments({
                 fanId: userId,
                 status: { $in: ['pending', 'approved'] }
             }),
-            
+
             // Check for pending or approved appointments where user is the fan
             Appointment.countDocuments({
                 fanId: userId,
                 status: { $in: ['pending', 'approved'] }
             }),
-            
+
             // Check for pending live show attendances where user is the fan
             LiveShowAttendance.countDocuments({
                 fanId: userId,
@@ -112,9 +113,9 @@ export const becomeStar = async (req, res) => {
             // Check if the provided baroniId already exists
             const existingUser = await User.findOne({ baroniId: String(baroniId) });
             if (existingUser) {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: 'Baroni ID already exists, please try again' 
+                return res.status(400).json({
+                    success: false,
+                    message: 'Baroni ID already exists, please try again'
                 });
             }
         }
@@ -231,12 +232,12 @@ export const getAllStars = async (req, res) => {
                 { profession: { $exists: true, $ne: null } }
             ]
         };
-        
+
         // Apply country filter with case-insensitive matching
         if (country && country.trim()) {
             filter.country = { $regex: new RegExp(`^${country.trim()}$`, 'i') };
         }
-        
+
         // Apply category filter
         if (category && category.trim()) {
             filter.profession = category.trim();
@@ -244,42 +245,42 @@ export const getAllStars = async (req, res) => {
         if (q && q.trim()) {
             const regex = new RegExp(q.trim(), "i");
             const searchQuery = [{ name: regex }, { pseudo: regex }];
-            
+
             // Debug logging
             console.log('Search query:', { q: q.trim(), isNumeric: /^\d+$/.test(q.trim()) });
-            
+
             // Check if the search query looks like a baroniId (numeric)
             if (/^\d+$/.test(q.trim())) {
                 // Debug: Show all baroniIds in database
                 const allBaroniIds = await User.find({ role: "star" }).select('baroniId');
                 console.log('All baroniIds in database:', allBaroniIds.map(u => u.baroniId).filter(id => id));
-                
+
                 // For baroniId search, also include hidden stars and don't require complete profile
                 const baroniIdFilter = {
                     role: "star",
                     baroniId: q.trim()
                 };
-                
+
                 // Apply country filter with case-insensitive matching
                 if (country && country.trim()) {
                     baroniIdFilter.country = { $regex: new RegExp(`^${country.trim()}$`, 'i') };
                 }
-                
+
                 // Apply category filter
                 if (category && category.trim()) {
                     baroniIdFilter.profession = category.trim();
                 }
-                
+
                 // Debug logging for baroniId filter
                 console.log('BaroniId filter:', JSON.stringify(baroniIdFilter, null, 2));
-                
+
                 let stars = await User.find(baroniIdFilter)
                     .populate('profession', 'name image')
                     .select("-password -passwordResetToken -passwordResetExpires");
-                
+
                 // Debug logging for results
                 console.log('BaroniId search results:', { count: stars.length, baroniIds: stars.map(s => s.baroniId) });
-                
+
                 // If no results found, try a more flexible search
                 if (stars.length === 0) {
                     console.log('No results with exact baroniId match, trying flexible search...');
@@ -290,18 +291,18 @@ export const getAllStars = async (req, res) => {
                             { baroniId: { $regex: new RegExp(q.trim(), 'i') } }
                         ]
                     };
-                    
+
                     const flexibleStars = await User.find(flexibleFilter)
                         .populate('profession', 'name image')
                         .select("-password -passwordResetToken -passwordResetExpires");
-                    
+
                     console.log('Flexible search results:', { count: flexibleStars.length, baroniIds: flexibleStars.map(s => s.baroniId) });
-                    
+
                     if (flexibleStars.length > 0) {
                         stars = flexibleStars;
                     }
                 }
-                
+
                 // Check if user is authenticated to add favorite/liked status
                 let starsData = sanitizeUserDataArray(stars);
 
@@ -324,7 +325,7 @@ export const getAllStars = async (req, res) => {
                     data: starsData,
                 });
             }
-            
+
             filter.$or = searchQuery;
         }
 
@@ -423,14 +424,15 @@ export const getStarById = async (req, res) => {
             starData.isMessage = false;
         }
 
-        // Helper function to get current date in YYYY-MM-DD format using local timezone
+// Helper function to get current date in YYYY-MM-DD format using UTC
         function getCurrentDateString() {
             const now = new Date();
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const day = String(now.getDate()).padStart(2, '0');
+            const year = now.getUTCFullYear();
+            const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(now.getUTCDate()).padStart(2, '0');
             return `${year}-${month}-${day}`;
         }
+
 
         // fetch related data including upcoming live shows
         const [dedications, services, dedicationSamples, availability, upcomingShows] = await Promise.all([
@@ -496,13 +498,13 @@ export const getStarById = async (req, res) => {
                             .filter((s) => {
                                 // Filter by status
                                 if (!s || s.status !== 'available') return false;
-                                
+
                                 // Check if time slot is in the past for current day
                                 const now = new Date();
                                 const today = getCurrentDateString();
-                                
+
                                 console.log(`Checking time slot: ${s.slot} on ${item.date}, today: ${today}, now: ${now.toISOString()}`);
-                                
+
                                 if (item.date === today) {
                                     const slotStartTime = parseTimeSlotToDate(item.date, s.slot);
                                     if (slotStartTime && slotStartTime <= now) {
@@ -510,7 +512,7 @@ export const getStarById = async (req, res) => {
                                         return false; // Filter out passed time slots
                                     }
                                 }
-                                
+
                                 return true;
                             })
                             .sort((a, b) => {
@@ -532,13 +534,13 @@ export const getStarById = async (req, res) => {
         // Helper function to parse time slot and convert to minutes for sorting
         function parseTimeSlot(slot) {
             if (!slot || typeof slot !== 'string') return 0;
-            
+
             // Extract start time from slot (format: "HH:MM - HH:MM" or "HH:MM AM/PM - HH:MM AM/PM")
             const parts = slot.split(' - ');
             if (parts.length !== 2) return 0;
-            
+
             const startTime = parts[0].trim();
-            
+
             // Try 24-hour format first (HH:MM)
             const h24Match = startTime.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
             if (h24Match) {
@@ -546,35 +548,35 @@ export const getStarById = async (req, res) => {
                 const minute = parseInt(h24Match[2], 10);
                 return hour * 60 + minute; // Convert to minutes for easy comparison
             }
-            
+
             // Try AM/PM format (HH:MM AM/PM)
             const ampmMatch = startTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
             if (ampmMatch) {
                 let hour = parseInt(ampmMatch[1], 10);
                 const minute = parseInt(ampmMatch[2], 10);
                 const ampm = ampmMatch[3].toUpperCase();
-                
+
                 // Convert to 24-hour format
                 if (ampm === 'PM' && hour !== 12) hour += 12;
                 if (ampm === 'AM' && hour === 12) hour = 0;
-                
+
                 return hour * 60 + minute; // Convert to minutes for easy comparison
             }
-            
+
             return 0;
         }
 
         // Helper function to parse time slot and convert to Date object for comparison
         function parseTimeSlotToDate(dateStr, slot) {
             if (!slot || typeof slot !== 'string' || !dateStr) return null;
-            
+
             // Extract start time from slot (format: "HH:MM - HH:MM" or "HH:MM AM/PM - HH:MM AM/PM")
             const parts = slot.split(' - ');
             if (parts.length !== 2) return null;
-            
+
             const startTime = parts[0].trim();
             let hour, minute;
-            
+
             // Try 24-hour format first (HH:MM)
             const h24Match = startTime.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
             if (h24Match) {
@@ -584,23 +586,23 @@ export const getStarById = async (req, res) => {
                 // Try AM/PM format (HH:MM AM/PM)
                 const ampmMatch = startTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
                 if (!ampmMatch) return null;
-                
+
                 hour = parseInt(ampmMatch[1], 10);
                 minute = parseInt(ampmMatch[2], 10);
                 const ampm = ampmMatch[3].toUpperCase();
-                
+
                 // Convert to 24-hour format
                 if (ampm === 'PM' && hour !== 12) hour += 12;
                 if (ampm === 'AM' && hour === 12) hour = 0;
             }
-            
+
             // Create date object with the specified date and time in local timezone
             const [year, month, day] = dateStr.split('-').map(v => parseInt(v, 10));
             const slotDate = new Date(year, month - 1, day, hour, minute, 0, 0);
-            
+
             // Add debugging info
             console.log(`Parsed time slot: ${slot} on ${dateStr} -> ${slotDate.toISOString()} (local: ${slotDate.toString()})`);
-            
+
             return slotDate;
         }
 
