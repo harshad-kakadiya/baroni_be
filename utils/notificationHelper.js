@@ -54,26 +54,19 @@ class NotificationHelper {
       ...(type === 'APPOINTMENT_CREATED' ? { title: 'New Appointment Request', body: `You have a new appointment request from ${fanName}.` } : {})
     };
 
-    // Send to star if star is not the current user
+    // Only send to star, never to the current user or fan
     if (appointment.starId && String(appointment.starId) !== String(currentUserId)) {
       await notificationService.sendToUser(data.starId, starTemplate, data, {
         relatedEntity: { type: 'appointment', id: appointment._id }
       });
     }
 
-    // Send to fan if fan is not the current user
-    if (appointment.fanId && String(appointment.fanId) !== String(currentUserId)) {
-      const result = await notificationService.sendToUser(appointment.fanId, fanTemplate, data, {
-        relatedEntity: { type: 'appointment', id: appointment._id }
-      });
-      console.log('[AppointmentNotification] sent to fan', {
-        appointmentId: appointment._id?.toString?.() || String(appointment._id || ''),
-        userId: appointment.fanId?.toString?.() || String(appointment.fanId || ''),
-        template: { title: fanTemplate.title, body: fanTemplate.body },
-        data,
-        result
-      });
-    }
+    // Fan should never receive notifications when booking an appointment
+    // Logging for debugging purposes
+    console.log('[AppointmentNotification] Not sending to fan as per requirements', {
+      appointmentId: appointment._id?.toString?.() || String(appointment._id || ''),
+      userId: appointment.fanId?.toString?.() || String(appointment.fanId || '')
+    });
   }
 
   /**
