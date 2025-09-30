@@ -54,19 +54,44 @@ class NotificationHelper {
       ...(type === 'APPOINTMENT_CREATED' ? { title: 'New Appointment Request', body: `You have a new appointment request from ${fanName}.` } : {})
     };
 
-    // Only send to star, never to the current user or fan
+    // Send to star if star is not the current user
     if (appointment.starId && String(appointment.starId) !== String(currentUserId)) {
       await notificationService.sendToUser(data.starId, starTemplate, data, {
         relatedEntity: { type: 'appointment', id: appointment._id }
       });
     }
 
-    // Fan should never receive notifications when booking an appointment
-    // Logging for debugging purposes
-    console.log('[AppointmentNotification] Not sending to fan as per requirements', {
-      appointmentId: appointment._id?.toString?.() || String(appointment._id || ''),
-      userId: appointment.fanId?.toString?.() || String(appointment.fanId || '')
-    });
+    // Send to fan if fan is not the current user and it's not an appointment creation
+    // Fan should not receive notifications when they are booking an appointment (APPOINTMENT_CREATED)
+    if (appointment.fanId && 
+        String(appointment.fanId) !== String(currentUserId) && 
+        type !== 'APPOINTMENT_CREATED') {
+      
+      // Customize fan template based on action type
+      if (type === 'APPOINTMENT_APPROVED') {
+        fanTemplate.title = 'Appointment Approved';
+        fanTemplate.body = `${starName} has approved your appointment request.`;
+      } else if (type === 'APPOINTMENT_REJECTED') {
+        fanTemplate.title = 'Appointment Rejected';
+        fanTemplate.body = `${starName} has rejected your appointment request.`;
+      } else if (type === 'APPOINTMENT_CANCELLED') {
+        fanTemplate.title = 'Appointment Cancelled';
+        fanTemplate.body = `Your appointment with ${starName} has been cancelled.`;
+      } else if (type === 'APPOINTMENT_COMPLETED') {
+        fanTemplate.title = 'Appointment Completed';
+        fanTemplate.body = `Your appointment with ${starName} has been completed.`;
+      }
+      
+      await notificationService.sendToUser(data.fanId, fanTemplate, data, {
+        relatedEntity: { type: 'appointment', id: appointment._id }
+      });
+    } else if (type === 'APPOINTMENT_CREATED') {
+      // Logging for debugging purposes when not sending to fan during appointment creation
+      console.log('[AppointmentNotification] Not sending to fan for appointment creation', {
+        appointmentId: appointment._id?.toString?.() || String(appointment._id || ''),
+        userId: appointment.fanId?.toString?.() || String(appointment.fanId || '')
+      });
+    }
   }
 
   /**
