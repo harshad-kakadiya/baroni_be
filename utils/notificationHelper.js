@@ -19,7 +19,7 @@ class NotificationHelper {
       appointmentId: appointment._id.toString(),
       starId: appointment.starId?.toString?.() || String(appointment.starId || ''),
       fanId: appointment.fanId?.toString?.() || String(appointment.fanId || ''),
-      pushType: 'normal',
+      pushType: 'VoIP',
       navigateTo: 'appointment',
       eventType: type,
       ...additionalData
@@ -36,6 +36,9 @@ class NotificationHelper {
       }
     } catch (_e) {}
 
+    // Get current user ID from additionalData
+    const currentUserId = additionalData.currentUserId || '';
+
     // Fan message
     const fanTemplate = {
       ...baseTemplate,
@@ -48,19 +51,19 @@ class NotificationHelper {
       ...(type === 'APPOINTMENT_CREATED' ? { title: 'New Appointment Request', body: `You have a new appointment request from ${fanName}.` } : {})
     };
 
-    // Send to star
-    if (appointment.starId) {
+    // Send to star if star is not the current user
+    if (appointment.starId && String(appointment.starId) !== String(currentUserId)) {
       await notificationService.sendToUser(data.starId, starTemplate, data, {
         relatedEntity: { type: 'appointment', id: appointment._id },
-        apnsVoip: false
+        apnsVoip: true
       });
     }
 
-    // Send to fan
-    if (appointment.fanId) {
+    // Send to fan if fan is not the current user
+    if (appointment.fanId && String(appointment.fanId) !== String(currentUserId)) {
       const result = await notificationService.sendToUser(appointment.fanId, fanTemplate, data, {
         relatedEntity: { type: 'appointment', id: appointment._id },
-        apnsVoip: false
+        apnsVoip: true
       });
       console.log('[AppointmentNotification] sent to fan', {
         appointmentId: appointment._id?.toString?.() || String(appointment._id || ''),
@@ -75,7 +78,7 @@ class NotificationHelper {
   /**
    * Send video call reminder
    */
-  static async sendVideoCallReminder(appointment) {
+  static async sendVideoCallReminder(appointment, additionalData = {}) {
     const templates = notificationService.constructor.getNotificationTemplates();
     const template = templates.VIDEO_CALL_REMINDER;
 
@@ -84,8 +87,11 @@ class NotificationHelper {
       appointmentId: appointment._id.toString(),
       starName: appointment.starName || 'Star',
       fanName: appointment.fanName || 'Fan',
-      pushType: 'normal'
+      pushType: 'VoIP'
     };
+
+    // Get current user ID from additionalData
+    const currentUserId = additionalData.currentUserId || '';
 
     // Customize message for each user
     const fanTemplate = {
@@ -98,19 +104,19 @@ class NotificationHelper {
       body: `Your video call with ${appointment.fanName || 'Fan'} begins in 10 minutes. Please check your network and be ready to join.`
     };
 
-    // Send to fan
-    if (appointment.fanId) {
+    // Send to fan if fan is not the current user
+    if (appointment.fanId && String(appointment.fanId) !== String(currentUserId)) {
       await notificationService.sendToUser(appointment.fanId, fanTemplate, data, {
         relatedEntity: { type: 'appointment', id: appointment._id },
-        apnsVoip: false
+        apnsVoip: true
       });
     }
 
-    // Send to star
-    if (appointment.starId) {
+    // Send to star if star is not the current user
+    if (appointment.starId && String(appointment.starId) !== String(currentUserId)) {
       const result = await notificationService.sendToUser(appointment.starId, starTemplate, data, {
         relatedEntity: { type: 'appointment', id: appointment._id },
-        apnsVoip: false
+        apnsVoip: true
       });
       console.log('[AppointmentNotification] sent to star', {
         appointmentId: appointment._id?.toString?.() || String(appointment._id || ''),
@@ -140,6 +146,9 @@ class NotificationHelper {
       amount: transaction.amount,
       ...additionalData
     };
+
+    // Get current user ID from additionalData
+    const currentUserId = additionalData.currentUserId || '';
 
     // Dynamic titles/bodies based on transaction context
     const tType = transaction.type;
@@ -176,8 +185,8 @@ class NotificationHelper {
       };
     }
 
-    // Send to the user who made the payment
-    if (transaction.userId) {
+    // Send to the user who made the payment if they are not the current user
+    if (transaction.userId && String(transaction.userId) !== String(currentUserId)) {
       await notificationService.sendToUser(transaction.userId, template, data, {
         relatedEntity: { type: 'transaction', id: transaction._id }
       });
@@ -202,15 +211,18 @@ class NotificationHelper {
       ...additionalData
     };
 
-    // Send to the star who received the rating
-    if (rating.starId) {
+    // Get current user ID from additionalData
+    const currentUserId = additionalData.currentUserId || '';
+
+    // Send to the star who received the rating if star is not the current user
+    if (rating.starId && String(rating.starId) !== String(currentUserId)) {
       await notificationService.sendToUser(rating.starId, template, data, {
         relatedEntity: { type: 'rating', id: rating._id }
       });
     }
 
-    // Send to the fan who gave the rating (for thanks message)
-    if (type === 'RATING_THANKS' && rating.fanId) {
+    // Send to the fan who gave the rating (for thanks message) if fan is not the current user
+    if (type === 'RATING_THANKS' && rating.fanId && String(rating.fanId) !== String(currentUserId)) {
       await notificationService.sendToUser(rating.fanId, template, data, {
         relatedEntity: { type: 'rating', id: rating._id }
       });
@@ -238,6 +250,9 @@ class NotificationHelper {
       eventType: type,
       ...additionalData
     };
+
+    // Get current user ID from additionalData
+    const currentUserId = additionalData.currentUserId || '';
 
     // Build dynamic, descriptive title/body
     const starName = liveShow?.starId?.name || liveShow?.starName || 'Star';
@@ -279,24 +294,24 @@ class NotificationHelper {
     switch (type) {
       case 'LIVE_SHOW_CREATED':
         // Send to all fans who have this star as favorite
-        await this.sendToStarFollowers(liveShow.starId, template, data, { apnsVoip: true });
+        await this.sendToStarFollowers(liveShow.starId, template, data, { apnsVoip: true, currentUserId });
         break;
 
       case 'LIVE_SHOW_STARTING':
         // Send to all fans who joined this live show
-        await this.sendToLiveShowAttendees(liveShow._id, template, data, { apnsVoip: true });
+        await this.sendToLiveShowAttendees(liveShow._id, template, data, { apnsVoip: true, currentUserId });
         break;
 
       case 'LIVE_SHOW_CANCELLED':
       case 'LIVE_SHOW_RESCHEDULED':
-        // Send to star and all attendees
-        if (liveShow.starId) {
+        // Send to star if not current user
+        if (liveShow.starId && String(liveShow.starId) !== String(currentUserId)) {
           await notificationService.sendToUser(liveShow.starId, template, data, {
             relatedEntity: { type: 'live_show', id: liveShow._id },
             apnsVoip: true
           });
         }
-        await this.sendToLiveShowAttendees(liveShow._id, template, data, { apnsVoip: true });
+        await this.sendToLiveShowAttendees(liveShow._id, template, data, { apnsVoip: true, currentUserId });
         break;
     }
   }
@@ -319,11 +334,15 @@ class NotificationHelper {
       ...additionalData
     };
 
+    // Get current user ID from additionalData
+    const currentUserId = additionalData.currentUserId || '';
+
     console.log('[DedicationNotification] invoked', {
       type,
       dedicationId: dedication?._id?.toString?.() || String(dedication?._id || ''),
       fanId: dedication?.fanId?.toString?.() || String(dedication?.fanId || ''),
-      starId: dedication?.starId?.toString?.() || String(dedication?.starId || '')
+      starId: dedication?.starId?.toString?.() || String(dedication?.starId || ''),
+      currentUserId
     });
 
     // Customize message for dedication accepted
@@ -333,7 +352,7 @@ class NotificationHelper {
         body: `Your dedication Request was accepted by ${dedication.starName || 'Star'}`
       };
 
-      if (dedication.fanId) {
+      if (dedication.fanId && String(dedication.fanId) !== String(currentUserId)) {
         console.log('[DedicationNotification] send to fan (accepted)', {
           userId: dedication.fanId?.toString?.() || String(dedication.fanId || ''),
           title: customTemplate.title
@@ -344,7 +363,7 @@ class NotificationHelper {
       }
     } else if (type === 'DEDICATION_REQUEST' || type === 'DEDICATION_REQUEST_CREATED') {
       // Send to star for new requests
-      if (dedication.starId) {
+      if (dedication.starId && String(dedication.starId) !== String(currentUserId)) {
         console.log('[DedicationNotification] send to star (request)', {
           userId: dedication.starId?.toString?.() || String(dedication.starId || ''),
           title: template.title
@@ -355,7 +374,7 @@ class NotificationHelper {
       }
     } else if (type === 'DEDICATION_REJECTED') {
       // Send to fan for rejections
-      if (dedication.fanId) {
+      if (dedication.fanId && String(dedication.fanId) !== String(currentUserId)) {
         console.log('[DedicationNotification] send to fan (rejected)', {
           userId: dedication.fanId?.toString?.() || String(dedication.fanId || ''),
           title: template.title
@@ -370,7 +389,7 @@ class NotificationHelper {
         ...template,
         body: `Your dedication video was uploaded by ${dedication.starName || 'Star'}.`
       };
-      if (dedication.fanId) {
+      if (dedication.fanId && String(dedication.fanId) !== String(currentUserId)) {
         console.log('[DedicationNotification] send to fan (video_uploaded)', {
           userId: dedication.fanId?.toString?.() || String(dedication.fanId || ''),
           title: customTemplate.title
@@ -396,6 +415,9 @@ class NotificationHelper {
       ...additionalData
     };
 
+    // Get current user ID from additionalData
+    const currentUserId = additionalData.currentUserId || '';
+
     // Personalize message notification
     let senderName = 'Someone';
     try {
@@ -413,8 +435,8 @@ class NotificationHelper {
       body: isImage ? 'Sent an image' : (preview || 'Sent a message')
     };
 
-    // Send to the recipient
-    if (message.receiverId) {
+    // Send to the recipient if they are not the current user
+    if (message.receiverId && String(message.receiverId) !== String(currentUserId)) {
       await notificationService.sendToUser(message.receiverId, template, data, {
         relatedEntity: { type: 'message', id: message._id }
       });
@@ -426,6 +448,9 @@ class NotificationHelper {
    */
   static async sendToStarFollowers(starId, template, data = {}, options = {}) {
     try {
+      // Get current user ID from options
+      const currentUserId = options.currentUserId || '';
+
       // Find users who have this star as favorite
       const followers = await User.find({
         favorites: { $in: [starId] },
@@ -437,7 +462,10 @@ class NotificationHelper {
         ]
       });
 
-      const followerIds = followers.map(follower => follower._id);
+      // Filter out current user from followers
+      const followerIds = followers
+        .filter(follower => String(follower._id) !== String(currentUserId))
+        .map(follower => follower._id);
 
       if (followerIds.length > 0) {
         await notificationService.sendToMultipleUsers(followerIds, template, data, {
@@ -455,6 +483,9 @@ class NotificationHelper {
    */
   static async sendToLiveShowAttendees(liveShowId, template, data = {}, options = {}) {
     try {
+      // Get current user ID from options
+      const currentUserId = options.currentUserId || '';
+
       // Import LiveShowAttendance model
       const { LiveShowAttendance } = await import('../models/LiveShowAttendance.js');
 
@@ -466,7 +497,8 @@ class NotificationHelper {
       const attendeeIds = attendees
         .filter(attendance => 
           attendance.userId?.role === 'fan' && 
-          (attendance.userId?.fcmToken || attendance.userId?.apnsToken || attendance.userId?.voipToken)
+          (attendance.userId?.fcmToken || attendance.userId?.apnsToken || attendance.userId?.voipToken) &&
+          String(attendance.userId._id) !== String(currentUserId)
         )
         .map(attendance => attendance.userId._id);
 
