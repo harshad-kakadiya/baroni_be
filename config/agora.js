@@ -4,11 +4,12 @@ const AGORA_APP_ID = process.env.AGORA_APP_ID;
 const AGORA_APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
 const AGORA_TOKEN_EXPIRATION = 3600; // Token valid for 1 hour
 
-export function GenerateRtmAgoraToken(userId) {
+export function GenerateRtmAgoraToken(userAccount) {
+    // RTM tokens must be built with userAccount (string), not uid
     return agora.RtmTokenBuilder.buildToken(
         AGORA_APP_ID,
         AGORA_APP_CERTIFICATE,
-        userId,
+        String(userAccount),
         agora.RtmRole.Rtm_User,
         0
     );
