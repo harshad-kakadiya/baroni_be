@@ -19,7 +19,7 @@ const sanitize = (doc) => ({
 const to24Hour = (time) => {
   if (typeof time !== 'string') throw new Error('Invalid time');
   const raw = time.trim();
-  
+
   // Already 24-hour format
   const h24Match = raw.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
   if (h24Match) {
@@ -29,7 +29,7 @@ const to24Hour = (time) => {
     const hhStr = String(hh).padStart(2, '0');
     return `${hhStr}:${mm}`;
   }
-  
+
   // AM/PM format (for backward compatibility)
   const ampmMatch = raw.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
   if (ampmMatch) {
@@ -38,15 +38,15 @@ const to24Hour = (time) => {
     const suffix = ampmMatch[3].toUpperCase();
     if (hh < 1 || hh > 12) throw new Error('Hour must be 1-12');
     if (parseInt(mm, 10) > 59) throw new Error('Minute must be 00-59');
-    
+
     // Convert to 24-hour format
     if (suffix === 'PM' && hh !== 12) hh += 12;
     if (suffix === 'AM' && hh === 12) hh = 0;
-    
+
     const hhStr = String(hh).padStart(2, '0');
     return `${hhStr}:${mm}`;
   }
-  
+
   throw new Error('Invalid time format. Expected HH:MM (24-hour) or HH:MM AM/PM');
 };
 
@@ -87,7 +87,7 @@ export const createAvailability = async (req, res) => {
     }
     const { date, timeSlots } = req.body;
     const isWeekly = Boolean(req.body.isWeekly);
-    
+
     // Only cleanup weekly availabilities if isWeekly is explicitly set to false in payload
     if (req.body.hasOwnProperty('isWeekly') && !isWeekly) {
       try {
@@ -102,11 +102,11 @@ export const createAvailability = async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Set to start of today
     const inputDate = parseLocalYMD(date);
-    
+
     if (inputDate < today) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Cannot create availability for past dates' 
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot create availability for past dates'
       });
     }
 
@@ -115,27 +115,27 @@ export const createAvailability = async (req, res) => {
     if (isToday) {
       const now = new Date();
       const currentTime = now.getHours() * 60 + now.getMinutes(); // Current time in minutes
-      
+
       // Validate time slots are not in the past
       for (const timeSlot of timeSlots) {
         const slotString = typeof timeSlot === 'string' ? timeSlot : timeSlot.slot;
         const parts = slotString.split(' - ');
         if (parts.length === 2) {
           const startTime = parts[0].trim();
-          
+
           // Only check the start time, not the end time
           // Use 24-hour format for time parsing
           const timeMatch = startTime.match(/^(\d{1,2}):(\d{2})$/);
           if (timeMatch) {
             const hour = parseInt(timeMatch[1], 10);
             const minute = parseInt(timeMatch[2], 10);
-            
+
             if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
               const slotTime = hour * 60 + minute;
               if (slotTime <= currentTime) {
-                return res.status(400).json({ 
-                  success: false, 
-                  message: `Cannot create availability for past time slots. Time slot "${slotString}" is in the past.` 
+                return res.status(400).json({
+                  success: false,
+                  message: `Cannot create availability for past time slots. Time slot "${slotString}" is in the past.`
                 });
               }
             }
@@ -235,12 +235,13 @@ export const listMyAvailabilities = async (req, res) => {
     // Filter out past availabilities
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Set to start of today
-    
-    const items = await Availability.find({ 
+    const todayStr = formatLocalYMD(today); // Availability.date is stored as YYYY-MM-DD string
+
+    const items = await Availability.find({
       userId: req.user._id,
-      date: { $gte: today } // Only get availabilities from today onwards
+      date: { $gte: todayStr } // Compare strings in YYYY-MM-DD format
     }).sort({ date: 1, createdAt: -1 });
-    
+
     return res.status(200).json({
       success: true,
       message: 'Availabilities retrieved successfully',
@@ -262,8 +263,8 @@ export const getAvailability = async (req, res) => {
     }
     const item = await Availability.findOne({ _id: req.params.id, userId: req.user._id });
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       message: 'Availability retrieved successfully',
       data: {
         availability: sanitize(item)
@@ -284,11 +285,11 @@ export const updateAvailability = async (req, res) => {
     const { date, timeSlots, status, isWeekly } = req.body;
     const item = await Availability.findOne({ _id: req.params.id, userId: req.user._id });
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
-    
+
     // Handle isWeekly field if provided in payload
     if (req.body.hasOwnProperty('isWeekly')) {
       const newIsWeekly = Boolean(isWeekly);
-      
+
       // Only cleanup weekly availabilities if isWeekly is explicitly set to false
       if (!newIsWeekly) {
         try {
@@ -298,20 +299,20 @@ export const updateAvailability = async (req, res) => {
           // Continue with normal flow even if cleanup fails
         }
       }
-      
+
       item.isWeekly = newIsWeekly;
     }
-    
+
     // Validate date if provided
     if (date) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const inputDate = new Date(date);
-      
+
       if (inputDate < today) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Cannot update availability to past dates' 
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot update availability to past dates'
         });
       }
       item.date = String(date).trim();
@@ -323,29 +324,29 @@ export const updateAvailability = async (req, res) => {
         today.setHours(0, 0, 0, 0);
         const itemDate = new Date(item.date);
         const isToday = itemDate.getTime() === today.getTime();
-        
+
         if (isToday) {
           const now = new Date();
           const currentTime = now.getHours() * 60 + now.getMinutes();
-          
+
           for (const timeSlot of timeSlots) {
             const slotString = typeof timeSlot === 'string' ? timeSlot : timeSlot.slot;
             const parts = slotString.split(' - ');
             if (parts.length === 2) {
               const startTime = parts[0].trim();
-              
+
               // Only check the start time, not the end time
               const timeMatch = startTime.match(/^(\d{1,2}):(\d{2})$/);
               if (timeMatch) {
                 const hour = parseInt(timeMatch[1], 10);
                 const minute = parseInt(timeMatch[2], 10);
-                
+
                 if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
                   const slotTime = hour * 60 + minute;
                   if (slotTime <= currentTime) {
-                    return res.status(400).json({ 
-                      success: false, 
-                      message: `Cannot update availability with past time slots. Time slot "${slotString}" is in the past.` 
+                    return res.status(400).json({
+                      success: false,
+                      message: `Cannot update availability with past time slots. Time slot "${slotString}" is in the past.`
                     });
                   }
                 }
@@ -353,7 +354,7 @@ export const updateAvailability = async (req, res) => {
             }
           }
         }
-        
+
         item.timeSlots = timeSlots.map((t) => {
           if (typeof t === 'string') {
             return { slot: normalizeTimeSlotString(String(t)), status: 'available' };
@@ -370,8 +371,8 @@ export const updateAvailability = async (req, res) => {
       }
     }
     const updated = await item.save();
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       message: 'Availability updated successfully',
       data: {
         availability: sanitize(updated)
@@ -394,8 +395,8 @@ export const deleteAvailability = async (req, res) => {
     }
     const deleted = await Availability.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!deleted) return res.status(404).json({ success: false, message: 'Not found' });
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       message: 'Availability deleted successfully'
     });
   } catch (err) {
@@ -455,8 +456,8 @@ export const deleteTimeSlotByDate = async (req, res) => {
     if (availability.isWeekly) {
       try {
         const weeklyResult = await deleteTimeSlotFromWeeklyAvailabilities(req.user._id, slotToDelete);
-        return res.json({ 
-          success: true, 
+        return res.json({
+          success: true,
           message: `Time slot deleted from ${weeklyResult.processed} weekly availabilities (${weeklyResult.updated} updated, ${weeklyResult.removed} removed)`,
           data: { weeklyResult }
         });
@@ -476,16 +477,16 @@ export const deleteTimeSlotByDate = async (req, res) => {
 
     if (remaining.length === 0) {
       await availability.deleteOne();
-      return res.json({ 
-        success: true, 
+      return res.json({
+        success: true,
         message: 'Time slot deleted and availability removed (no remaining slots)'
       });
     }
 
     availability.timeSlots = remaining;
     const saved = await availability.save();
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       message: 'Time slot deleted successfully',
       data: {
         availability: sanitize(saved)
@@ -543,8 +544,8 @@ export const deleteTimeSlotById = async (req, res) => {
     if (availability.isWeekly) {
       try {
         const weeklyResult = await deleteTimeSlotByIdFromWeeklyAvailabilities(req.user._id, slotId);
-        return res.json({ 
-          success: true, 
+        return res.json({
+          success: true,
           message: `Time slot deleted from ${weeklyResult.processed} weekly availabilities (${weeklyResult.updated} updated, ${weeklyResult.removed} removed)`,
           data: { weeklyResult }
         });
@@ -564,8 +565,8 @@ export const deleteTimeSlotById = async (req, res) => {
 
     if (availability.timeSlots.length === 0) {
       await availability.deleteOne();
-      return res.json({ 
-        success: true, 
+      return res.json({
+        success: true,
         data: {
           message: 'Time slot deleted and availability removed (no remaining slots)'
         }
@@ -573,8 +574,8 @@ export const deleteTimeSlotById = async (req, res) => {
     }
 
     const saved = await availability.save();
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       data: {
         message: 'Time slot deleted successfully',
         availability: sanitize(saved)
