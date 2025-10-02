@@ -6,9 +6,10 @@ export const AgoraRtmToken = async (req,res) => {
         if (!req.user) return res.status(401).json({ error: "Unauthorized" });
         
         const agoraKey = await ensureUserAgoraKey(req.user);
-        const uid = Number(agoraKey);
+        // RTM requires a string userAccount, not a numeric uid
+        const userAccount = String(agoraKey);
 
-        const token = GenerateRtmAgoraToken(uid);
+        const token = GenerateRtmAgoraToken(userAccount);
         res.json({ token });
     } catch (error) {
         console.error('Error generating RTM token:', error);
