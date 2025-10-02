@@ -14,20 +14,6 @@ class NotificationHelper {
       return;
     }
 
-    // Check if appointment is in the past
-    const isPastAppointment = appointment.startTime && new Date(appointment.startTime) < new Date();
-    
-    const data = {
-      type: baseTemplate.type,
-      appointmentId: appointment._id.toString(),
-      starId: appointment.starId?.toString?.() || String(appointment.starId || ''),
-      fanId: appointment.fanId?.toString?.() || String(appointment.fanId || ''),
-      navigateTo: 'appointment',
-      eventType: type,
-      isMessage: isPastAppointment ? false : (additionalData.isMessage || true),
-      ...additionalData
-    };
-
     // Try to fetch minimal user info for personalized messages
     let fanName = 'Fan';
     let starName = 'Star';
@@ -38,6 +24,22 @@ class NotificationHelper {
         if (String(u._id) === String(appointment.starId)) starName = u.name || starName;
       }
     } catch (_e) {}
+
+    // Check if appointment is in the past
+    const isPastAppointment = appointment.startTime && new Date(appointment.startTime) < new Date();
+    
+    const data = {
+      type: baseTemplate.type,
+      appointmentId: appointment._id.toString(),
+      starId: appointment.starId?.toString?.() || String(appointment.starId || ''),
+      fanId: appointment.fanId?.toString?.() || String(appointment.fanId || ''),
+      starName,
+      fanName,
+      navigateTo: 'appointment',
+      eventType: type,
+      isMessage: isPastAppointment ? false : (additionalData.isMessage || true),
+      ...additionalData
+    };
 
     // Get current user ID from additionalData
     const currentUserId = additionalData.currentUserId || '';
@@ -172,10 +174,23 @@ class NotificationHelper {
       return;
     }
 
+    // Fetch names of payer and receiver
+    let payerName = 'User';
+    let receiverName = 'User';
+    try {
+      const users = await User.find({ _id: { $in: [transaction.payerId, transaction.receiverId] } }).select('name');
+      for (const u of users) {
+        if (String(u._id) === String(transaction.payerId)) payerName = u.name || payerName;
+        if (String(u._id) === String(transaction.receiverId)) receiverName = u.name || receiverName;
+      }
+    } catch (_e) {}
+
     const data = {
       type: baseTemplate.type,
       transactionId: transaction._id.toString(),
       amount: transaction.amount,
+      payerName,
+      receiverName,
       ...additionalData
     };
 
@@ -237,9 +252,22 @@ class NotificationHelper {
       return;
     }
 
+    // Fetch names
+    let fanName = 'Fan';
+    let starName = 'Star';
+    try {
+      const users = await User.find({ _id: { $in: [rating.fanId, rating.starId] } }).select('name');
+      for (const u of users) {
+        if (String(u._id) === String(rating.fanId)) fanName = u.name || fanName;
+        if (String(u._id) === String(rating.starId)) starName = u.name || starName;
+      }
+    } catch (_e) {}
+
     const data = {
       type: template.type,
       ratingId: rating._id.toString(),
+      fanName,
+      starName,
       ...additionalData
     };
 
@@ -273,10 +301,12 @@ class NotificationHelper {
       return;
     }
 
+    const starName = liveShow?.starId?.name || liveShow?.starName || 'Star';
     const data = {
       type: baseTemplate.type,
       liveShowId: liveShow._id.toString(),
       starId: liveShow.starId?._id?.toString?.() || liveShow.starId?.toString?.() || String(liveShow.starId || ''),
+      starName,
       pushType: 'VoIP',
       navigateTo: 'live_show',
       eventType: type,
@@ -287,7 +317,7 @@ class NotificationHelper {
     const currentUserId = additionalData.currentUserId || '';
 
     // Build dynamic, descriptive title/body
-    const starName = liveShow?.starId?.name || liveShow?.starName || 'Star';
+    
     const showTitle = liveShow?.sessionTitle ? `"${liveShow.sessionTitle}"` : 'a live show';
     const dateStr = liveShow?.date ? new Date(liveShow.date).toLocaleString() : undefined;
 
@@ -465,6 +495,7 @@ class NotificationHelper {
       type: baseTemplate.type,
       messageId: message._id.toString(),
       conversationId: message.conversationId?.toString(),
+      senderName,
       ...additionalData
     };
 
