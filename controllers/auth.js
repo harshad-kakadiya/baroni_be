@@ -184,9 +184,18 @@ export const login = async (req, res) => {
     const updateData = {};
     const unsetData = {};
 
-    if (fcmToken) updateData.fcmToken = fcmToken;
-    if (apnsToken) updateData.apnsToken = apnsToken;
-    if (voipToken) updateData.voipToken = voipToken;
+    // If no tokens are provided, clear existing tokens
+    if (!fcmToken && !apnsToken && !voipToken) {
+      unsetData.fcmToken = 1;
+      unsetData.apnsToken = 1;
+      unsetData.voipToken = 1;
+      console.log(`User ${user._id} login without tokens - clearing existing tokens`);
+    } else {
+      // Update tokens if provided
+      if (fcmToken) updateData.fcmToken = fcmToken;
+      if (apnsToken) updateData.apnsToken = apnsToken;
+      if (voipToken) updateData.voipToken = voipToken;
+    }
 
     if (deviceType) {
       updateData.deviceType = deviceType;
