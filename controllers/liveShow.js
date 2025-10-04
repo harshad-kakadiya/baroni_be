@@ -231,12 +231,13 @@ export const createLiveShow = async (req, res) => {
         payerId: req.user._id,
         receiverId: adminUser._id,
         amount: Number(hostingPrice || 0),
-        description: createTransactionDescription(TRANSACTION_TYPES.LIVE_SHOW_HOSTING_PAYMENT, starName || ''),
+        description: createTransactionDescription(TRANSACTION_TYPES.LIVE_SHOW_HOSTING_PAYMENT, req.user.name || req.user.pseudo || '', 'Admin', req.user.role || 'star', 'admin'),
         userPhone: normalizedPhone,
         starName: starName || '',
         metadata: {
           showType: 'live_show_hosting',
-          requestedAt: new Date()
+          requestedAt: new Date(),
+          payerName: req.user.name || req.user.pseudo || ''
         }
       });
     } catch (transactionError) {
@@ -528,7 +529,7 @@ export const joinLiveShow = async (req, res) => {
           payerId: req.user._id,
           receiverId: show.starId,
           amount,
-          description: createTransactionDescription(TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT, starName || ''),
+          description: createTransactionDescription(TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT, req.user.name || req.user.pseudo || '', starName || '', req.user.role || 'fan', 'star'),
           userPhone: normalizedPhone,
           starName: starName || '',
           metadata: {
@@ -537,7 +538,8 @@ export const joinLiveShow = async (req, res) => {
             showTitle: show.sessionTitle,
             showDate: show.date,
             showTime: show.time,
-            showType: 'live_show_attendance'
+            showType: 'live_show_attendance',
+            payerName: req.user.name || req.user.pseudo || ''
           }
         });
       } catch (transactionError) {

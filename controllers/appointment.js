@@ -205,7 +205,7 @@ export const createAppointment = async (req, res) => {
         payerId: req.user._id,
         receiverId: starId,
         amount: price,
-        description: createTransactionDescription(TRANSACTION_TYPES.APPOINTMENT_PAYMENT, starName || ''),
+        description: createTransactionDescription(TRANSACTION_TYPES.APPOINTMENT_PAYMENT, req.user.name || req.user.pseudo || '', starName || '', req.user.role || 'fan', 'star'),
         userPhone: normalizedPhone,
         starName: starName || '',
         metadata: {
@@ -213,7 +213,8 @@ export const createAppointment = async (req, res) => {
           availabilityId,
           timeSlotId,
           date: availability.date,
-          time: slot.slot
+          time: slot.slot,
+          payerName: req.user.name || req.user.pseudo || ''
         }
       });
     } catch (transactionError) {

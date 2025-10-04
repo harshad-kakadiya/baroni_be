@@ -141,7 +141,7 @@ export const becomeStar = async (req, res) => {
                     payerId: req.user._id,
                     receiverId: adminUser._id,
                     amount: numericAmount,
-                    description: createTransactionDescription(TRANSACTION_TYPES.BECOME_STAR_PAYMENT, req.user.name || ''),
+                    description: createTransactionDescription(TRANSACTION_TYPES.BECOME_STAR_PAYMENT, req.user.name || req.user.pseudo || '', 'Admin', req.user.role || 'fan', 'admin'),
                     userPhone: normalizedPhone,
                     starName: req.user.name || '',
                     metadata: { plan }
@@ -152,7 +152,7 @@ export const becomeStar = async (req, res) => {
                     payerId: req.user._id,
                     receiverId: adminUser._id,
                     amount: numericAmount,
-                    description: paymentMode === 'external' && paymentDescription ? String(paymentDescription) : createTransactionDescription(TRANSACTION_TYPES.BECOME_STAR_PAYMENT, req.user.name || ''),
+                    description: paymentMode === 'external' && paymentDescription ? String(paymentDescription) : createTransactionDescription(TRANSACTION_TYPES.BECOME_STAR_PAYMENT, req.user.name || req.user.pseudo || '', 'Admin', req.user.role || 'fan', 'admin'),
                     paymentMode,
                     metadata: { plan }
                 });

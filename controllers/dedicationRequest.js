@@ -67,14 +67,16 @@ export const createDedicationRequest = async (req, res) => {
         payerId: req.user._id,
         receiverId: starId,
         amount: price,
-        description: createTransactionDescription(TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT, starName || ''),
+        description: createTransactionDescription(TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT, req.user.name || req.user.pseudo || '', starName || '', req.user.role || 'fan', 'star'),
         userPhone: payloadContact,
         starName: starName || '',
         metadata: {
           occasion,
           eventName,
           eventDate: new Date(eventDate),
-          dedicationType: 'request'
+          dedicationType: 'request',
+          message: description || '',
+          payerName: req.user.name || req.user.pseudo || ''
         }
       });
     } catch (transactionError) {
