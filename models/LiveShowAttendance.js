@@ -44,6 +44,12 @@ const liveShowAttendanceSchema = new mongoose.Schema(
       default: 'pending',
       index: true
     },
+    // Payment lifecycle for attendance fee
+    // initiated -> hybrid external part initiated
+    // pending -> payment confirmed and in escrow
+    // completed -> released after attendance is finalized (if applicable)
+    // refunded -> refunded due to cancellation/timeout
+    paymentStatus: { type: String, enum: ['initiated', 'pending', 'completed', 'refunded'], default: 'pending', index: true },
     joinedAt: {
       type: Date,
       default: Date.now

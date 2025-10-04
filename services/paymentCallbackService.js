@@ -40,6 +40,28 @@ export const processPaymentCallback = async (callbackData) => {
         transaction.status = TRANSACTION_STATUSES.PENDING;
         transaction.refundTimer = null;
         await transaction.save({ session });
+
+        // Reflect domain paymentStatus transitions to 'pending' once external payment succeeds
+        await Appointment.updateMany(
+          { transactionId: transaction._id },
+          { $set: { paymentStatus: 'pending' } },
+          { session }
+        );
+        await DedicationRequest.updateMany(
+          { transactionId: transaction._id },
+          { $set: { paymentStatus: 'pending' } },
+          { session }
+        );
+        await LiveShow.updateMany(
+          { transactionId: transaction._id },
+          { $set: { paymentStatus: 'pending' } },
+          { session }
+        );
+        await LiveShowAttendance.updateMany(
+          { transactionId: transaction._id },
+          { $set: { paymentStatus: 'pending' } },
+          { session }
+        );
       } else {
         // Payment failed - refund coins and mark as failed
         await refundHybridTransaction(transaction, session);
@@ -101,17 +123,25 @@ const refundHybridTransaction = async (transaction, session) => {
 
 // Cancel domain entities linked to a refunded/failed transaction
 const cancelLinkedEntitiesForTransaction = async (transaction, session) => {
-  // Cancel appointment linked to this transaction
-  await Appointment.updateMany(
-    { transactionId: transaction._id, status: { $in: ['pending', 'approved'] } },
-    { $set: { status: 'cancelled' } },
-    { session }
-  );
+  // Cancel appointment linked to this transaction and free reserved slot
+  const affectedAppointments = await Appointment.find({ transactionId: transaction._id, status: { $in: ['pending', 'approved'] } }).session(session);
+  for (const appt of affectedAppointments) {
+    appt.status = 'cancelled';
+    appt.paymentStatus = 'refunded';
+    await appt.save({ session });
+    try {
+      const Availability = (await import('../models/Availability.js')).default;
+      await Availability.updateOne(
+        { _id: appt.availabilityId, userId: appt.starId, 'timeSlots._id': appt.timeSlotId },
+        { $set: { 'timeSlots.$.status': 'available' } }
+      ).session(session);
+    } catch (_e) {}
+  }
 
   // Cancel dedication requests linked to this transaction
   await DedicationRequest.updateMany(
     { transactionId: transaction._id, status: { $in: ['pending', 'approved'] } },
-    { $set: { status: 'cancelled', cancelledAt: new Date() } },
+    { $set: { status: 'cancelled', paymentStatus: 'refunded', cancelledAt: new Date() } },
     { session }
   );
 
@@ -119,6 +149,7 @@ const cancelLinkedEntitiesForTransaction = async (transaction, session) => {
   const hostingShow = await LiveShow.findOne({ transactionId: transaction._id }).session(session);
   if (hostingShow && hostingShow.status === 'pending') {
     hostingShow.status = 'cancelled';
+    hostingShow.paymentStatus = 'refunded';
     await hostingShow.save({ session });
   }
 
@@ -127,6 +158,7 @@ const cancelLinkedEntitiesForTransaction = async (transaction, session) => {
   if (attendance && attendance.status === 'pending') {
     attendance.status = 'cancelled';
     attendance.cancelledAt = new Date();
+    attendance.paymentStatus = 'refunded';
     await attendance.save({ session });
 
     await LiveShow.findByIdAndUpdate(

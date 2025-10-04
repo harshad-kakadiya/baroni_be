@@ -321,13 +321,26 @@ class NotificationService {
    * @param {Object} options - Additional options for notification storage
    */
   async sendToUser(userId, notificationData, data = {}, options = {}) {
+    // Fetch user name to include in notification data
+    let userName = 'User';
+    try {
+      const user = await User.findById(userId).select('name pseudo');
+      userName = user?.name || user?.pseudo || userName;
+    } catch (_e) {}
+
+    // Add user name to notification data
+    const enrichedData = {
+      ...data,
+      userName
+    };
+
     // Create notification record in database first
     const notificationRecord = new Notification({
       user: userId,
       title: notificationData.title,
       body: notificationData.body,
       type: notificationData.type || 'general',
-      data: data,
+      data: enrichedData,
       customPayload: options.customPayload,
       expiresAt: options.expiresAt,
       relatedEntity: options.relatedEntity,
@@ -651,17 +664,33 @@ class NotificationService {
     // Create notification records ONLY for users who have tokens
     let notificationRecords = [];
     if (validUserIds.length > 0) {
-      notificationRecords = validUserIds.map((uid) => new Notification({
-        user: uid,
-        title: notificationData.title,
-        body: notificationData.body,
-        type: notificationData.type || 'general',
-        data: data,
-        customPayload: options.customPayload,
-        expiresAt: options.expiresAt,
-        relatedEntity: options.relatedEntity,
-        deliveryStatus: 'pending'
-      }));
+      // Fetch user names for all users
+      const userNames = {};
+      try {
+        const users = await User.find({ _id: { $in: validUserIds } }).select('name pseudo');
+        users.forEach(user => {
+          userNames[user._id.toString()] = user.name || user.pseudo || 'User';
+        });
+      } catch (_e) {}
+
+      notificationRecords = validUserIds.map((uid) => {
+        const enrichedData = {
+          ...data,
+          userName: userNames[uid.toString()] || 'User'
+        };
+        
+        return new Notification({
+          user: uid,
+          title: notificationData.title,
+          body: notificationData.body,
+          type: notificationData.type || 'general',
+          data: enrichedData,
+          customPayload: options.customPayload,
+          expiresAt: options.expiresAt,
+          relatedEntity: options.relatedEntity,
+          deliveryStatus: 'pending'
+        });
+      });
 
       try {
         await Notification.insertMany(notificationRecords);

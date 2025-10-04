@@ -163,6 +163,7 @@ const sanitizeLiveShow = (show) => ({
   likeCount: Array.isArray(show.likes) ? show.likes.length : 0,
   likesCount: Array.isArray(show.likes) ? show.likes.length : 0,
   status: show.status,
+  ...(show.paymentStatus ? { paymentStatus: show.paymentStatus } : {}),
   createdAt: show.createdAt,
   updatedAt: show.updatedAt,
 });
@@ -278,6 +279,7 @@ export const createLiveShow = async (req, res) => {
       inviteLink,
       starId: req.user._id,
       status: 'pending',
+      paymentStatus: hostingTxn.status === 'initiated' ? 'initiated' : 'pending',
       description,
       thumbnail: thumbnailUrl,
       transactionId: hostingTxn._id
@@ -285,11 +287,24 @@ export const createLiveShow = async (req, res) => {
 
     await liveShow.populate('starId', 'name pseudo profilePic agoraKey');
 
-    // Send notification to star's followers
+    // Send notification to admin only (no followers notification)
     try {
-      await NotificationHelper.sendLiveShowNotification('LIVE_SHOW_CREATED', liveShow);
+      const starName = req.user.name || req.user.pseudo || 'A star';
+      await NotificationHelper.sendCustomNotification(
+        adminUser._id,
+        'New Live Show Created',
+        `${starName} has created a new live show: "${sessionTitle}"`,
+        {
+          type: 'live_show',
+          liveShowId: liveShow._id.toString(),
+          starId: req.user._id.toString(),
+          starName: starName,
+          navigateTo: 'live_show',
+          eventType: 'LIVE_SHOW_CREATED'
+        }
+      );
     } catch (notificationError) {
-      console.error('Error sending live show notification:', notificationError);
+      console.error('Error sending live show notification to admin:', notificationError);
     }
 
     const resp = { 
@@ -337,12 +352,20 @@ export const getAllLiveShows = async (req, res) => {
 
     const future = [];
     const past = [];
+    const cancelled = [];
     for (const it of withComputed) {
-      if (typeof it.timeToNowMs === 'number' && it.timeToNowMs >= 0) future.push(it); else past.push(it);
+      if (it.status === 'cancelled') {
+        cancelled.push(it);
+      } else if (typeof it.timeToNowMs === 'number' && it.timeToNowMs >= 0) {
+        future.push(it);
+      } else {
+        past.push(it);
+      }
     }
     future.sort((a, b) => (a.timeToNowMs ?? Infinity) - (b.timeToNowMs ?? Infinity));
     past.sort((a, b) => Math.abs(a.timeToNowMs ?? 0) - Math.abs(b.timeToNowMs ?? 0));
-    const data = [...future, ...past];
+    cancelled.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    const data = [...future, ...past, ...cancelled];
 
     return res.json({ 
       success: true, 
@@ -548,6 +571,7 @@ export const joinLiveShow = async (req, res) => {
       attendance.transactionId = transaction._id;
       attendance.attendanceFee = amount;
       attendance.status = 'pending';
+      attendance.paymentStatus = transaction.status === 'initiated' ? 'initiated' : 'pending';
       attendance.joinedAt = new Date();
       attendance.cancelledAt = undefined;
       attendance.refundedAt = undefined;
@@ -559,7 +583,8 @@ export const joinLiveShow = async (req, res) => {
         fanId: req.user._id,
         starId: show.starId,
         transactionId: transaction._id,
-        attendanceFee: amount
+        attendanceFee: amount,
+        paymentStatus: transaction.status === 'initiated' ? 'initiated' : 'pending'
       });
     }
 
@@ -575,7 +600,7 @@ export const joinLiveShow = async (req, res) => {
 
     const data = setPerUserFlags(sanitizeLiveShow(updated), updated, req);
 
-    // Send notification to star about new attendee
+    // Send notification to star about new attendee (general notification, not VoIP)
     try {
       await NotificationHelper.sendCustomNotification(
         show.starId,
@@ -584,7 +609,9 @@ export const joinLiveShow = async (req, res) => {
         {
           type: 'live_show_attendee',
           liveShowId: show._id.toString(),
-          attendeeId: req.user._id.toString()
+          attendeeId: req.user._id.toString(),
+          navigateTo: 'live_show',
+          eventType: 'LIVE_SHOW_ATTENDEE_JOINED'
         }
       );
     } catch (notificationError) {

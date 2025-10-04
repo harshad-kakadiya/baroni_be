@@ -35,6 +35,11 @@ const convertToBoolean = (value) => {
   return Boolean(value);
 };
 
+function generate6DigitOtp() {
+    const n = crypto.randomInt(0, 1_000_000);
+    return String(n).padStart(6, '0');
+}
+
 export const register = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -126,6 +131,45 @@ export const register = async (req, res) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
+
+export const sendOtpController =  async function (req, res) {
+    try {
+        const { numero } = req.body ?? {};
+
+        if (!numero) {
+            return res.status(400).json({ ok: false, error: 'numero (contact) is required' });
+        }
+
+        const senderName = "Baroni";
+
+        const otp = generate6DigitOtp();
+
+        const corps = `Your verification code is ${otp}`;
+
+        const form = { numero, corps, senderName };
+
+        const gatewayUrl = 'http://35.242.129.85:8190/send-message';
+
+        const response = await axios.post(gatewayUrl, qs.stringify(form), {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            timeout: 10000,
+        });
+
+        return res.json({
+            ok: true,
+            gatewayStatus: response.status,
+            gatewayData: response.data,
+            otp,
+        });
+    } catch (err) {
+        console.error('sendOtpController error:', err?.response?.data ?? err.message ?? err);
+        return res.status(500).json({
+            ok: false,
+            error: 'Failed to send OTP',
+            details: err?.response?.data ?? err.message,
+        });
+    }
+}
 
 export const login = async (req, res) => {
   try {

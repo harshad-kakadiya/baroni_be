@@ -10,6 +10,12 @@ const appointmentSchema = new mongoose.Schema(
     time: { type: String, required: true, trim: true },
     price: { type: Number, required: true, min: 0 },
     status: { type: String, enum: ['pending', 'approved', 'rejected', 'cancelled', 'completed'], default: 'pending', index: true },
+    // Tracks the lifecycle of the payment linked to this appointment
+    // initiated -> hybrid external part initiated
+    // pending -> full payment (coin only) or external part completed and funds in escrow
+    // completed -> payment released upon appointment completion
+    // refunded -> coins refunded due to cancellation/timeout
+    paymentStatus: { type: String, enum: ['initiated', 'pending', 'completed', 'refunded'], default: 'pending', index: true },
     transactionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Transaction' },
     externalPaymentId: { type: String, index: true },
     coinAmountReserved: { type: Number, min: 0, default: 0 },
