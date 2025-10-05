@@ -62,7 +62,7 @@ export const getAppointmentDetails = async (req, res) => {
     // Admin can see all appointments (no additional filter)
 
     const appointment = await Appointment.findOne(filter)
-      .populate('starId', 'name pseudo profilePic baroniId email contact role agoraKey')
+      .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' })
       .populate('fanId', 'name pseudo profilePic baroniId email contact role agoraKey')
       .populate('availabilityId', 'date timeSlots')
       .populate('transactionId', 'amount status type')
@@ -301,7 +301,7 @@ export const listAppointments = async (req, res) => {
       if (Object.keys(range).length > 0) filter.date = range;
     }
     const items = await Appointment.find(filter)
-      .populate('starId', 'name pseudo profilePic baroniId email contact role agoraKey')
+      .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' })
       .populate('fanId', 'name pseudo profilePic baroniId email contact role agoraKey')
       .populate('availabilityId')
       .sort({ createdAt: -1 });

@@ -286,7 +286,7 @@ export const createLiveShow = async (req, res) => {
       transactionId: hostingTxn._id
     });
 
-    await liveShow.populate('starId', 'name pseudo profilePic agoraKey');
+    await liveShow.populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
 
     // Send notification to admin only (no followers notification)
     try {
@@ -339,7 +339,7 @@ export const getAllLiveShows = async (req, res) => {
       filter.status = 'pending';
     }
 
-    const shows = await LiveShow.find(filter).populate('starId', 'name pseudo profilePic availableForBookings agoraKey').sort({ date: 1 });
+    const shows = await LiveShow.find(filter).populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' }).sort({ date: 1 });
 
     const withComputed = shows.map((show) => {
       const sanitized = sanitizeLiveShow(show);
@@ -383,7 +383,7 @@ export const getLiveShowById = async (req, res) => {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ success: false, message: 'Invalid live show ID' });
 
-    const show = await LiveShow.findById(id).populate('starId', 'name pseudo profilePic availableForBookings agoraKey');
+    const show = await LiveShow.findById(id).populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
     if (!show) return res.status(404).json({ success: false, message: 'Live show not found' });
 
     const showData = setPerUserFlags(sanitizeLiveShow(show), show, req);
@@ -403,7 +403,7 @@ export const getLiveShowById = async (req, res) => {
 export const getLiveShowByCode = async (req, res) => {
   try {
     const { showCode } = req.params;
-    const show = await LiveShow.findOne({ showCode: showCode.toUpperCase() }).populate('starId', 'name pseudo profilePic availableForBookings agoraKey');
+    const show = await LiveShow.findOne({ showCode: showCode.toUpperCase() }).populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
     if (!show) return res.status(404).json({ success: false, message: 'Live show not found' });
 
     const showData = setPerUserFlags(sanitizeLiveShow(show), show, req);
@@ -444,7 +444,7 @@ export const updateLiveShow = async (req, res) => {
     if (req.file && req.file.buffer) updateData.thumbnail = await uploadFile(req.file.buffer);
 
     const updatedShow = await LiveShow.findByIdAndUpdate(id, updateData, { new: true, runValidators: true })
-      .populate('starId', 'name pseudo profilePic availableForBookings agoraKey');
+      .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
 
     return res.json({ 
       success: true, 
@@ -495,7 +495,7 @@ export const joinLiveShow = async (req, res) => {
     // Check if already joined
     const alreadyJoined = Array.isArray(show.attendees) && show.attendees.some(u => u.toString() === req.user._id.toString());
     if (alreadyJoined) {
-      const populated = await LiveShow.findById(id).populate('starId', 'name pseudo profilePic availableForBookings');
+      const populated = await LiveShow.findById(id).populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
       const data = setPerUserFlags(sanitizeLiveShow(populated), populated, req);
       return res.json({ 
         success: true, 
@@ -598,7 +598,7 @@ export const joinLiveShow = async (req, res) => {
         $inc: { currentAttendees: 1 }
       },
       { new: true }
-    ).populate('starId', 'name pseudo profilePic availableForBookings');
+    ).populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
 
     const data = setPerUserFlags(sanitizeLiveShow(updated), updated, req);
 
@@ -634,7 +634,7 @@ export const joinLiveShow = async (req, res) => {
 export const getMyJoinedLiveShows = async (req, res) => {
   try {
     const shows = await LiveShow.find({ attendees: req.user._id })
-      .populate('starId', 'name pseudo profilePic availableForBookings')
+      .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' })
       .sort({ date: -1 });
 
     const data = shows.map(show => setPerUserFlags(sanitizeLiveShow(show), show, req));
@@ -677,7 +677,7 @@ export const cancelLiveShow = async (req, res) => {
     }
 
     const updated = await LiveShow.findByIdAndUpdate(id, { status: 'cancelled' }, { new: true })
-      .populate('starId', 'name pseudo profilePic availableForBookings agoraKey');
+      .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
 
     // Send notification to attendees about cancellation
     try {
@@ -720,7 +720,7 @@ export const rescheduleLiveShow = async (req, res) => {
     if (time) payload.time = String(time);
 
     const updated = await LiveShow.findByIdAndUpdate(id, payload, { new: true, runValidators: true })
-      .populate('starId', 'name pseudo profilePic availableForBookings agoraKey');
+      .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
 
     // Send notification to attendees about rescheduling
     try {

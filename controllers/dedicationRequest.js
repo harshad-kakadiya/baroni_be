@@ -165,7 +165,7 @@ export const listDedicationRequests = async (req, res) => {
 
     const items = await DedicationRequest.find(filter)
       .populate('fanId', 'name pseudo profilePic agoraKey')
-      .populate('starId', 'name pseudo profilePic agoraKey baroniId')
+      .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' })
       .sort({ createdAt: -1 });
 
     const withComputed = items.map((doc) => {
@@ -213,7 +213,7 @@ export const getDedicationRequest = async (req, res) => {
 
     const item = await DedicationRequest.findById(req.params.id)
       .populate('fanId', 'name pseudo profilePic agoraKey')
-      .populate('starId', 'name pseudo profilePic agoraKey baroniId');
+      .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
 
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
 
@@ -504,7 +504,7 @@ export const getDedicationRequestByTrackingId = async (req, res) => {
 
     const item = await DedicationRequest.findOne({ trackingId })
       .populate('fanId', 'name pseudo profilePic agoraKey')
-      .populate('starId', 'name pseudo profilePic agoraKey baroniId');
+      .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
 
     if (!item) return res.status(404).json({ success: false, message: 'Request not found' });
 
