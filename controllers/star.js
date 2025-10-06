@@ -410,11 +410,12 @@ export const getStarById = async (req, res) => {
 
             // Additional fan-specific checks
             if (req.user.role === 'fan') {
-                const [hasActiveAppointment, hasActiveDedication] = await Promise.all([
-                    Appointment.exists({ starId: id, fanId: req.user._id, status: { $in: ['pending', 'approved'] } }),
-                    DedicationRequest.exists({ starId: id, fanId: req.user._id, status: { $in: ['pending', 'approved'] } })
+                const [hasApprovedAppointment, hasApprovedDedication] = await Promise.all([
+                    Appointment.exists({ starId: id, fanId: req.user._id, status: 'approved' }),
+                    DedicationRequest.exists({ starId: id, fanId: req.user._id, status: 'approved' })
                 ]);
-                starData.isMessage = Boolean(hasActiveAppointment || hasActiveDedication);
+                
+                starData.isMessage = Boolean(hasApprovedAppointment || hasApprovedDedication);
             } else {
                 starData.isMessage = false;
             }
