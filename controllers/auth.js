@@ -1090,4 +1090,36 @@ export const updateIsDev = async (req, res) => {
   }
 };
 
+// Logout user and invalidate all tokens
+export const logout = async (req, res) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const userId = req.user._id;
+
+    // Increment session version to invalidate all existing tokens
+    const currentSessionVersion = req.user.sessionVersion || 0;
+    const newSessionVersion = currentSessionVersion + 1;
+
+    // Clear all push notification tokens and increment session version
+    await User.findByIdAndUpdate(userId, {
+      $unset: {
+        fcmToken: 1,
+        apnsToken: 1,
+        voipToken: 1
+      },
+      sessionVersion: newSessionVersion
+    });
+
+    return res.json({
+      success: true,
+      message: 'Logged out successfully',
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 

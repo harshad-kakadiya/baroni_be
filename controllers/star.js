@@ -436,7 +436,6 @@ export const getStarById = async (req, res) => {
             const month = String(istTime.getUTCMonth() + 1).padStart(2, '0');
             const day = String(istTime.getUTCDate()).padStart(2, '0');
 
-            console.log(`Current IST date: ${year}-${month}-${day}`);
             return `${year}-${month}-${day}`;
         }
 
