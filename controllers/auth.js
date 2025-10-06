@@ -108,7 +108,7 @@ export const register = async (req, res) => {
     const agoraKey = await generateUniqueAgoraKey();
     user.agoraKey = agoraKey;
 
-    // Initialize user with 1000 coins
+    // Initialize user with 20 coins
     await initializeUserCoins(user._id);
 
     // Auto-login
