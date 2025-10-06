@@ -102,10 +102,12 @@ export const getLiveShowDetails = async (req, res) => {
         showCode: liveShow.showCode,
         inviteLink: liveShow.inviteLink,
         status: liveShow.status,
+        ...(liveShow.paymentStatus ? { paymentStatus: liveShow.paymentStatus } : {}),
         description: liveShow.description,
         thumbnail: liveShow.thumbnail,
         isJoined: !!userAttendance,
         attendanceStatus: userAttendance ? userAttendance.status : null,
+        ...(userAttendance && userAttendance.paymentStatus ? { attendancePaymentStatus: userAttendance.paymentStatus } : {}),
         createdAt: liveShow.createdAt,
         updatedAt: liveShow.updatedAt,
         star: {

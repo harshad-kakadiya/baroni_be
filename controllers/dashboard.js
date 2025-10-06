@@ -203,7 +203,8 @@ export const getDashboard = async (req, res) => {
             fan: booking.fanId ? sanitizeUserData(booking.fanId) : null,
             date: booking.date,
             time: booking.time,
-            status: booking.status
+            status: booking.status,
+            ...(booking.paymentStatus ? { paymentStatus: booking.paymentStatus } : {})
           })),
           upcomingLiveShows: upcomingLiveShows.map(show => ({
             id: show._id,
@@ -217,6 +218,8 @@ export const getDashboard = async (req, res) => {
             showCode: show.showCode,
             description: show.description,
             thumbnail: show.thumbnail,
+            status: show.status,
+            ...(show.paymentStatus ? { paymentStatus: show.paymentStatus } : {}),
             likeCount: Array.isArray(show.likes) ? show.likes.length : 0,
             isLiked: Array.isArray(show.likes) && req.user ? show.likes.some(u => u.toString() === req.user._id.toString()) : false
           })),

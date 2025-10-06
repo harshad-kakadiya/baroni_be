@@ -50,6 +50,12 @@ const dedicationRequestSchema = new mongoose.Schema(
       default: 'pending',
       index: true
     },
+    // Payment lifecycle for dedication request payment
+    // initiated -> hybrid external part initiated
+    // pending -> payment confirmed and in escrow
+    // completed -> released after dedication completion
+    // refunded -> refunded due to cancellation/timeout
+    paymentStatus: { type: String, enum: ['initiated', 'pending', 'completed', 'refunded'], default: 'pending', index: true },
     videoUrl: {
       type: String
     },
