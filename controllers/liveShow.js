@@ -170,6 +170,8 @@ const sanitizeLiveShow = (show) => ({
 
 const setPerUserFlags = (sanitized, show, req) => {
   const data = { ...sanitized };
+  console.log(data,"ttttttttttttyyyyyyyyyy")
+  console.log(show,"0000000000000000000000000000000")
   // Ensure likeCount is always present across all responses
   data.likeCount = Array.isArray(show.likes) ? show.likes.length : 0;
   data.likesCount = data.likeCount;
@@ -196,7 +198,7 @@ const setPerUserFlags = (sanitized, show, req) => {
   } catch (_e) {
     data.isUpcoming = false;
   }
-  return data;
+  return {...data,description: show.description};
 };
 
 // Create a new live show (star)
@@ -340,7 +342,6 @@ export const getAllLiveShows = async (req, res) => {
     }
 
     const shows = await LiveShow.find(filter).populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' }).sort({ date: 1 });
-
     const withComputed = shows.map((show) => {
       const sanitized = sanitizeLiveShow(show);
       const dateObj = sanitized.date ? new Date(sanitized.date) : undefined;
@@ -348,7 +349,7 @@ export const getAllLiveShows = async (req, res) => {
       const flagged = setPerUserFlags(sanitized, show, req);
       const likescount = Array.isArray(show.likes) ? show.likes.length : 0;
       const { likes, likeCount, likesCount, ...rest } = flagged;
-      return { ...rest, likescount, showAt: dateObj ? dateObj.toISOString() : undefined, timeToNowMs };
+      return { ...rest,description:show.description, likescount, showAt: dateObj ? dateObj.toISOString() : undefined, timeToNowMs };
     });
 
     const future = [];
@@ -367,8 +368,7 @@ export const getAllLiveShows = async (req, res) => {
     past.sort((a, b) => Math.abs(a.timeToNowMs ?? 0) - Math.abs(b.timeToNowMs ?? 0));
     cancelled.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     const data = [...future, ...past, ...cancelled];
-
-    return res.json({ 
+    return res.json({
       success: true, 
       message: 'Live shows retrieved successfully',
       data: data
@@ -385,8 +385,8 @@ export const getLiveShowById = async (req, res) => {
 
     const show = await LiveShow.findById(id).populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
     if (!show) return res.status(404).json({ success: false, message: 'Live show not found' });
-
     const showData = setPerUserFlags(sanitizeLiveShow(show), show, req);
+    console.log(showData,"aaaaaaaaaaaaaaaaaaaaaaaa");
 
     return res.json({ 
       success: true, 
