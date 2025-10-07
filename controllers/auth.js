@@ -25,7 +25,7 @@ import axios from 'axios';
 import  qs  from 'qs';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken'
-import Otp from "../models/Otp.js";
+import Otp from "../models/otp.js";
 
 const sanitizeUser = (user) => createSanitizedUserResponse(user);
 
