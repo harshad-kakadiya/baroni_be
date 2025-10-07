@@ -18,8 +18,6 @@ import {
     updateVoipToken,
     updateDeviceType,
     updateIsDev, sendOtpController, verifyOtpController,
-    updateIsDev,
-    sendOtpController,
     logout,
 } from '../../controllers/auth.js';
 import { registerValidator, loginValidator, completeProfileValidator, checkUserValidator } from '../../validators/authValidators.js';
