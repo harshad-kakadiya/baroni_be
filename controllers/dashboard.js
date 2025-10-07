@@ -63,7 +63,7 @@ export const getDashboard = async (req, res) => {
       }
 
       const liveShowsQuery = LiveShow.find(liveShowFilter)
-        .populate('starId', 'name pseudo profilePic availableForBookings baroniId agoraKey')
+        .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' })
         .sort({ date: 1 })
         .limit(10);
 
@@ -203,7 +203,8 @@ export const getDashboard = async (req, res) => {
             fan: booking.fanId ? sanitizeUserData(booking.fanId) : null,
             date: booking.date,
             time: booking.time,
-            status: booking.status
+            status: booking.status,
+            ...(booking.paymentStatus ? { paymentStatus: booking.paymentStatus } : {})
           })),
           upcomingLiveShows: upcomingLiveShows.map(show => ({
             id: show._id,
@@ -217,6 +218,8 @@ export const getDashboard = async (req, res) => {
             showCode: show.showCode,
             description: show.description,
             thumbnail: show.thumbnail,
+            status: show.status,
+            ...(show.paymentStatus ? { paymentStatus: show.paymentStatus } : {}),
             likeCount: Array.isArray(show.likes) ? show.likes.length : 0,
             isLiked: Array.isArray(show.likes) && req.user ? show.likes.some(u => u.toString() === req.user._id.toString()) : false
           })),
@@ -254,7 +257,7 @@ export const getDashboard = async (req, res) => {
         .limit(10);
 
       const recentAppointments = await Appointment.find()
-        .populate('starId', 'name pseudo baroniId agoraKey')
+        .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' })
         .populate('fanId', 'name pseudo agoraKey')
         .sort({ createdAt: -1 })
         .limit(10);

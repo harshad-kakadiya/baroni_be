@@ -102,10 +102,12 @@ export const getLiveShowDetails = async (req, res) => {
         showCode: liveShow.showCode,
         inviteLink: liveShow.inviteLink,
         status: liveShow.status,
+        ...(liveShow.paymentStatus ? { paymentStatus: liveShow.paymentStatus } : {}),
         description: liveShow.description,
         thumbnail: liveShow.thumbnail,
         isJoined: !!userAttendance,
         attendanceStatus: userAttendance ? userAttendance.status : null,
+        ...(userAttendance && userAttendance.paymentStatus ? { attendancePaymentStatus: userAttendance.paymentStatus } : {}),
         createdAt: liveShow.createdAt,
         updatedAt: liveShow.updatedAt,
         star: {
@@ -163,12 +165,15 @@ const sanitizeLiveShow = (show) => ({
   likeCount: Array.isArray(show.likes) ? show.likes.length : 0,
   likesCount: Array.isArray(show.likes) ? show.likes.length : 0,
   status: show.status,
+  ...(show.paymentStatus ? { paymentStatus: show.paymentStatus } : {}),
   createdAt: show.createdAt,
   updatedAt: show.updatedAt,
 });
 
 const setPerUserFlags = (sanitized, show, req) => {
   const data = { ...sanitized };
+  console.log(data,"ttttttttttttyyyyyyyyyy")
+  console.log(show,"0000000000000000000000000000000")
   // Ensure likeCount is always present across all responses
   data.likeCount = Array.isArray(show.likes) ? show.likes.length : 0;
   data.likesCount = data.likeCount;
@@ -195,7 +200,7 @@ const setPerUserFlags = (sanitized, show, req) => {
   } catch (_e) {
     data.isUpcoming = false;
   }
-  return data;
+  return {...data,description: show.description};
 };
 
 // Create a new live show (star)
@@ -230,12 +235,13 @@ export const createLiveShow = async (req, res) => {
         payerId: req.user._id,
         receiverId: adminUser._id,
         amount: Number(hostingPrice || 0),
-        description: createTransactionDescription(TRANSACTION_TYPES.LIVE_SHOW_HOSTING_PAYMENT, starName || ''),
+        description: createTransactionDescription(TRANSACTION_TYPES.LIVE_SHOW_HOSTING_PAYMENT, req.user.name || req.user.pseudo || '', 'Admin', req.user.role || 'star', 'admin'),
         userPhone: normalizedPhone,
         starName: starName || '',
         metadata: {
           showType: 'live_show_hosting',
-          requestedAt: new Date()
+          requestedAt: new Date(),
+          payerName: req.user.name || req.user.pseudo || ''
         }
       });
     } catch (transactionError) {
@@ -278,18 +284,32 @@ export const createLiveShow = async (req, res) => {
       inviteLink,
       starId: req.user._id,
       status: 'pending',
+      paymentStatus: hostingTxn.status === 'initiated' ? 'initiated' : 'pending',
       description,
       thumbnail: thumbnailUrl,
       transactionId: hostingTxn._id
     });
 
-    await liveShow.populate('starId', 'name pseudo profilePic agoraKey');
+    await liveShow.populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
 
-    // Send notification to star's followers
+    // Send notification to admin only (no followers notification)
     try {
-      await NotificationHelper.sendLiveShowNotification('LIVE_SHOW_CREATED', liveShow);
+      const starName = req.user.name || req.user.pseudo || 'A star';
+      await NotificationHelper.sendCustomNotification(
+        adminUser._id,
+        'New Live Show Created',
+        `${starName} has created a new live show: "${sessionTitle}"`,
+        {
+          type: 'live_show',
+          liveShowId: liveShow._id.toString(),
+          starId: req.user._id.toString(),
+          starName: starName,
+          navigateTo: 'live_show',
+          eventType: 'LIVE_SHOW_CREATED'
+        }
+      );
     } catch (notificationError) {
-      console.error('Error sending live show notification:', notificationError);
+      console.error('Error sending live show notification to admin:', notificationError);
     }
 
     const resp = { 
@@ -323,8 +343,7 @@ export const getAllLiveShows = async (req, res) => {
       filter.status = 'pending';
     }
 
-    const shows = await LiveShow.find(filter).populate('starId', 'name pseudo profilePic availableForBookings agoraKey').sort({ date: 1 });
-
+    const shows = await LiveShow.find(filter).populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' }).sort({ date: 1 });
     const withComputed = shows.map((show) => {
       const sanitized = sanitizeLiveShow(show);
       const dateObj = sanitized.date ? new Date(sanitized.date) : undefined;
@@ -332,19 +351,26 @@ export const getAllLiveShows = async (req, res) => {
       const flagged = setPerUserFlags(sanitized, show, req);
       const likescount = Array.isArray(show.likes) ? show.likes.length : 0;
       const { likes, likeCount, likesCount, ...rest } = flagged;
-      return { ...rest, likescount, showAt: dateObj ? dateObj.toISOString() : undefined, timeToNowMs };
+      return { ...rest,description:show.description, likescount, showAt: dateObj ? dateObj.toISOString() : undefined, timeToNowMs };
     });
 
     const future = [];
     const past = [];
+    const cancelled = [];
     for (const it of withComputed) {
-      if (typeof it.timeToNowMs === 'number' && it.timeToNowMs >= 0) future.push(it); else past.push(it);
+      if (it.status === 'cancelled') {
+        cancelled.push(it);
+      } else if (typeof it.timeToNowMs === 'number' && it.timeToNowMs >= 0) {
+        future.push(it);
+      } else {
+        past.push(it);
+      }
     }
     future.sort((a, b) => (a.timeToNowMs ?? Infinity) - (b.timeToNowMs ?? Infinity));
     past.sort((a, b) => Math.abs(a.timeToNowMs ?? 0) - Math.abs(b.timeToNowMs ?? 0));
-    const data = [...future, ...past];
-
-    return res.json({ 
+    cancelled.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    const data = [...future, ...past, ...cancelled];
+    return res.json({
       success: true, 
       message: 'Live shows retrieved successfully',
       data: data
@@ -359,10 +385,10 @@ export const getLiveShowById = async (req, res) => {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ success: false, message: 'Invalid live show ID' });
 
-    const show = await LiveShow.findById(id).populate('starId', 'name pseudo profilePic availableForBookings agoraKey');
+    const show = await LiveShow.findById(id).populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
     if (!show) return res.status(404).json({ success: false, message: 'Live show not found' });
-
     const showData = setPerUserFlags(sanitizeLiveShow(show), show, req);
+    console.log(showData,"aaaaaaaaaaaaaaaaaaaaaaaa");
 
     return res.json({ 
       success: true, 
@@ -379,7 +405,7 @@ export const getLiveShowById = async (req, res) => {
 export const getLiveShowByCode = async (req, res) => {
   try {
     const { showCode } = req.params;
-    const show = await LiveShow.findOne({ showCode: showCode.toUpperCase() }).populate('starId', 'name pseudo profilePic availableForBookings agoraKey');
+    const show = await LiveShow.findOne({ showCode: showCode.toUpperCase() }).populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
     if (!show) return res.status(404).json({ success: false, message: 'Live show not found' });
 
     const showData = setPerUserFlags(sanitizeLiveShow(show), show, req);
@@ -420,7 +446,7 @@ export const updateLiveShow = async (req, res) => {
     if (req.file && req.file.buffer) updateData.thumbnail = await uploadFile(req.file.buffer);
 
     const updatedShow = await LiveShow.findByIdAndUpdate(id, updateData, { new: true, runValidators: true })
-      .populate('starId', 'name pseudo profilePic availableForBookings agoraKey');
+      .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
 
     return res.json({ 
       success: true, 
@@ -471,7 +497,7 @@ export const joinLiveShow = async (req, res) => {
     // Check if already joined
     const alreadyJoined = Array.isArray(show.attendees) && show.attendees.some(u => u.toString() === req.user._id.toString());
     if (alreadyJoined) {
-      const populated = await LiveShow.findById(id).populate('starId', 'name pseudo profilePic availableForBookings');
+      const populated = await LiveShow.findById(id).populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
       const data = setPerUserFlags(sanitizeLiveShow(populated), populated, req);
       return res.json({ 
         success: true, 
@@ -505,7 +531,7 @@ export const joinLiveShow = async (req, res) => {
           payerId: req.user._id,
           receiverId: show.starId,
           amount,
-          description: createTransactionDescription(TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT, starName || ''),
+          description: createTransactionDescription(TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT, req.user.name || req.user.pseudo || '', starName || '', req.user.role || 'fan', 'star'),
           userPhone: normalizedPhone,
           starName: starName || '',
           metadata: {
@@ -514,7 +540,8 @@ export const joinLiveShow = async (req, res) => {
             showTitle: show.sessionTitle,
             showDate: show.date,
             showTime: show.time,
-            showType: 'live_show_attendance'
+            showType: 'live_show_attendance',
+            payerName: req.user.name || req.user.pseudo || ''
           }
         });
       } catch (transactionError) {
@@ -548,6 +575,7 @@ export const joinLiveShow = async (req, res) => {
       attendance.transactionId = transaction._id;
       attendance.attendanceFee = amount;
       attendance.status = 'pending';
+      attendance.paymentStatus = transaction.status === 'initiated' ? 'initiated' : 'pending';
       attendance.joinedAt = new Date();
       attendance.cancelledAt = undefined;
       attendance.refundedAt = undefined;
@@ -559,7 +587,8 @@ export const joinLiveShow = async (req, res) => {
         fanId: req.user._id,
         starId: show.starId,
         transactionId: transaction._id,
-        attendanceFee: amount
+        attendanceFee: amount,
+        paymentStatus: transaction.status === 'initiated' ? 'initiated' : 'pending'
       });
     }
 
@@ -571,11 +600,11 @@ export const joinLiveShow = async (req, res) => {
         $inc: { currentAttendees: 1 }
       },
       { new: true }
-    ).populate('starId', 'name pseudo profilePic availableForBookings');
+    ).populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
 
     const data = setPerUserFlags(sanitizeLiveShow(updated), updated, req);
 
-    // Send notification to star about new attendee
+    // Send notification to star about new attendee (general notification, not VoIP)
     try {
       await NotificationHelper.sendCustomNotification(
         show.starId,
@@ -584,7 +613,9 @@ export const joinLiveShow = async (req, res) => {
         {
           type: 'live_show_attendee',
           liveShowId: show._id.toString(),
-          attendeeId: req.user._id.toString()
+          attendeeId: req.user._id.toString(),
+          navigateTo: 'live_show',
+          eventType: 'LIVE_SHOW_ATTENDEE_JOINED'
         }
       );
     } catch (notificationError) {
@@ -605,7 +636,7 @@ export const joinLiveShow = async (req, res) => {
 export const getMyJoinedLiveShows = async (req, res) => {
   try {
     const shows = await LiveShow.find({ attendees: req.user._id })
-      .populate('starId', 'name pseudo profilePic availableForBookings')
+      .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' })
       .sort({ date: -1 });
 
     const data = shows.map(show => setPerUserFlags(sanitizeLiveShow(show), show, req));
@@ -648,7 +679,7 @@ export const cancelLiveShow = async (req, res) => {
     }
 
     const updated = await LiveShow.findByIdAndUpdate(id, { status: 'cancelled' }, { new: true })
-      .populate('starId', 'name pseudo profilePic availableForBookings agoraKey');
+      .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
 
     // Send notification to attendees about cancellation
     try {
@@ -691,7 +722,7 @@ export const rescheduleLiveShow = async (req, res) => {
     if (time) payload.time = String(time);
 
     const updated = await LiveShow.findByIdAndUpdate(id, payload, { new: true, runValidators: true })
-      .populate('starId', 'name pseudo profilePic availableForBookings agoraKey');
+      .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
 
     // Send notification to attendees about rescheduling
     try {

@@ -23,8 +23,10 @@ const sanitize = (doc) => ({
   description: doc.description,
   price: doc.price,
   status: doc.status,
+  ...(doc.paymentStatus ? { paymentStatus: doc.paymentStatus } : {}),
   videoUrl: doc.videoUrl,
   transactionId: doc.transactionId,
+  // Domain payment lifecycle is tracked in paymentStatus
   approvedAt: doc.approvedAt,
   rejectedAt: doc.rejectedAt,
   cancelledAt: doc.cancelledAt,
@@ -65,14 +67,16 @@ export const createDedicationRequest = async (req, res) => {
         payerId: req.user._id,
         receiverId: starId,
         amount: price,
-        description: createTransactionDescription(TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT, starName || ''),
+        description: createTransactionDescription(TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT, req.user.name || req.user.pseudo || '', starName || '', req.user.role || 'fan', 'star'),
         userPhone: payloadContact,
         starName: starName || '',
         metadata: {
           occasion,
           eventName,
           eventDate: new Date(eventDate),
-          dedicationType: 'request'
+          dedicationType: 'request',
+          message: description || '',
+          payerName: req.user.name || req.user.pseudo || ''
         }
       });
     } catch (transactionError) {
@@ -107,6 +111,7 @@ export const createDedicationRequest = async (req, res) => {
       description,
       price,
       status: 'pending',
+      paymentStatus: transaction.status === 'initiated' ? 'initiated' : 'pending',
       transactionId: transaction._id
     });
 
@@ -160,7 +165,7 @@ export const listDedicationRequests = async (req, res) => {
 
     const items = await DedicationRequest.find(filter)
       .populate('fanId', 'name pseudo profilePic agoraKey')
-      .populate('starId', 'name pseudo profilePic agoraKey baroniId')
+      .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' })
       .sort({ createdAt: -1 });
 
     const withComputed = items.map((doc) => {
@@ -172,12 +177,20 @@ export const listDedicationRequests = async (req, res) => {
 
     const future = [];
     const past = [];
+    const cancelled = [];
     for (const it of withComputed) {
-      if (typeof it.timeToNowMs === 'number' && it.timeToNowMs >= 0) future.push(it); else past.push(it);
+      if (it.status === 'cancelled') {
+        cancelled.push(it);
+      } else if (typeof it.timeToNowMs === 'number' && it.timeToNowMs >= 0) {
+        future.push(it);
+      } else {
+        past.push(it);
+      }
     }
     future.sort((a, b) => (a.timeToNowMs ?? Infinity) - (b.timeToNowMs ?? Infinity));
     past.sort((a, b) => Math.abs(a.timeToNowMs ?? 0) - Math.abs(b.timeToNowMs ?? 0));
-    const data = [...future, ...past];
+    cancelled.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    const data = [...future, ...past, ...cancelled];
 
     return res.json({ 
       success: true, 
@@ -200,7 +213,7 @@ export const getDedicationRequest = async (req, res) => {
 
     const item = await DedicationRequest.findById(req.params.id)
       .populate('fanId', 'name pseudo profilePic agoraKey')
-      .populate('starId', 'name pseudo profilePic agoraKey baroniId');
+      .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
 
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
 
@@ -405,6 +418,7 @@ export const completeDedicationByFan = async (req, res) => {
     }
 
     item.status = 'completed';
+    item.paymentStatus = 'completed';
     item.completedAt = new Date();
     const updated = await item.save();
 
@@ -490,7 +504,7 @@ export const getDedicationRequestByTrackingId = async (req, res) => {
 
     const item = await DedicationRequest.findOne({ trackingId })
       .populate('fanId', 'name pseudo profilePic agoraKey')
-      .populate('starId', 'name pseudo profilePic agoraKey baroniId');
+      .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' });
 
     if (!item) return res.status(404).json({ success: false, message: 'Request not found' });
 

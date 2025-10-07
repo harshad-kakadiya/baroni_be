@@ -29,7 +29,9 @@ const sanitize = (doc) => ({
   time: doc.time,
   price: doc.price,
   status: doc.status,
+  ...(doc.paymentStatus ? { paymentStatus: doc.paymentStatus } : {}),
   transactionId: doc.transactionId,
+  // Keep transaction status light; paymentStatus covers domain payment lifecycle
   completedAt: doc.completedAt,
   callDuration: typeof doc.callDuration === 'number' ? doc.callDuration : undefined,
   createdAt: doc.createdAt,
@@ -60,7 +62,7 @@ export const getAppointmentDetails = async (req, res) => {
     // Admin can see all appointments (no additional filter)
 
     const appointment = await Appointment.findOne(filter)
-      .populate('starId', 'name pseudo profilePic baroniId email contact role agoraKey')
+      .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' })
       .populate('fanId', 'name pseudo profilePic baroniId email contact role agoraKey')
       .populate('availabilityId', 'date timeSlots')
       .populate('transactionId', 'amount status type')
@@ -203,7 +205,7 @@ export const createAppointment = async (req, res) => {
         payerId: req.user._id,
         receiverId: starId,
         amount: price,
-        description: createTransactionDescription(TRANSACTION_TYPES.APPOINTMENT_PAYMENT, starName || ''),
+        description: createTransactionDescription(TRANSACTION_TYPES.APPOINTMENT_PAYMENT, req.user.name || req.user.pseudo || '', starName || '', req.user.role || 'fan', 'star'),
         userPhone: normalizedPhone,
         starName: starName || '',
         metadata: {
@@ -211,7 +213,8 @@ export const createAppointment = async (req, res) => {
           availabilityId,
           timeSlotId,
           date: availability.date,
-          time: slot.slot
+          time: slot.slot,
+          payerName: req.user.name || req.user.pseudo || ''
         }
       });
     } catch (transactionError) {
@@ -245,8 +248,18 @@ export const createAppointment = async (req, res) => {
       time: slot.slot,
       price,
       status: 'pending',
+      paymentStatus: transaction.status === 'initiated' ? 'initiated' : 'pending',
       transactionId: transaction._id,
     });
+
+    // Reserve the slot immediately for all bookings (hybrid or coin-only)
+    try {
+      // Atomic update to avoid race conditions
+      await Availability.updateOne(
+        { _id: availabilityId, userId: starId, 'timeSlots._id': timeSlotId, 'timeSlots.status': 'available' },
+        { $set: { 'timeSlots.$.status': 'unavailable' } }
+      );
+    } catch (_e) {}
 
     // Send notification to star about new appointment request
     try {
@@ -288,7 +301,7 @@ export const listAppointments = async (req, res) => {
       if (Object.keys(range).length > 0) filter.date = range;
     }
     const items = await Appointment.find(filter)
-      .populate('starId', 'name pseudo profilePic baroniId email contact role agoraKey')
+      .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' })
       .populate('fanId', 'name pseudo profilePic baroniId email contact role agoraKey')
       .populate('availabilityId')
       .sort({ createdAt: -1 });
@@ -325,12 +338,21 @@ export const listAppointments = async (req, res) => {
 
     const future = [];
     const past = [];
+    const cancelled = [];
     for (const it of withComputed) {
-      if (typeof it.timeToNowMs === 'number' && it.timeToNowMs >= 0) future.push(it); else past.push(it);
+      if (it.status === 'cancelled') {
+        cancelled.push(it);
+      } else if (typeof it.timeToNowMs === 'number' && it.timeToNowMs >= 0) {
+        future.push(it);
+      } else {
+        past.push(it);
+      }
     }
     future.sort((a, b) => (a.timeToNowMs ?? Infinity) - (b.timeToNowMs ?? Infinity));
     past.sort((a, b) => Math.abs(a.timeToNowMs ?? 0) - Math.abs(b.timeToNowMs ?? 0));
-    const data = [...future, ...past];
+    // Keep cancelled at the very end; sort by most recent update descending inside cancelled
+    cancelled.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    const data = [...future, ...past, ...cancelled];
 
     return res.json({ 
       success: true, 
@@ -408,6 +430,14 @@ export const rejectAppointment = async (req, res) => {
     }
     const updated = await appt.save();
 
+    // Free the reserved slot if it was marked unavailable (pending hybrid reservation)
+    try {
+      await Availability.updateOne(
+        { _id: appt.availabilityId, userId: appt.starId, 'timeSlots._id': appt.timeSlotId },
+        { $set: { 'timeSlots.$.status': 'available' } }
+      );
+    } catch (_e) {}
+
     // Send notification to fan about appointment rejection
     try {
       await NotificationHelper.sendAppointmentNotification('APPOINTMENT_REJECTED', updated, { currentUserId: req.user._id });
@@ -451,17 +481,13 @@ export const cancelAppointment = async (req, res) => {
       }
     }
 
-    // If previously approved, free the reserved slot
-    if (appt.status === 'approved') {
-      const availability = await Availability.findOne({ _id: appt.availabilityId, userId: appt.starId });
-      if (availability) {
-        const slot = availability.timeSlots.find((s) => String(s._id) === String(appt.timeSlotId));
-        if (slot && slot.status === 'unavailable') {
-          slot.status = 'available';
-          await availability.save();
-        }
-      }
-    }
+    // Free the reserved slot (for approved or pending hybrid-reserved)
+    try {
+      await Availability.updateOne(
+        { _id: appt.availabilityId, userId: appt.starId, 'timeSlots._id': appt.timeSlotId },
+        { $set: { 'timeSlots.$.status': 'available' } }
+      );
+    } catch (_e) {}
 
     appt.status = 'cancelled';
     const updated = await appt.save();
@@ -602,6 +628,7 @@ export const completeAppointment = async (req, res) => {
     }
 
     appt.status = 'completed';
+    appt.paymentStatus = 'completed';
     appt.completedAt = new Date();
     appt.callDuration = callDuration;
     const updated = await appt.save();

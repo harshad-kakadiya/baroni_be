@@ -42,25 +42,44 @@ export const TRANSACTION_DESCRIPTIONS = {
   [TRANSACTION_TYPES.ADMIN_DEBIT]: 'Admin debit adjustment'
 };
 
-// Helper function to create transaction descriptions with star name
-export const createTransactionDescription = (type, starName = '') => {
-  const baseDescription = TRANSACTION_DESCRIPTIONS[type];
-  if (!starName || starName.trim() === '') {
-    return baseDescription;
+// Helper function to create descriptive transaction messages
+export const createTransactionDescription = (type, payerName = '', receiverName = '', payerRole = 'fan', receiverRole = 'star') => {
+  const payerDisplayName = payerName && payerName.trim() !== '' ? payerName.trim() : 'User';
+  const receiverDisplayName = receiverName && receiverName.trim() !== '' ? receiverName.trim() : 'User';
+  
+  // Create descriptive messages based on transaction type
+  switch (type) {
+    case TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT:
+      return `${payerDisplayName} booked dedication with ${receiverDisplayName}`;
+    
+    case TRANSACTION_TYPES.APPOINTMENT_PAYMENT:
+      return `${payerDisplayName} booked appointment with ${receiverDisplayName}`;
+    
+    case TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT:
+      return `${payerDisplayName} booked live show with ${receiverDisplayName}`;
+    
+    case TRANSACTION_TYPES.LIVE_SHOW_HOSTING_PAYMENT:
+      return `${payerDisplayName} hosted live show`;
+    
+    case TRANSACTION_TYPES.SERVICE_PAYMENT:
+      return `${payerDisplayName} booked service with ${receiverDisplayName}`;
+    
+    case TRANSACTION_TYPES.DEDICATION_PAYMENT:
+      return `${payerDisplayName} booked dedication with ${receiverDisplayName}`;
+    
+    case TRANSACTION_TYPES.BECOME_STAR_PAYMENT:
+      return `${payerDisplayName} became star`;
+    
+    case TRANSACTION_TYPES.REFUND:
+      return `Refund processed for ${payerDisplayName}`;
+    
+    case TRANSACTION_TYPES.ADMIN_CREDIT:
+      return `Admin credit for ${payerDisplayName}`;
+    
+    case TRANSACTION_TYPES.ADMIN_DEBIT:
+      return `Admin debit for ${payerDisplayName}`;
+    
+    default:
+      return `${payerDisplayName} transaction with ${receiverDisplayName}`;
   }
-  
-  // Add star name to star-related transactions
-  const starRelatedTypes = [
-    TRANSACTION_TYPES.APPOINTMENT_PAYMENT,
-    TRANSACTION_TYPES.DEDICATION_REQUEST_PAYMENT,
-    TRANSACTION_TYPES.LIVE_SHOW_ATTENDANCE_PAYMENT,
-    TRANSACTION_TYPES.SERVICE_PAYMENT,
-    TRANSACTION_TYPES.DEDICATION_PAYMENT
-  ];
-  
-  if (starRelatedTypes.includes(type)) {
-    return `${baseDescription} with ${starName}`;
-  }
-  
-  return baseDescription;
 };

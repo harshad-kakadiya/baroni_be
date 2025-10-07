@@ -405,14 +405,14 @@ export const getUserCoinBalance = async (userId) => {
 };
 
 /**
- * Initialize user with 1000 coins (for new registrations)
+ * Initialize user with 20 coins (for new registrations)
  * @param {string} userId - User ID
  * @returns {Promise<Object>} Updated user
  */
 export const initializeUserCoins = async (userId) => {
   const user = await User.findByIdAndUpdate(
     userId,
-    { $set: { coinBalance: 1000 } },
+    { $set: { coinBalance: 20 } },
     { new: true }
   );
 

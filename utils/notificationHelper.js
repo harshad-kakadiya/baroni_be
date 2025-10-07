@@ -301,7 +301,15 @@ class NotificationHelper {
       return;
     }
 
-    const starName = liveShow?.starId?.name || liveShow?.starName || 'Star';
+    // Fetch star name properly
+    let starName = 'Star';
+    try {
+      if (liveShow.starId) {
+        const star = await User.findById(liveShow.starId).select('name pseudo');
+        starName = star?.name || star?.pseudo || starName;
+      }
+    } catch (_e) {}
+
     const data = {
       type: baseTemplate.type,
       liveShowId: liveShow._id.toString(),
@@ -411,11 +419,20 @@ class NotificationHelper {
       currentUserId
     });
 
+    // Fetch star name for dedication notifications
+    let starName = 'Star';
+    try {
+      if (dedication.starId) {
+        const star = await User.findById(dedication.starId).select('name pseudo');
+        starName = star?.name || star?.pseudo || starName;
+      }
+    } catch (_e) {}
+
     // Customize message for dedication accepted
     if (type === 'DEDICATION_ACCEPTED') {
       const customTemplate = {
         ...template,
-        body: `Your dedication Request was accepted by ${dedication.starName || 'Star'}`
+        body: `Your dedication Request was accepted by ${starName}`
       };
 
       if (dedication.fanId && String(dedication.fanId) !== String(currentUserId)) {
@@ -470,7 +487,7 @@ class NotificationHelper {
       // Notify fan about video upload
       const customTemplate = {
         ...template,
-        body: `Your dedication video was uploaded by ${dedication.starName || 'Star'}.`
+        body: `Your dedication video was uploaded by ${starName}.`
       };
       if (dedication.fanId && String(dedication.fanId) !== String(currentUserId)) {
         console.log('[DedicationNotification] send to fan (video_uploaded)', {
@@ -491,14 +508,6 @@ class NotificationHelper {
     const templates = notificationService.constructor.getNotificationTemplates();
     const baseTemplate = templates.NEW_MESSAGE;
 
-    const data = {
-      type: baseTemplate.type,
-      messageId: message._id.toString(),
-      conversationId: message.conversationId?.toString(),
-      senderName,
-      ...additionalData
-    };
-
     // Get current user ID from additionalData
     const currentUserId = additionalData.currentUserId || '';
 
@@ -510,6 +519,14 @@ class NotificationHelper {
         senderName = sender?.name || sender?.pseudo || senderName;
       }
     } catch (_e) {}
+
+    const data = {
+      type: baseTemplate.type,
+      messageId: message._id.toString(),
+      conversationId: message.conversationId?.toString(),
+      senderName,
+      ...additionalData
+    };
 
     const isImage = message.type === 'image' || !!message.imageUrl;
     const preview = (message.message || '').trim();
@@ -602,7 +619,11 @@ class NotificationHelper {
    */
   static async sendCustomNotification(userId, title, body, data = {}) {
     const notificationData = { title, body };
-    await notificationService.sendToUser(userId, notificationData, data);
+    // Ensure it's not VoIP by default - remove any VoIP flags from data
+    const cleanData = { ...data };
+    delete cleanData.pushType;
+    delete cleanData.apnsVoip;
+    await notificationService.sendToUser(userId, notificationData, cleanData);
   }
 
   /**
@@ -610,7 +631,11 @@ class NotificationHelper {
    */
   static async sendCustomNotificationToMultiple(userIds, title, body, data = {}) {
     const notificationData = { title, body };
-    await notificationService.sendToMultipleUsers(userIds, notificationData, data);
+    // Ensure it's not VoIP by default - remove any VoIP flags from data
+    const cleanData = { ...data };
+    delete cleanData.pushType;
+    delete cleanData.apnsVoip;
+    await notificationService.sendToMultipleUsers(userIds, notificationData, cleanData);
   }
 }
 

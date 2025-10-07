@@ -7,6 +7,7 @@ import DedicationRequest from '../models/DedicationRequest.js';
 import LiveShow from '../models/LiveShow.js';
 import mongoose from 'mongoose';
 import { sanitizeUserData } from '../utils/userDataHelper.js';
+import NotificationHelper from '../utils/notificationHelper.js';
 
 // Helper function to calculate and update star's average rating
 const updateStarRating = async (starId) => {
@@ -90,6 +91,13 @@ export const submitAppointmentReview = async (req, res) => {
     // Update star's average rating
     await updateStarRating(appointment.starId);
 
+    // Send notification to star about new rating
+    try {
+      await NotificationHelper.sendRatingNotification('NEW_RATING', review, { currentUserId: req.user._id });
+    } catch (notificationError) {
+      console.error('Error sending rating notification:', notificationError);
+    }
+
     // Populate reviewer info for response
     await review.populate('reviewerId', 'name pseudo profilePic agoraKey');
 
@@ -171,6 +179,13 @@ export const submitDedicationReview = async (req, res) => {
     // Update star's average rating
     await updateStarRating(dedicationRequest.starId);
 
+    // Send notification to star about new rating
+    try {
+      await NotificationHelper.sendRatingNotification('NEW_RATING', review, { currentUserId: req.user._id });
+    } catch (notificationError) {
+      console.error('Error sending rating notification:', notificationError);
+    }
+
     // Populate reviewer info for response
     await review.populate('reviewerId', 'name pseudo profilePic agoraKey');
 
@@ -247,6 +262,13 @@ export const submitLiveShowReview = async (req, res) => {
 
     // Update star's average rating
     await updateStarRating(liveShow.starId);
+
+    // Send notification to star about new rating
+    try {
+      await NotificationHelper.sendRatingNotification('NEW_RATING', review, { currentUserId: req.user._id });
+    } catch (notificationError) {
+      console.error('Error sending rating notification:', notificationError);
+    }
 
     // Populate reviewer info for response
     await review.populate('reviewerId', 'name pseudo profilePic agoraKey');

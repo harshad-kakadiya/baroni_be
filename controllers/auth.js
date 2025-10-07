@@ -225,7 +225,7 @@ export const register = async (req, res) => {
     const agoraKey = await generateUniqueAgoraKey();
     user.agoraKey = agoraKey;
 
-    // Initialize user with 1000 coins
+    // Initialize user with 20 coins
     await initializeUserCoins(user._id);
 
     // Auto-login
@@ -306,9 +306,18 @@ export const login = async (req, res) => {
     const updateData = {};
     const unsetData = {};
 
-    if (fcmToken) updateData.fcmToken = fcmToken;
-    if (apnsToken) updateData.apnsToken = apnsToken;
-    if (voipToken) updateData.voipToken = voipToken;
+    // If no tokens are provided, clear existing tokens
+    if (!fcmToken && !apnsToken && !voipToken) {
+      unsetData.fcmToken = 1;
+      unsetData.apnsToken = 1;
+      unsetData.voipToken = 1;
+      console.log(`User ${user._id} login without tokens - clearing existing tokens`);
+    } else {
+      // Update tokens if provided
+      if (fcmToken) updateData.fcmToken = fcmToken;
+      if (apnsToken) updateData.apnsToken = apnsToken;
+      if (voipToken) updateData.voipToken = voipToken;
+    }
 
     if (deviceType) {
       updateData.deviceType = deviceType;
@@ -1153,6 +1162,38 @@ export const updateIsDev = async (req, res) => {
       data: {
         user: sanitizeUser(updatedUser)
       }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Logout user and invalidate all tokens
+export const logout = async (req, res) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const userId = req.user._id;
+
+    // Increment session version to invalidate all existing tokens
+    const currentSessionVersion = req.user.sessionVersion || 0;
+    const newSessionVersion = currentSessionVersion + 1;
+
+    // Clear all push notification tokens and increment session version
+    await User.findByIdAndUpdate(userId, {
+      $unset: {
+        fcmToken: 1,
+        apnsToken: 1,
+        voipToken: 1
+      },
+      sessionVersion: newSessionVersion
+    });
+
+    return res.json({
+      success: true,
+      message: 'Logged out successfully',
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
