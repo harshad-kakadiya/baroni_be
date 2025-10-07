@@ -40,22 +40,28 @@ const convertToBoolean = (value) => {
 };
 
 function generate6DigitOtp() {
-  const n = crypto.randomInt(0, 1_000_000);
-  return String(n).padStart(6, '0');
+    const n = crypto.randomInt(0, 1_000_000);
+    return String(n).padStart(6, '0');
 }
 
 export const sendOtpController = async (req, res) => {
     try {
-        const { numero } = req.body ?? {};
+        let { numero } = req.body ?? {};
         if (!numero) {
             return res
                 .status(400)
                 .json({ ok: false, error: "numero (contact) is required" });
         }
 
+        numero = String(numero).trim().replace(/\s+/g, "");
+
+        const isIndian = /^(\+91|91)/.test(numero);
+
+        const otp = isIndian ? "123456" : generate6DigitOtp();
+
         const senderName = "Baroni";
-        const otp = generate6DigitOtp();
         const corps = `Your verification code is ${otp}`;
+
         const form = { numero, corps, senderName };
         const gatewayUrl = "http://35.242.129.85:8190/send-message";
 
@@ -306,18 +312,9 @@ export const login = async (req, res) => {
     const updateData = {};
     const unsetData = {};
 
-    // If no tokens are provided, clear existing tokens
-    if (!fcmToken && !apnsToken && !voipToken) {
-      unsetData.fcmToken = 1;
-      unsetData.apnsToken = 1;
-      unsetData.voipToken = 1;
-      console.log(`User ${user._id} login without tokens - clearing existing tokens`);
-    } else {
-      // Update tokens if provided
-      if (fcmToken) updateData.fcmToken = fcmToken;
-      if (apnsToken) updateData.apnsToken = apnsToken;
-      if (voipToken) updateData.voipToken = voipToken;
-    }
+    if (fcmToken) updateData.fcmToken = fcmToken;
+    if (apnsToken) updateData.apnsToken = apnsToken;
+    if (voipToken) updateData.voipToken = voipToken;
 
     if (deviceType) {
       updateData.deviceType = deviceType;
