@@ -9,7 +9,7 @@ const userSchema = new mongoose.Schema(
     coinBalance: { type: Number, default: 20, min: 0 },
     name: { type: String, trim: true },
     pseudo: { type: String, trim: true, unique: true, sparse: true },
-    profilePic: { type: String },
+    profilePic: { type: String,default: 'https://res.cloudinary.com/ddnpvm2yk/image/upload/v1759868390/placeholder_aws6oc.png' },
     preferredLanguage: { type: String },
     preferredCurrency: { type: String, default: 'F' },
     country: { type: String },

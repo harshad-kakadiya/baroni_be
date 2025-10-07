@@ -94,13 +94,13 @@ export const becomeStar = async (req, res) => {
 
         if (totalPendingCommitments > 0) {
             const commitmentDetails = [];
-            if (pendingDedications > 0) commitmentDetails.push(`${pendingDedications} dedication request(s)`);
-            if (pendingAppointments > 0) commitmentDetails.push(`${pendingAppointments} appointment(s)`);
-            if (pendingLiveShows > 0) commitmentDetails.push(`${pendingLiveShows} live show attendance(s)`);
+            if (pendingDedications > 0) commitmentDetails.push(`${pendingDedications} dedication request`);
+            if (pendingAppointments > 0) commitmentDetails.push(`${pendingAppointments} appointment`);
+            if (pendingLiveShows > 0) commitmentDetails.push(`${pendingLiveShows} live show attendance`);
 
             return res.status(400).json({
                 success: false,
-                message: `You have ${totalPendingCommitments} pending commitment(s) that must be completed or cancelled before becoming a star: ${commitmentDetails.join(', ')}. Please complete or cancel all your pending commitments first.`
+                message: `You have ${totalPendingCommitments} pending commitment that must be completed or cancelled before becoming a star: ${commitmentDetails.join(', ')}. Please complete or cancel all your pending commitments first.`
             });
         }
 

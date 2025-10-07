@@ -76,7 +76,8 @@ const liveShowSchema = new mongoose.Schema(
       maxlength: 500
     },
     thumbnail: {
-      type: String
+      type: String,
+        default: 'https://res.cloudinary.com/ddnpvm2yk/image/upload/v1759868390/placeholder_aws6oc.png',
     }
     ,
     transactionId: {

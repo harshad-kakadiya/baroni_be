@@ -14,7 +14,10 @@ const messageSchema = new mongoose.Schema({
     },
     message: String,
     type: {type: String, default: "text"},
-    imageUrl: String
+    imageUrl: {
+        type: String,
+        default: "https://res.cloudinary.com/ddnpvm2yk/image/upload/v1759868390/placeholder_aws6oc.png"
+    }
 }, {timestamps: true});
 
 const MessageModel = mongoose.model('Message', messageSchema);
