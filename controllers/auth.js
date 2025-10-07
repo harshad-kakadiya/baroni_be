@@ -35,6 +35,11 @@ const convertToBoolean = (value) => {
   return Boolean(value);
 };
 
+function generate6DigitOtp() {
+    const n = crypto.randomInt(0, 1_000_000);
+    return String(n).padStart(6, '0');
+}
+
 export const register = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -103,7 +108,7 @@ export const register = async (req, res) => {
     const agoraKey = await generateUniqueAgoraKey();
     user.agoraKey = agoraKey;
 
-    // Initialize user with 1000 coins
+    // Initialize user with 20 coins
     await initializeUserCoins(user._id);
 
     // Auto-login
@@ -126,6 +131,45 @@ export const register = async (req, res) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
+
+export const sendOtpController =  async function (req, res) {
+    try {
+        const { numero } = req.body ?? {};
+
+        if (!numero) {
+            return res.status(400).json({ ok: false, error: 'numero (contact) is required' });
+        }
+
+        const senderName = "Baroni";
+
+        const otp = generate6DigitOtp();
+
+        const corps = `Your verification code is ${otp}`;
+
+        const form = { numero, corps, senderName };
+
+        const gatewayUrl = 'http://35.242.129.85:8190/send-message';
+
+        const response = await axios.post(gatewayUrl, qs.stringify(form), {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            timeout: 10000,
+        });
+
+        return res.json({
+            ok: true,
+            gatewayStatus: response.status,
+            gatewayData: response.data,
+            otp,
+        });
+    } catch (err) {
+        console.error('sendOtpController error:', err?.response?.data ?? err.message ?? err);
+        return res.status(500).json({
+            ok: false,
+            error: 'Failed to send OTP',
+            details: err?.response?.data ?? err.message,
+        });
+    }
+}
 
 export const login = async (req, res) => {
   try {
@@ -184,9 +228,18 @@ export const login = async (req, res) => {
     const updateData = {};
     const unsetData = {};
 
-    if (fcmToken) updateData.fcmToken = fcmToken;
-    if (apnsToken) updateData.apnsToken = apnsToken;
-    if (voipToken) updateData.voipToken = voipToken;
+    // If no tokens are provided, clear existing tokens
+    if (!fcmToken && !apnsToken && !voipToken) {
+      unsetData.fcmToken = 1;
+      unsetData.apnsToken = 1;
+      unsetData.voipToken = 1;
+      console.log(`User ${user._id} login without tokens - clearing existing tokens`);
+    } else {
+      // Update tokens if provided
+      if (fcmToken) updateData.fcmToken = fcmToken;
+      if (apnsToken) updateData.apnsToken = apnsToken;
+      if (voipToken) updateData.voipToken = voipToken;
+    }
 
     if (deviceType) {
       updateData.deviceType = deviceType;
@@ -1031,6 +1084,38 @@ export const updateIsDev = async (req, res) => {
       data: {
         user: sanitizeUser(updatedUser)
       }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Logout user and invalidate all tokens
+export const logout = async (req, res) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const userId = req.user._id;
+
+    // Increment session version to invalidate all existing tokens
+    const currentSessionVersion = req.user.sessionVersion || 0;
+    const newSessionVersion = currentSessionVersion + 1;
+
+    // Clear all push notification tokens and increment session version
+    await User.findByIdAndUpdate(userId, {
+      $unset: {
+        fcmToken: 1,
+        apnsToken: 1,
+        voipToken: 1
+      },
+      sessionVersion: newSessionVersion
+    });
+
+    return res.json({
+      success: true,
+      message: 'Logged out successfully',
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });

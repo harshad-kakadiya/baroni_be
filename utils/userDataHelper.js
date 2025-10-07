@@ -38,7 +38,9 @@ export const sanitizeUserData = (user) => {
   ];
 
   stringFields.forEach(field => {
-    userObj[field] = userObj[field] || '';
+    if (userObj[field] === undefined || userObj[field] === null) {
+      userObj[field] = '';
+    }
   });
 
   // Ensure all number fields have 0 instead of undefined/null
@@ -47,7 +49,9 @@ export const sanitizeUserData = (user) => {
   ];
 
   numberFields.forEach(field => {
-    userObj[field] = userObj[field] || 0;
+    if (userObj[field] === undefined || userObj[field] === null) {
+      userObj[field] = 0;
+    }
   });
 
   // Handle boolean fields - ensure they have proper boolean values

@@ -317,7 +317,7 @@ export const sendNotificationToLiveShowAttendees = async (req, res) => {
 
     // First, verify that the live show exists and get its details
     const liveShow = await LiveShow.findById(liveShowId)
-      .populate('starId', 'name pseudo profilePic agoraKey')
+      .populate({ path: 'starId', select: '-password -passwordResetToken -passwordResetExpires' })
       .lean();
 
     if (!liveShow) {

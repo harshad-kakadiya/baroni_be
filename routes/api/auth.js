@@ -18,6 +18,8 @@ import {
     updateVoipToken,
     updateDeviceType,
     updateIsDev,
+    sendOtpController,
+    logout,
 } from '../../controllers/auth.js';
 import { registerValidator, loginValidator, completeProfileValidator, checkUserValidator } from '../../validators/authValidators.js';
 import { requireAuth, requireRole } from '../../middlewares/auth.js';
@@ -28,10 +30,12 @@ const router = express.Router();
 
 router.post('/register', registerValidator, register);
 router.post('/login', loginValidator, login);
+router.post('/logout', requireAuth, logout);
 router.post('/refresh', refresh);
 router.post('/check-user', checkUserValidator, checkUser);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
+router.post('/sent-otp', sendOtpController);
 
 // OTP verification removed
 router.post(

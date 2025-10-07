@@ -142,7 +142,7 @@ export const becomeStar = async (req, res) => {
                     payerId: req.user._id,
                     receiverId: adminUser._id,
                     amount: numericAmount,
-                    description: createTransactionDescription(TRANSACTION_TYPES.BECOME_STAR_PAYMENT, req.user.name || ''),
+                    description: createTransactionDescription(TRANSACTION_TYPES.BECOME_STAR_PAYMENT, req.user.name || req.user.pseudo || '', 'Admin', req.user.role || 'fan', 'admin'),
                     userPhone: normalizedPhone,
                     starName: req.user.name || '',
                     metadata: { plan }
@@ -153,7 +153,7 @@ export const becomeStar = async (req, res) => {
                     payerId: req.user._id,
                     receiverId: adminUser._id,
                     amount: numericAmount,
-                    description: paymentMode === 'external' && paymentDescription ? String(paymentDescription) : createTransactionDescription(TRANSACTION_TYPES.BECOME_STAR_PAYMENT, req.user.name || ''),
+                    description: paymentMode === 'external' && paymentDescription ? String(paymentDescription) : createTransactionDescription(TRANSACTION_TYPES.BECOME_STAR_PAYMENT, req.user.name || req.user.pseudo || '', 'Admin', req.user.role || 'fan', 'admin'),
                     paymentMode,
                     metadata: { plan }
                 });
@@ -411,11 +411,12 @@ export const getStarById = async (req, res) => {
 
             // Additional fan-specific checks
             if (req.user.role === 'fan') {
-                const [hasActiveAppointment, hasActiveDedication] = await Promise.all([
-                    Appointment.exists({ starId: id, fanId: req.user._id, status: { $in: ['pending', 'approved'] } }),
-                    DedicationRequest.exists({ starId: id, fanId: req.user._id, status: { $in: ['pending', 'approved'] } })
+                const [hasApprovedAppointment, hasApprovedDedication] = await Promise.all([
+                    Appointment.exists({ starId: id, fanId: req.user._id, status: 'approved' }),
+                    DedicationRequest.exists({ starId: id, fanId: req.user._id, status: 'approved' })
                 ]);
-                starData.isMessage = Boolean(hasActiveAppointment || hasActiveDedication);
+                
+                starData.isMessage = Boolean(hasApprovedAppointment || hasApprovedDedication);
             } else {
                 starData.isMessage = false;
             }
@@ -444,7 +445,6 @@ export const getStarById = async (req, res) => {
             const month = String(istTime.getUTCMonth() + 1).padStart(2, '0');
             const day = String(istTime.getUTCDate()).padStart(2, '0');
 
-            console.log(`Current IST date: ${year}-${month}-${day}`);
             return `${year}-${month}-${day}`;
         }
 

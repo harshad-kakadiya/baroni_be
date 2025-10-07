@@ -85,7 +85,7 @@ export const createAvailability = async (req, res) => {
       const errorMessage = getFirstValidationError(errors);
       return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
     }
-    const { date, timeSlots } = req.body;
+
     const isWeekly = Boolean(req.body.isWeekly);
 
     // Only cleanup weekly availabilities if isWeekly is explicitly set to false in payload
@@ -98,55 +98,9 @@ export const createAvailability = async (req, res) => {
       }
     }
 
-    // Validate that the date is not in the past
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Set to start of today
-    const inputDate = parseLocalYMD(date);
-
-    if (inputDate < today) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot create availability for past dates'
-      });
-    }
-
-    // If the date is today, validate that time slots are not in the past
-    const isToday = inputDate.getTime() === today.getTime();
-    if (isToday) {
-      const now = new Date();
-      const currentTime = now.getHours() * 60 + now.getMinutes(); // Current time in minutes
-
-      // Validate time slots are not in the past
-      for (const timeSlot of timeSlots) {
-        const slotString = typeof timeSlot === 'string' ? timeSlot : timeSlot.slot;
-        const parts = slotString.split(' - ');
-        if (parts.length === 2) {
-          const startTime = parts[0].trim();
-
-          // Only check the start time, not the end time
-          // Use 24-hour format for time parsing
-          const timeMatch = startTime.match(/^(\d{1,2}):(\d{2})$/);
-          if (timeMatch) {
-            const hour = parseInt(timeMatch[1], 10);
-            const minute = parseInt(timeMatch[2], 10);
-
-            if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-              const slotTime = hour * 60 + minute;
-              if (slotTime <= currentTime) {
-                return res.status(400).json({
-                  success: false,
-                  message: `Cannot create availability for past time slots. Time slot "${slotString}" is in the past.`
-                });
-              }
-            }
-          }
-        }
-      }
-    }
-
-    let normalized = [];
-    try {
-      normalized = Array.isArray(timeSlots)
+    // Helper function to normalize time slots
+    const normalizeTimeSlots = (timeSlots) => {
+      return Array.isArray(timeSlots)
         ? timeSlots.map((t) => {
             if (typeof t === 'string') {
               return { slot: normalizeTimeSlotString(String(t)), status: 'available' };
@@ -159,11 +113,40 @@ export const createAvailability = async (req, res) => {
             throw new Error('Invalid time slot entry');
           })
         : [];
-    } catch (e) {
-      return res.status(400).json({ success: false, message: 'Invalid timeSlots: provide strings or { slot, status } with valid formats' });
-    }
+    };
 
-    const upsertOne = async (isoDateStr) => {
+    // Helper function to validate time slots for today
+    const validateTimeSlotsForToday = (timeSlots) => {
+      const now = new Date();
+      const currentTime = now.getHours() * 60 + now.getMinutes(); // Current time in minutes
+
+      for (const timeSlot of timeSlots) {
+        const slotString = typeof timeSlot === 'string' ? timeSlot : timeSlot.slot;
+        const parts = slotString.split(' - ');
+        if (parts.length === 2) {
+          const startTime = parts[0].trim();
+          const timeMatch = startTime.match(/^(\d{1,2}):(\d{2})$/);
+          if (timeMatch) {
+            const hour = parseInt(timeMatch[1], 10);
+            const minute = parseInt(timeMatch[2], 10);
+
+            if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+              const slotTime = hour * 60 + minute;
+              if (slotTime <= currentTime) {
+                return {
+                  isValid: false,
+                  message: `Cannot create availability for past time slots. Time slot "${slotString}" is in the past.`
+                };
+              }
+            }
+          }
+        }
+      }
+      return { isValid: true };
+    };
+
+    // Helper function to upsert availability for a single date
+    const upsertOne = async (isoDateStr, normalizedTimeSlots) => {
       const existingAvailability = await Availability.findOne({
         userId: req.user._id,
         date: String(isoDateStr).trim(),
@@ -171,7 +154,7 @@ export const createAvailability = async (req, res) => {
 
       if (existingAvailability) {
         const existingSlots = existingAvailability.timeSlots || [];
-        const newSlots = normalized;
+        const newSlots = normalizedTimeSlots;
         const existingSlotsMap = new Map();
         existingSlots.forEach((slot) => {
           existingSlotsMap.set(slot.slot, slot);
@@ -196,35 +179,140 @@ export const createAvailability = async (req, res) => {
         userId: req.user._id,
         date: String(isoDateStr).trim(),
         isWeekly,
-        timeSlots: normalized,
+        timeSlots: normalizedTimeSlots,
       });
       return { action: 'created', doc: created };
     };
 
-    if (!isWeekly) {
-      const { action, doc } = await upsertOne(String(date).trim());
-      const statusCode = action === 'created' ? 201 : 200;
-      const message = action === 'created' ? 'Availability created successfully' : 'Availability updated successfully';
-      return res.status(statusCode).json({ success: true, data: sanitize(doc), message });
-    }
+    // Helper function to process a single date
+    const processSingleDate = async (date, timeSlots) => {
+      // Validate that the date is not in the past
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Set to start of today
+      const inputDate = parseLocalYMD(date);
 
-    // isWeekly: create for the given date and next 5 same weekdays (6 total)
-    const dates = [];
-    const start = parseLocalYMD(date);
-    for (let i = 0; i < 6; i++) {
-      const d = new Date(start);
-      d.setDate(start.getDate() + i * 7);
-      const iso = formatLocalYMD(d);
-      dates.push(iso);
-    }
+      if (inputDate < today) {
+        throw new Error(`Cannot create availability for past date: ${date}`);
+      }
 
-    const results = [];
-    for (const d of dates) {
-      // All generated dates are >= start, which we've already validated is not in the past
-      const r = await upsertOne(d);
-      results.push(sanitize(r.doc));
+      // If the date is today, validate that time slots are not in the past
+      const isToday = inputDate.getTime() === today.getTime();
+      if (isToday) {
+        const validation = validateTimeSlotsForToday(timeSlots);
+        if (!validation.isValid) {
+          throw new Error(validation.message);
+        }
+      }
+
+      // Normalize time slots
+      let normalized;
+      try {
+        normalized = normalizeTimeSlots(timeSlots);
+      } catch (e) {
+        throw new Error('Invalid timeSlots: provide strings or { slot, status } with valid formats');
+      }
+
+      return { date: inputDate, normalized };
+    };
+
+    // Check if it's multiple dates format
+    if (req.body.dates && Array.isArray(req.body.dates)) {
+      // Multiple dates format
+      const results = [];
+      const errors = [];
+
+      for (const dateObj of req.body.dates) {
+        try {
+          const { date, normalized } = await processSingleDate(dateObj.date, dateObj.timeSlots);
+
+          if (!isWeekly) {
+            // Single date processing
+            const { action, doc } = await upsertOne(String(dateObj.date).trim(), normalized);
+            results.push({
+              date: dateObj.date,
+              action,
+              data: sanitize(doc)
+            });
+          } else {
+            // Weekly processing for this date
+            const dates = [];
+            const start = parseLocalYMD(dateObj.date);
+            for (let i = 0; i < 6; i++) {
+              const d = new Date(start);
+              d.setDate(start.getDate() + i * 7);
+              const iso = formatLocalYMD(d);
+              dates.push(iso);
+            }
+
+            const weeklyResults = [];
+            for (const d of dates) {
+              const r = await upsertOne(d, normalized);
+              weeklyResults.push(sanitize(r.doc));
+            }
+            results.push({
+              date: dateObj.date,
+              action: 'weekly',
+              data: weeklyResults
+            });
+          }
+        } catch (error) {
+          errors.push({
+            date: dateObj.date,
+            error: error.message
+          });
+        }
+      }
+
+      if (errors.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Some dates failed to process',
+          errors,
+          results
+        });
+      }
+
+      const statusCode = results.some(r => r.action === 'created') ? 201 : 200;
+      const message = results.length === 1 
+        ? (results[0].action === 'created' ? 'Availability created successfully' : 'Availability updated successfully')
+        : 'Multiple availabilities processed successfully';
+
+      return res.status(statusCode).json({ 
+        success: true, 
+        data: results, 
+        message 
+      });
+    } else {
+      // Single date format (backward compatibility)
+      const { date, timeSlots } = req.body;
+      
+      const { date: inputDate, normalized } = await processSingleDate(date, timeSlots);
+
+      if (!isWeekly) {
+        const { action, doc } = await upsertOne(String(date).trim(), normalized);
+        const statusCode = action === 'created' ? 201 : 200;
+        const message = action === 'created' ? 'Availability created successfully' : 'Availability updated successfully';
+        return res.status(statusCode).json({ success: true, data: sanitize(doc), message });
+      }
+
+      // isWeekly: create for the given date and next 5 same weekdays (6 total)
+      const dates = [];
+      const start = parseLocalYMD(date);
+      for (let i = 0; i < 6; i++) {
+        const d = new Date(start);
+        d.setDate(start.getDate() + i * 7);
+        const iso = formatLocalYMD(d);
+        dates.push(iso);
+      }
+
+      const results = [];
+      for (const d of dates) {
+        // All generated dates are >= start, which we've already validated is not in the past
+        const r = await upsertOne(d, normalized);
+        results.push(sanitize(r.doc));
+      }
+      return res.status(201).json({ success: true, data: results, message: 'Weekly availabilities created/updated successfully' });
     }
-    return res.status(201).json({ success: true, data: results, message: 'Weekly availabilities created/updated successfully' });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
