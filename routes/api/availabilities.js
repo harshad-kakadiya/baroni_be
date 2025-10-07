@@ -73,6 +73,7 @@ const availabilityCreateValidator = [
     }
   }),
   body('isWeekly').optional().isBoolean(),
+  body('isDaily').optional().isBoolean(),
 ];
 
 const availabilityUpdateValidator = [
@@ -90,11 +91,14 @@ const availabilityUpdateValidator = [
       return false;
     })
     .withMessage('Each time slot must be a non-empty string or an object { slot, status }'),
+  body('isWeekly').optional().isBoolean(),
+  body('isDaily').optional().isBoolean(),
 ];
 
 const deleteSlotValidator = [
   body('date').isString().trim().notEmpty(),
   body('slot').isString().trim().notEmpty(),
+  body('isDaily').optional().isBoolean(),
 ];
 
 const deleteSlotByIdValidator = [

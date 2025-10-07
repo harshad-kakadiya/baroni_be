@@ -3,11 +3,13 @@ import { getFirstValidationError } from '../utils/validationHelper.js';
 import Availability from '../models/Availability.js';
 import Appointment from '../models/Appointment.js'; // Added import for Appointment
 import { cleanupWeeklyAvailabilities, deleteTimeSlotFromWeeklyAvailabilities, deleteTimeSlotByIdFromWeeklyAvailabilities } from '../services/weeklyAvailabilityService.js';
+import { deleteTimeSlotFromDailyAvailabilities, deleteTimeSlotByIdFromDailyAvailabilities } from '../services/dailyAvailabilityService.js';
 
 const sanitize = (doc) => ({
   id: doc._id,
   userId: doc.userId,
   date: doc.date,
+  isDaily: !!doc.isDaily,
   isWeekly: !!doc.isWeekly,
   timeSlots: Array.isArray(doc.timeSlots)
     ? doc.timeSlots.map((t) => ({ id: t._id, slot: t.slot, status: t.status }))
@@ -87,6 +89,7 @@ export const createAvailability = async (req, res) => {
     }
 
     const isWeekly = Boolean(req.body.isWeekly);
+    const isDaily = Boolean(req.body.isDaily);
 
     // Only cleanup weekly availabilities if isWeekly is explicitly set to false in payload
     if (req.body.hasOwnProperty('isWeekly') && !isWeekly) {
@@ -95,6 +98,36 @@ export const createAvailability = async (req, res) => {
       } catch (error) {
         console.error('Error during weekly cleanup:', error);
         // Continue with normal flow even if cleanup fails
+      }
+    }
+
+    // If creating Daily availabilities, ensure weekly is turned off; but validate no active appointments exist in weekly future slots
+    if (isDaily) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = formatLocalYMD(today);
+
+      // Find all future weekly availabilities
+      const futureWeeklyAvailabilities = await Availability.find({ userId: req.user._id, isWeekly: true, date: { $gte: todayStr } });
+      if (futureWeeklyAvailabilities.length > 0) {
+        const weeklyAvailabilityIds = futureWeeklyAvailabilities.map(a => a._id);
+        const activeWeeklyAppt = await Appointment.findOne({
+          starId: req.user._id,
+          availabilityId: { $in: weeklyAvailabilityIds },
+          status: { $in: ['pending', 'approved'] }
+        });
+        if (activeWeeklyAppt) {
+          return res.status(400).json({
+            success: false,
+            message: 'Cannot switch to daily availability while weekly time slots have pending or approved appointments.'
+          });
+        }
+        // No active appointments, cleanup weekly availabilities
+        try {
+          await cleanupWeeklyAvailabilities(req.user._id);
+        } catch (error) {
+          console.error('Error during weekly cleanup on daily switch:', error);
+        }
       }
     }
 
@@ -170,7 +203,14 @@ export const createAvailability = async (req, res) => {
           }
         });
         existingAvailability.timeSlots = existingSlots;
-        if (isWeekly) existingAvailability.isWeekly = true;
+        if (isWeekly) {
+          existingAvailability.isWeekly = true;
+          existingAvailability.isDaily = false;
+        }
+        if (isDaily) {
+          existingAvailability.isDaily = true;
+          existingAvailability.isWeekly = false;
+        }
         const saved = await existingAvailability.save();
         return { action: 'updated', doc: saved };
       }
@@ -178,7 +218,8 @@ export const createAvailability = async (req, res) => {
       const created = await Availability.create({
         userId: req.user._id,
         date: String(isoDateStr).trim(),
-        isWeekly,
+        isWeekly: isWeekly && !isDaily,
+        isDaily: isDaily,
         timeSlots: normalizedTimeSlots,
       });
       return { action: 'created', doc: created };
@@ -225,7 +266,7 @@ export const createAvailability = async (req, res) => {
         try {
           const { date, normalized } = await processSingleDate(dateObj.date, dateObj.timeSlots);
 
-          if (!isWeekly) {
+          if (!isWeekly && !isDaily) {
             // Single date processing
             const { action, doc } = await upsertOne(String(dateObj.date).trim(), normalized);
             results.push({
@@ -233,7 +274,7 @@ export const createAvailability = async (req, res) => {
               action,
               data: sanitize(doc)
             });
-          } else {
+          } else if (isWeekly) {
             // Weekly processing for this date
             const dates = [];
             const start = parseLocalYMD(dateObj.date);
@@ -253,6 +294,27 @@ export const createAvailability = async (req, res) => {
               date: dateObj.date,
               action: 'weekly',
               data: weeklyResults
+            });
+          } else if (isDaily) {
+            // Daily processing for this date: create this date + next 6 consecutive days (7 total)
+            const dates = [];
+            const start = parseLocalYMD(dateObj.date);
+            for (let i = 0; i < 7; i++) {
+              const d = new Date(start);
+              d.setDate(start.getDate() + i);
+              const iso = formatLocalYMD(d);
+              dates.push(iso);
+            }
+
+            const dailyResults = [];
+            for (const d of dates) {
+              const r = await upsertOne(d, normalized);
+              dailyResults.push(sanitize(r.doc));
+            }
+            results.push({
+              date: dateObj.date,
+              action: 'daily',
+              data: dailyResults
             });
           }
         } catch (error) {
@@ -288,30 +350,51 @@ export const createAvailability = async (req, res) => {
       
       const { date: inputDate, normalized } = await processSingleDate(date, timeSlots);
 
-      if (!isWeekly) {
+      if (!isWeekly && !isDaily) {
         const { action, doc } = await upsertOne(String(date).trim(), normalized);
         const statusCode = action === 'created' ? 201 : 200;
         const message = action === 'created' ? 'Availability created successfully' : 'Availability updated successfully';
         return res.status(statusCode).json({ success: true, data: sanitize(doc), message });
       }
 
-      // isWeekly: create for the given date and next 5 same weekdays (6 total)
-      const dates = [];
-      const start = parseLocalYMD(date);
-      for (let i = 0; i < 6; i++) {
-        const d = new Date(start);
-        d.setDate(start.getDate() + i * 7);
-        const iso = formatLocalYMD(d);
-        dates.push(iso);
+      if (isWeekly) {
+        // isWeekly: create for the given date and next 5 same weekdays (6 total)
+        const dates = [];
+        const start = parseLocalYMD(date);
+        for (let i = 0; i < 6; i++) {
+          const d = new Date(start);
+          d.setDate(start.getDate() + i * 7);
+          const iso = formatLocalYMD(d);
+          dates.push(iso);
+        }
+
+        const results = [];
+        for (const d of dates) {
+          // All generated dates are >= start, which we've already validated is not in the past
+          const r = await upsertOne(d, normalized);
+          results.push(sanitize(r.doc));
+        }
+        return res.status(201).json({ success: true, data: results, message: 'Weekly availabilities created/updated successfully' });
       }
 
-      const results = [];
-      for (const d of dates) {
-        // All generated dates are >= start, which we've already validated is not in the past
-        const r = await upsertOne(d, normalized);
-        results.push(sanitize(r.doc));
+      if (isDaily) {
+        // isDaily: create for the given date and next 6 days (7 total)
+        const dates = [];
+        const start = parseLocalYMD(date);
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(start);
+          d.setDate(start.getDate() + i);
+          const iso = formatLocalYMD(d);
+          dates.push(iso);
+        }
+
+        const results = [];
+        for (const d of dates) {
+          const r = await upsertOne(d, normalized);
+          results.push(sanitize(r.doc));
+        }
+        return res.status(201).json({ success: true, data: results, message: 'Daily availabilities created/updated successfully' });
       }
-      return res.status(201).json({ success: true, data: results, message: 'Weekly availabilities created/updated successfully' });
     }
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -370,7 +453,7 @@ export const updateAvailability = async (req, res) => {
       const errorMessage = getFirstValidationError(errors);
       return res.status(400).json({ success: false, message: errorMessage || 'Validation failed' });
     }
-    const { date, timeSlots, status, isWeekly } = req.body;
+    const { date, timeSlots, status, isWeekly, isDaily } = req.body;
     const item = await Availability.findOne({ _id: req.params.id, userId: req.user._id });
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
 
@@ -389,6 +472,42 @@ export const updateAvailability = async (req, res) => {
       }
 
       item.isWeekly = newIsWeekly;
+      if (newIsWeekly) {
+        item.isDaily = false;
+      }
+    }
+
+    // Handle isDaily field if provided in payload
+    if (req.body.hasOwnProperty('isDaily')) {
+      const newIsDaily = Boolean(isDaily);
+      if (newIsDaily) {
+        // Validate no active appointments exist in weekly future slots before turning daily on
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayStr = formatLocalYMD(today);
+        const futureWeeklyAvailabilities = await Availability.find({ userId: req.user._id, isWeekly: true, date: { $gte: todayStr } });
+        if (futureWeeklyAvailabilities.length > 0) {
+          const weeklyAvailabilityIds = futureWeeklyAvailabilities.map(a => a._id);
+          const activeWeeklyAppt = await Appointment.findOne({
+            starId: req.user._id,
+            availabilityId: { $in: weeklyAvailabilityIds },
+            status: { $in: ['pending', 'approved'] }
+          });
+          if (activeWeeklyAppt) {
+            return res.status(400).json({
+              success: false,
+              message: 'Cannot switch to daily availability while weekly time slots have pending or approved appointments.'
+            });
+          }
+          try {
+            await cleanupWeeklyAvailabilities(req.user._id);
+          } catch (error) {
+            console.error('Error during weekly cleanup on daily switch:', error);
+          }
+        }
+        item.isWeekly = false;
+      }
+      item.isDaily = newIsDaily;
     }
 
     // Validate date if provided
@@ -555,6 +674,22 @@ export const deleteTimeSlotByDate = async (req, res) => {
       }
     }
 
+    // If this is a daily availability OR client requests cascading daily deletion, delete across all daily availabilities
+    const cascadeDaily = availability.isDaily || Boolean(req.body.isDaily);
+    if (cascadeDaily) {
+      try {
+        const dailyResult = await deleteTimeSlotFromDailyAvailabilities(req.user._id, slotToDelete);
+        return res.json({
+          success: true,
+          message: `Time slot deleted from ${dailyResult.processed} daily availabilities (${dailyResult.updated} updated, ${dailyResult.removed} removed)`,
+          data: { dailyResult }
+        });
+      } catch (error) {
+        console.error('Error deleting from daily availabilities:', error);
+        return res.status(500).json({ success: false, message: 'Error deleting from daily availabilities' });
+      }
+    }
+
     // Handle non-weekly availability
     const beforeCount = availability.timeSlots.length;
     const remaining = (availability.timeSlots || []).filter((t) => t.slot !== slotToDelete);
@@ -640,6 +775,22 @@ export const deleteTimeSlotById = async (req, res) => {
       } catch (error) {
         console.error('Error deleting from weekly availabilities:', error);
         return res.status(500).json({ success: false, message: 'Error deleting from weekly availabilities' });
+      }
+    }
+
+    // If this is a daily availability OR client requests cascading daily deletion via query, delete across all daily availabilities
+    const cascadeDaily = availability.isDaily || String(req.query.isDaily || '').toLowerCase() === 'true';
+    if (cascadeDaily) {
+      try {
+        const dailyResult = await deleteTimeSlotByIdFromDailyAvailabilities(req.user._id, slotId);
+        return res.json({
+          success: true,
+          message: `Time slot deleted from ${dailyResult.processed} daily availabilities (${dailyResult.updated} updated, ${dailyResult.removed} removed)`,
+          data: { dailyResult }
+        });
+      } catch (error) {
+        console.error('Error deleting from daily availabilities:', error);
+        return res.status(500).json({ success: false, message: 'Error deleting from daily availabilities' });
       }
     }
 

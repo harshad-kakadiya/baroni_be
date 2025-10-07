@@ -4,6 +4,7 @@ const availabilitySchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     date: { type: String, required: true, trim: true }, // ISO date string (YYYY-MM-DD)
+    isDaily: { type: Boolean, default: false },
     isWeekly: { type: Boolean, default: false },
     timeSlots: {
       type: [
