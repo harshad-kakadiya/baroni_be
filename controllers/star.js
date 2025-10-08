@@ -9,6 +9,7 @@ import LiveShowAttendance from "../models/LiveShowAttendance.js";
 import Appointment from "../models/Appointment.js";
 import DedicationRequest from "../models/DedicationRequest.js";
 import Transaction from "../models/Transaction.js";
+import Conversation from "../models/Conversation.js";
 import { createTransaction, completeTransaction, createHybridTransaction } from "../services/transactionService.js";
 import { TRANSACTION_DESCRIPTIONS, TRANSACTION_TYPES, createTransactionDescription } from "../utils/transactionConstants.js";
 import { generateUniqueGoldBaroniId, generateUniqueBaroniId } from "../utils/baroniIdGenerator.js";
@@ -99,13 +100,13 @@ export const becomeStar = async (req, res) => {
 
         if (totalPendingCommitments > 0) {
             const commitmentDetails = [];
-            if (pendingDedications > 0) commitmentDetails.push(`${pendingDedications} dedication request(s)`);
-            if (pendingAppointments > 0) commitmentDetails.push(`${pendingAppointments} appointment(s)`);
-            if (pendingLiveShows > 0) commitmentDetails.push(`${pendingLiveShows} live show attendance(s)`);
+            if (pendingDedications > 0) commitmentDetails.push(`${pendingDedications} dedication request`);
+            if (pendingAppointments > 0) commitmentDetails.push(`${pendingAppointments} appointment`);
+            if (pendingLiveShows > 0) commitmentDetails.push(`${pendingLiveShows} live show attendance`);
 
             return res.status(400).json({
                 success: false,
-                message: `You have ${totalPendingCommitments} pending commitment(s) that must be completed or cancelled before becoming a star: ${commitmentDetails.join(', ')}. Please complete or cancel all your pending commitments first.`
+                message: `You have ${totalPendingCommitments} pending commitment that must be completed or cancelled before becoming a star: ${commitmentDetails.join(', ')}. Please complete or cancel all your pending commitments first.`
             });
         }
 
@@ -436,6 +437,14 @@ export const getStarById = async (req, res) => {
             starData.isMessage = false;
         }
 
+        // ---- Conversation fetch ----
+        let conversation = null;
+        if (req.user) {
+            conversation = await Conversation.findOne({
+                participants: { $all: [id, req.user._id] }
+            }).populate("participants", "name profilePic role");
+        }
+
         // Helper function to get current date in IST timezone (YYYY-MM-DD format)
         function getCurrentDateString() {
             // Get current time in IST (UTC + 5:30)
@@ -543,11 +552,10 @@ export const getStarById = async (req, res) => {
 
             // Create date object treating the slot as IST time
             const [year, month, day] = dateStr.split('-').map(v => parseInt(v, 10));
-            // Create the date in IST timezone - this represents the actual slot time
             const slotDate = new Date(year, month - 1, day, hour, minute, 0, 0);
 
             // Convert to equivalent UTC time for comparison (subtract IST offset)
-            const istOffset = 5.5 * 60 * 60 * 1000; // 5.5 hours in milliseconds
+            const istOffset = 5.5 * 60 * 60 * 1000;
             const equivalentUTCTime = new Date(slotDate.getTime() + istOffset);
 
             console.log(`Parsed time slot: ${slot} on ${dateStr} -> IST time: ${slotDate.toISOString()} -> Equivalent UTC: ${equivalentUTCTime.toISOString()}`);
@@ -563,10 +571,8 @@ export const getStarById = async (req, res) => {
                     const timeSlots = Array.isArray(item.timeSlots)
                         ? item.timeSlots
                             .filter((s) => {
-                                // Filter by status
                                 if (!s || s.status !== 'available') return false;
 
-                                // Check if time slot is in the past for current day
                                 const currentISTTime = getCurrentISTTime();
                                 const today = getCurrentDateString();
 
@@ -576,14 +582,12 @@ export const getStarById = async (req, res) => {
                                     const slotStartTime = parseTimeSlotToISTDate(item.date, s.slot);
                                     if (slotStartTime && slotStartTime <= currentISTTime) {
                                         console.log(`Filtering out passed time slot: ${s.slot} on ${item.date}`);
-                                        return false; // Filter out passed time slots
+                                        return false;
                                     }
                                 }
-
                                 return true;
                             })
                             .sort((a, b) => {
-                                // Sort time slots by time within each day
                                 const timeA = parseTimeSlot(a.slot);
                                 const timeB = parseTimeSlot(b.slot);
                                 return timeA - timeB;
@@ -593,7 +597,6 @@ export const getStarById = async (req, res) => {
                 })
                 .filter((item) => Array.isArray(item.timeSlots) && item.timeSlots.length > 0)
                 .sort((a, b) => {
-                    // Sort by date (nearest first)
                     return new Date(a.date) - new Date(b.date);
                 })
             : [];
@@ -602,32 +605,28 @@ export const getStarById = async (req, res) => {
         function parseTimeSlot(slot) {
             if (!slot || typeof slot !== 'string') return 0;
 
-            // Extract start time from slot (format: "HH:MM - HH:MM" or "HH:MM AM/PM - HH:MM AM/PM")
             const parts = slot.split(' - ');
             if (parts.length !== 2) return 0;
 
             const startTime = parts[0].trim();
 
-            // Try 24-hour format first (HH:MM)
             const h24Match = startTime.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
             if (h24Match) {
                 const hour = parseInt(h24Match[1], 10);
                 const minute = parseInt(h24Match[2], 10);
-                return hour * 60 + minute; // Convert to minutes for easy comparison
+                return hour * 60 + minute;
             }
 
-            // Try AM/PM format (HH:MM AM/PM)
             const ampmMatch = startTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
             if (ampmMatch) {
                 let hour = parseInt(ampmMatch[1], 10);
                 const minute = parseInt(ampmMatch[2], 10);
                 const ampm = ampmMatch[3].toUpperCase();
 
-                // Convert to 24-hour format
                 if (ampm === 'PM' && hour !== 12) hour += 12;
                 if (ampm === 'AM' && hour === 12) hour = 0;
 
-                return hour * 60 + minute; // Convert to minutes for easy comparison
+                return hour * 60 + minute;
             }
 
             return 0;
@@ -637,6 +636,7 @@ export const getStarById = async (req, res) => {
             success: true,
             data: {
                 star: starData,
+                conversation,
                 allservices,
                 dedicationSamples,
                 availability: filteredAvailability,

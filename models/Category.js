@@ -10,7 +10,8 @@ const CategorySchema = new mongoose.Schema(
     image: {
       type: String,
       required: [true, 'Image is required'],
-      trim: true
+      trim: true,
+      default: 'https://res.cloudinary.com/ddnpvm2yk/image/upload/v1759868390/placeholder_aws6oc.png'
     }
   },
   {

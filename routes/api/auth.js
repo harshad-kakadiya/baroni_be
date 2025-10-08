@@ -17,8 +17,7 @@ import {
     updateApnsToken,
     updateVoipToken,
     updateDeviceType,
-    updateIsDev,
-    sendOtpController,
+    updateIsDev, sendOtpController, verifyOtpController,
     logout,
 } from '../../controllers/auth.js';
 import { registerValidator, loginValidator, completeProfileValidator, checkUserValidator } from '../../validators/authValidators.js';
@@ -36,6 +35,7 @@ router.post('/check-user', checkUserValidator, checkUser);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 router.post('/sent-otp', sendOtpController);
+router.post('/verify-otp',verifyOtpController)
 
 // OTP verification removed
 router.post(

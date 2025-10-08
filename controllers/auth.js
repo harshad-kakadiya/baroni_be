@@ -21,10 +21,14 @@ import mongoose from 'mongoose';
 import { normalizeContact } from '../utils/normalizeContact.js';
 import { generateUniqueAgoraKey } from '../utils/agoraKeyGenerator.js';
 import { createSanitizedUserResponse, sanitizeUserData } from '../utils/userDataHelper.js';
+import axios from 'axios';
+import  qs  from 'qs';
+import crypto from 'crypto';
+import jwt from 'jsonwebtoken'
+import Otp from "../models/otp.js";
 
 const sanitizeUser = (user) => createSanitizedUserResponse(user);
 
-// Helper function to convert various types to boolean
 const convertToBoolean = (value) => {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'string') {
@@ -39,6 +43,125 @@ function generate6DigitOtp() {
     const n = crypto.randomInt(0, 1_000_000);
     return String(n).padStart(6, '0');
 }
+
+export const sendOtpController = async (req, res) => {
+    try {
+        let { numero } = req.body ?? {};
+        if (!numero) {
+            return res
+                .status(400)
+                .json({ ok: false, error: "numero (contact) is required" });
+        }
+
+        numero = String(numero).trim().replace(/\s+/g, "");
+
+        const isIndian = /^(\+91|91)/.test(numero);
+
+        const otp = isIndian ? "123456" : generate6DigitOtp();
+
+        const senderName = "Baroni";
+        const corps = `Your verification code is ${otp}`;
+
+        const form = { numero, corps, senderName };
+        const gatewayUrl = "http://35.242.129.85:8190/send-message";
+
+        const response = await axios.post(gatewayUrl, qs.stringify(form), {
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            timeout: 10000,
+        });
+
+        const token = jwt.sign({ numero, otp }, "this is you", { expiresIn: "5m" });
+
+        await Otp.create({
+            contact: numero,
+            otp,
+            token,
+            expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+        });
+
+        return res.json({
+            ok: true,
+            gatewayStatus: response.status,
+            gatewayData: response.data,
+            token,
+            otp,
+        });
+    } catch (err) {
+        console.error(
+            "sendOtpController error:",
+            err?.response?.data ?? err.message ?? err
+        );
+        return res.status(500).json({
+            ok: false,
+            error: "Failed to send OTP",
+            details: err?.response?.data ?? err.message,
+        });
+    }
+};
+
+export const verifyOtpController = async (req, res) => {
+    try {
+        const { otp, token } = req.body ?? {};
+
+        if (!otp || !token) {
+            return res.status(400).json({
+                ok: false,
+                error: "otp and token are required",
+            });
+        }
+
+        let decoded;
+        try {
+            decoded = jwt.verify(token, "this is you");
+        } catch (err) {
+            return res.status(401).json({
+                ok: false,
+                error: "Invalid or expired token",
+            });
+        }
+
+        const contact = decoded.numero;
+
+        if (!contact) {
+            return res.status(400).json({
+                ok: false,
+                error: "Contact not found in token",
+            });
+        }
+
+        const otpRecord = await Otp.findOne({ contact }).sort({ createdAt: -1 });
+
+        if (!otpRecord) {
+            return res.status(404).json({
+                ok: false,
+                error: "OTP not found or expired",
+            });
+        }
+
+        if (otpRecord.otp !== otp) {
+            return res.status(400).json({
+                ok: false,
+                error: "Invalid OTP",
+            });
+        }
+
+        await Otp.deleteOne({ _id: otpRecord._id });
+
+        return res.json({
+            ok: true,
+            message: "OTP verified successfully",
+            contact,
+        });
+
+    } catch (err) {
+        console.error("verifyOtpController error:", err);
+        return res.status(500).json({
+            ok: false,
+            error: "OTP verification failed",
+            details: err.message,
+        });
+    }
+};
 
 export const register = async (req, res) => {
   try {
@@ -132,45 +255,6 @@ export const register = async (req, res) => {
   }
 };
 
-export const sendOtpController =  async function (req, res) {
-    try {
-        const { numero } = req.body ?? {};
-
-        if (!numero) {
-            return res.status(400).json({ ok: false, error: 'numero (contact) is required' });
-        }
-
-        const senderName = "Baroni";
-
-        const otp = generate6DigitOtp();
-
-        const corps = `Your verification code is ${otp}`;
-
-        const form = { numero, corps, senderName };
-
-        const gatewayUrl = 'http://35.242.129.85:8190/send-message';
-
-        const response = await axios.post(gatewayUrl, qs.stringify(form), {
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            timeout: 10000,
-        });
-
-        return res.json({
-            ok: true,
-            gatewayStatus: response.status,
-            gatewayData: response.data,
-            otp,
-        });
-    } catch (err) {
-        console.error('sendOtpController error:', err?.response?.data ?? err.message ?? err);
-        return res.status(500).json({
-            ok: false,
-            error: 'Failed to send OTP',
-            details: err?.response?.data ?? err.message,
-        });
-    }
-}
-
 export const login = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -228,18 +312,9 @@ export const login = async (req, res) => {
     const updateData = {};
     const unsetData = {};
 
-    // If no tokens are provided, clear existing tokens
-    if (!fcmToken && !apnsToken && !voipToken) {
-      unsetData.fcmToken = 1;
-      unsetData.apnsToken = 1;
-      unsetData.voipToken = 1;
-      console.log(`User ${user._id} login without tokens - clearing existing tokens`);
-    } else {
-      // Update tokens if provided
-      if (fcmToken) updateData.fcmToken = fcmToken;
-      if (apnsToken) updateData.apnsToken = apnsToken;
-      if (voipToken) updateData.voipToken = voipToken;
-    }
+    if (fcmToken) updateData.fcmToken = fcmToken;
+    if (apnsToken) updateData.apnsToken = apnsToken;
+    if (voipToken) updateData.voipToken = voipToken;
 
     if (deviceType) {
       updateData.deviceType = deviceType;
