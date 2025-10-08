@@ -171,7 +171,8 @@ export const becomeStar = async (req, res) => {
 
         // Update user with payment status and baroniId (but don't change role yet)
         let updates = { 
-            paymentStatus: transaction.status === 'initiated' ? 'initiated' : 'pending'
+            paymentStatus: transaction.status === 'initiated' ? 'initiated' : 'pending',
+            role: transaction.status === 'pending' ? 'star' : 'fan', // Just in case
         };
 
         // Assign baroniId based on plan
@@ -183,10 +184,6 @@ export const becomeStar = async (req, res) => {
             // Assign standard 5-digit random Baroni ID
             const newId = await generateUniqueBaroniId();
             updates.baroniId = newId;
-        }
-
-        if(transaction.status === 'pending'){
-            updates.role = 'star'
         }
 
         const updatedUser = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true });
