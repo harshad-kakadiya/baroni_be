@@ -179,12 +179,14 @@ export const becomeStar = async (req, res) => {
             // Assign gold Baroni ID from predefined list
             const newGoldId = await generateUniqueGoldBaroniId();
             updates.baroniId = newGoldId;
-            updates.role = "star"
         } else {
             // Assign standard 5-digit random Baroni ID
             const newId = await generateUniqueBaroniId();
             updates.baroniId = newId;
-            updates.role = "star"
+        }
+
+        if(transaction.status === 'pending'){
+            updates.role = 'star'
         }
 
         const updatedUser = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true });
