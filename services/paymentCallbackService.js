@@ -62,6 +62,23 @@ export const processPaymentCallback = async (callbackData) => {
           { $set: { paymentStatus: 'pending' } },
           { session }
         );
+
+        // Handle star promotion payment status updates
+        if (transaction.type === 'BECOME_STAR_PAYMENT') {
+          await User.updateMany(
+            { 
+              _id: transaction.payerId,
+              paymentStatus: 'initiated'
+            },
+            { 
+              $set: { 
+                paymentStatus: 'pending',
+                role: 'star'
+              } 
+            },
+            { session }
+          );
+        }
       } else {
         // Payment failed - refund coins and mark as failed
         await refundHybridTransaction(transaction, session);
@@ -119,6 +136,24 @@ const refundHybridTransaction = async (transaction, session) => {
   transaction.status = TRANSACTION_STATUSES.FAILED;
   transaction.refundTimer = null; // Clear refund timer
   await transaction.save({ session });
+
+  // Handle star promotion refund - revert user back to fan
+  if (transaction.type === 'BECOME_STAR_PAYMENT') {
+    await User.updateMany(
+      { 
+        _id: transaction.payerId,
+        paymentStatus: { $in: ['initiated', 'pending'] }
+      },
+      { 
+        $set: { 
+          paymentStatus: 'refunded',
+          role: 'fan',
+          baroniId: null // Remove the assigned baroniId
+        } 
+      },
+      { session }
+    );
+  }
 };
 
 // Cancel domain entities linked to a refunded/failed transaction

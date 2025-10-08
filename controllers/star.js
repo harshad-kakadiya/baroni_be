@@ -48,15 +48,16 @@ export const getBaroniIdPatterns = async (req, res) => {
 
 /**
  * Fan pays to become a Star (Standard or Gold)
- * Body: { plan: 'standard' | 'gold', amount: number, paymentMode: 'coin' | 'external', paymentDescription?, baroniId? }
+ * Body: { plan: 'standard' | 'gold', amount: number, contact: string, baroniId? }
  * - If plan is 'standard': use provided baroniId or keep existing baroniId
  * - If plan is 'gold': use provided baroniId or assign a unique GOLD patterned baroniId
+ * - Uses hybrid payment: coins first, then external payment if needed
  * - Transaction is created with receiver = admin (first admin user)
- * - On success, user role becomes 'star'
+ * - User only becomes star when payment is completed
  */
 export const becomeStar = async (req, res) => {
     try {
-        const { plan, amount, paymentMode = 'coin', paymentDescription, baroniId } = req.body;
+        const { plan, amount, contact, baroniId } = req.body;
 
         if (req.user.role !== 'fan') {
             return res.status(403).json({ success: false, message: 'Only fans can become stars' });
@@ -64,6 +65,11 @@ export const becomeStar = async (req, res) => {
 
         if (!['standard', 'gold'].includes(String(plan))) {
             return res.status(400).json({ success: false, message: 'Invalid plan. Use standard or gold' });
+        }
+
+        // Validate contact number
+        if (!contact || typeof contact !== 'string' || !contact.trim()) {
+            return res.status(400).json({ success: false, message: 'Contact number is required' });
         }
 
         // Check for pending commitments - fan must complete or cancel all before becoming star
@@ -126,37 +132,26 @@ export const becomeStar = async (req, res) => {
             return res.status(500).json({ success: false, message: 'Admin account not configured' });
         }
 
-        // Create transaction from fan to admin
+        // Normalize contact number
+        const { normalizeContact } = await import('../utils/normalizeContact.js');
+        const normalizedPhone = normalizeContact(contact);
+        if (!normalizedPhone) {
+            return res.status(400).json({ success: false, message: 'Invalid contact number format' });
+        }
+
+        // Create hybrid transaction from fan to admin
+        let transactionResult;
         try {
-            if (paymentMode === 'external') {
-                // For external payments, use hybrid flow and require contact from payload
-                const { contact } = req.body || {};
-                const { normalizeContact } = await import('../utils/normalizeContact.js');
-                const normalizedPhone = normalizeContact(contact || '');
-                if (!normalizedPhone) {
-                    return res.status(400).json({ success: false, message: 'User phone number is required' });
-                }
-                await createHybridTransaction({
-                    type: TRANSACTION_TYPES.BECOME_STAR_PAYMENT,
-                    payerId: req.user._id,
-                    receiverId: adminUser._id,
-                    amount: numericAmount,
-                    description: createTransactionDescription(TRANSACTION_TYPES.BECOME_STAR_PAYMENT, req.user.name || req.user.pseudo || '', 'Admin', req.user.role || 'fan', 'admin'),
-                    userPhone: normalizedPhone,
-                    starName: req.user.name || '',
-                    metadata: { plan }
-                });
-            } else {
-                await createTransaction({
-                    type: TRANSACTION_TYPES.BECOME_STAR_PAYMENT,
-                    payerId: req.user._id,
-                    receiverId: adminUser._id,
-                    amount: numericAmount,
-                    description: paymentMode === 'external' && paymentDescription ? String(paymentDescription) : createTransactionDescription(TRANSACTION_TYPES.BECOME_STAR_PAYMENT, req.user.name || req.user.pseudo || '', 'Admin', req.user.role || 'fan', 'admin'),
-                    paymentMode,
-                    metadata: { plan }
-                });
-            }
+            transactionResult = await createHybridTransaction({
+                type: TRANSACTION_TYPES.BECOME_STAR_PAYMENT,
+                payerId: req.user._id,
+                receiverId: adminUser._id,
+                amount: numericAmount,
+                description: createTransactionDescription(TRANSACTION_TYPES.BECOME_STAR_PAYMENT, req.user.name || req.user.pseudo || '', 'Admin', req.user.role || 'fan', 'admin'),
+                userPhone: normalizedPhone,
+                starName: req.user.name || '',
+                metadata: { plan }
+            });
         } catch (transactionError) {
             return res.status(400).json({ success: false, message: 'Transaction failed: ' + transactionError.message });
         }
@@ -173,15 +168,12 @@ export const becomeStar = async (req, res) => {
             return res.status(500).json({ success: false, message: 'Failed to retrieve transaction' });
         }
 
-        // Complete the transaction immediately only for coin mode
-        if (paymentMode !== 'external') {
-            await completeTransaction(transaction._id);
-        }
+        // Update user with payment status and baroniId (but don't change role yet)
+        let updates = { 
+            paymentStatus: transaction.status === 'initiated' ? 'initiated' : 'pending'
+        };
 
-        // Handle baroniId assignment on becoming a star
-        let updates = { role: 'star' };
-
-        // Always assign a baroniId when promoting to star
+        // Assign baroniId based on plan
         if (String(plan) === 'gold') {
             // Assign gold Baroni ID from predefined list
             const newGoldId = await generateUniqueGoldBaroniId();
@@ -194,19 +186,38 @@ export const becomeStar = async (req, res) => {
 
         const updatedUser = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true });
 
+        // Complete the transaction immediately only for coin-only payments
+        if (transactionResult.paymentMode === 'coin') {
+            await completeTransaction(transaction._id);
+            // Update user role to star for coin-only payments
+            await User.findByIdAndUpdate(req.user._id, { $set: { role: 'star', paymentStatus: 'completed' } });
+        }
+
         const responseBody = {
             success: true,
-            message: 'You are now a Baroni Star',
+            message: transactionResult.paymentMode === 'coin' 
+                ? 'You are now a Baroni Star' 
+                : 'Payment initiated. Complete the external payment to become a Baroni Star',
             data: {
                 user: {
                     id: updatedUser._id,
                     baroniId: updatedUser.baroniId,
-                    role: updatedUser.role
+                    role: updatedUser.role,
+                    paymentStatus: updatedUser.paymentStatus
                 },
                 transactionId: transaction._id,
-                plan
+                plan,
+                paymentMode: transactionResult.paymentMode,
+                coinAmount: transactionResult.coinAmount,
+                externalAmount: transactionResult.externalAmount
             }
         };
+
+        // Add external payment message if hybrid payment
+        if (transactionResult.paymentMode === 'hybrid' && transactionResult.externalPaymentMessage) {
+            responseBody.data.externalPaymentMessage = transactionResult.externalPaymentMessage;
+        }
+
         return res.status(200).json(responseBody);
     } catch (err) {
         return res.status(500).json({ success: false, message: err.message });

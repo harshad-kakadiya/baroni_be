@@ -43,6 +43,8 @@ const userSchema = new mongoose.Schema(
     sessionVersion: { type: Number, default: 0 },
     // Unique 7-digit numeric key for RTC/RTM token generation
     agoraKey: { type: String, unique: true, sparse: true, index: true },
+    // Payment status for star promotion (initiated, pending, completed, refunded)
+    paymentStatus: { type: String, enum: ['initiated', 'pending', 'completed', 'refunded'], default: null, index: true },
   },
   { timestamps: true }
 );
