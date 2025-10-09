@@ -191,8 +191,14 @@ export const becomeStar = async (req, res) => {
         // Complete the transaction immediately only for coin-only payments
         if (transactionResult.paymentMode === 'coin') {
             await completeTransaction(transaction._id);
-            // Update user role to star for coin-only payments
-            await User.findByIdAndUpdate(req.user._id, { $set: { role: 'star', paymentStatus: 'completed' } });
+            // Update user role to star for coin-only payments and set default about text
+            await User.findByIdAndUpdate(req.user._id, { 
+                $set: { 
+                    role: 'star', 
+                    paymentStatus: 'completed',
+                    about: "Coucou, c'est ta star 🌟 ! Je suis là pour te partager de la bonne humeur, de l'énergie et des dédicaces pleines d'amour."
+                } 
+            });
         }
 
         const responseBody = {

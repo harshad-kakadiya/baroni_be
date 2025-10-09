@@ -49,6 +49,14 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Pre-save hook to set default about text for star users
+userSchema.pre('save', function(next) {
+  // Only set default about if user is becoming a star and doesn't have an about text
+  if (this.role === 'star' && (!this.about || this.about.trim() === '')) {
+    this.about = "Coucou, c'est ta star 🌟 ! Je suis là pour te partager de la bonne humeur, de l'énergie et des dédicaces pleines d'amour.";
+  }
+  next();
+});
 
 const User = mongoose.model('User', userSchema);
 export default User;

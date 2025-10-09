@@ -73,7 +73,8 @@ export const processPaymentCallback = async (callbackData) => {
             { 
               $set: { 
                 paymentStatus: 'completed',
-                role: 'star'
+                role: 'star',
+                about: "Coucou, c'est ta star 🌟 ! Je suis là pour te partager de la bonne humeur, de l'énergie et des dédicaces pleines d'amour."
               } 
             },
             { session }
