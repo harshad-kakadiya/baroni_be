@@ -28,6 +28,7 @@ export const handlePaymentCallback = async (req, res) => {
       message: 'Payment callback processed successfully',
       data: result
     });
+
   } catch (err) {
     console.error('Error processing payment callback:', err);
     return res.status(500).json({ 
