@@ -63,8 +63,9 @@ export const processPaymentCallback = async (callbackData) => {
           { session }
         );
 
+        console.log("Transaction: ",transaction)
         // Handle star promotion payment status updates
-        if (transaction.type === 'BECOME_STAR_PAYMENT') {
+        if (transaction.type.toUpperCase() === 'BECOME_STAR_PAYMENT') {
           await User.updateMany(
             { 
               _id: transaction.payerId,
@@ -138,7 +139,7 @@ const refundHybridTransaction = async (transaction, session) => {
   await transaction.save({ session });
 
   // Handle star promotion refund - revert user back to fan
-  if (transaction.type === 'BECOME_STAR_PAYMENT') {
+  if (transaction.type.toUpperCase() === 'BECOME_STAR_PAYMENT') {
     await User.updateMany(
       { 
         _id: transaction.payerId,
@@ -148,7 +149,7 @@ const refundHybridTransaction = async (transaction, session) => {
         $set: { 
           paymentStatus: 'refunded',
           role: 'fan',
-          baroniId: null // Remove the assigned baroniId
+          baroniId: null
         } 
       },
       { session }
