@@ -37,7 +37,7 @@ export const processPaymentCallback = async (callbackData) => {
 
       if (status === 'completed') {
         // Payment successful - move transaction to pending (escrow) and clear refund timer
-        transaction.status = TRANSACTION_STATUSES.PENDING;
+        transaction.status = TRANSACTION_STATUSES.COMPLETED;
         transaction.refundTimer = null;
         await transaction.save({ session });
 
@@ -63,7 +63,6 @@ export const processPaymentCallback = async (callbackData) => {
           { session }
         );
 
-        console.log("Transaction: ",transaction)
         // Handle star promotion payment status updates
         if (transaction.type.toUpperCase() === 'BECOME_STAR_PAYMENT') {
           await User.updateMany(
@@ -73,7 +72,7 @@ export const processPaymentCallback = async (callbackData) => {
             },
             { 
               $set: { 
-                paymentStatus: 'pending',
+                paymentStatus: 'completed',
                 role: 'star'
               } 
             },
