@@ -80,7 +80,7 @@ export const sendOtpController = async (req, res) => {
         });
 
         return res.json({
-            ok: true,
+            success: true,
             gatewayStatus: response.status,
             gatewayData: response.data,
             token,
