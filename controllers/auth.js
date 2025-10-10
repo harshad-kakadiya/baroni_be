@@ -105,7 +105,7 @@ export const verifyOtpController = async (req, res) => {
 
         if (!otp || !token) {
             return res.status(400).json({
-                ok: false,
+                success: false,
                 error: "otp and token are required",
             });
         }
@@ -115,7 +115,7 @@ export const verifyOtpController = async (req, res) => {
             decoded = jwt.verify(token, "this is you");
         } catch (err) {
             return res.status(401).json({
-                ok: false,
+                success: false,
                 error: "Invalid or expired token",
             });
         }
@@ -124,7 +124,7 @@ export const verifyOtpController = async (req, res) => {
 
         if (!contact) {
             return res.status(400).json({
-                ok: false,
+                success: false,
                 error: "Contact not found in token",
             });
         }
@@ -133,14 +133,14 @@ export const verifyOtpController = async (req, res) => {
 
         if (!otpRecord) {
             return res.status(404).json({
-                ok: false,
+                success: false,
                 error: "OTP not found or expired",
             });
         }
 
         if (otpRecord.otp !== otp) {
             return res.status(400).json({
-                ok: false,
+                success: false,
                 error: "Invalid OTP",
             });
         }
@@ -148,7 +148,7 @@ export const verifyOtpController = async (req, res) => {
         await Otp.deleteOne({ _id: otpRecord._id });
 
         return res.json({
-            ok: true,
+            success: true,
             message: "OTP verified successfully",
             contact,
         });
@@ -156,7 +156,7 @@ export const verifyOtpController = async (req, res) => {
     } catch (err) {
         console.error("verifyOtpController error:", err);
         return res.status(500).json({
-            ok: false,
+            success: false,
             error: "OTP verification failed",
             details: err.message,
         });
