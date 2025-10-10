@@ -4,7 +4,11 @@ export const registerValidator = [
   body('contact')
     .optional()
     .trim()
-    .customSanitizer((v) => (typeof v === 'string' ? v.replace(/\s+/g, '') : v))
+    .customSanitizer((v) => {
+      if (typeof v !== 'string') return v;
+      const noSpaces = v.replace(/\s+/g, '');
+      return noSpaces.startsWith('+') ? noSpaces.slice(1) : noSpaces;
+    })
     .isMobilePhone('any', { strictMode: false })
     .withMessage('Invalid contact number format. Use international format, e.g. +22376299719'),
   body('email').optional().isEmail().withMessage('Invalid email format'),
@@ -19,7 +23,11 @@ export const loginValidator = [
   body('contact')
     .optional()
     .trim()
-    .customSanitizer((v) => (typeof v === 'string' ? v.replace(/\s+/g, '') : v))
+    .customSanitizer((v) => {
+      if (typeof v !== 'string') return v;
+      const noSpaces = v.replace(/\s+/g, '');
+      return noSpaces.startsWith('+') ? noSpaces.slice(1) : noSpaces;
+    })
     .isMobilePhone('any', { strictMode: false })
     .withMessage('Invalid contact number format. Use international format, e.g. +22376299719'),
   body('email').optional().isEmail().withMessage('Invalid email format'),
@@ -39,7 +47,11 @@ export const completeProfileValidator = [
   body('contact')
     .optional()
     .trim()
-    .customSanitizer((v) => (typeof v === 'string' ? v.replace(/\s+/g, '') : v))
+    .customSanitizer((v) => {
+      if (typeof v !== 'string') return v;
+      const noSpaces = v.replace(/\s+/g, '');
+      return noSpaces.startsWith('+') ? noSpaces.slice(1) : noSpaces;
+    })
     .isMobilePhone('any', { strictMode: false })
     .withMessage('Invalid contact number format. Use international format, e.g. +22376299719'),
   body('about').optional().trim().isLength({ max: 500 }).withMessage('About must be less than 500 characters'),
@@ -54,7 +66,11 @@ export const checkUserValidator = [
   body('contact')
     .optional()
     .trim()
-    .customSanitizer((v) => (typeof v === 'string' ? v.replace(/\s+/g, '') : v))
+    .customSanitizer((v) => {
+      if (typeof v !== 'string') return v;
+      const noSpaces = v.replace(/\s+/g, '');
+      return noSpaces.startsWith('+') ? noSpaces.slice(1) : noSpaces;
+    })
     .isMobilePhone('any', { strictMode: false })
     .withMessage('Invalid contact number format. Use international format, e.g. +22376299719')
 ];
